@@ -28,7 +28,7 @@ public class CartService implements ICartService {
 
     @Override
     public Optional<Cart> getUserActiveCart(User user) {
-        return cartRepository.findByUserIdAndActive(user.getId(), true);
+        return cartRepository.findByUserIdAndActiveWithRelations(user.getId(), true);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class CartService implements ICartService {
 
     @Override
     public Cart getCartByUserId(Long userId) {
-        Cart cart = cartRepository.findByUserId(userId);
+        Cart cart = cartRepository.findByUserIdWithRelations(userId);
         if (cart == null) {
             throw new ResourceNotFoundException("Cart not found for user with ID: " + userId);
         }

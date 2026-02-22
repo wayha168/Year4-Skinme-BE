@@ -37,4 +37,9 @@ public class Image {
     @JoinColumn(name = "product_id")
     @JsonIgnore
     private Product product;
+
+    @ManyToOne
+    @JoinColumn(name = "promotion_id")
+    @JsonIgnore
+    private Promotion promotion;
 }

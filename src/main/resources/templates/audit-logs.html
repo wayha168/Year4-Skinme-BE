@@ -1,0 +1,289 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+      <style>
+        /* Modern Concept Style Badges */
+        .activity-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.4rem 0.9rem;
+          border-radius: 20px;
+          font-weight: 500;
+          font-size: 0.875rem;
+          white-space: nowrap;
+        }
+        
+        .badge-login {
+          background-color: #dbeafe;
+          color: #1e40af;
+        }
+        
+        .badge-logout {
+          background-color: #fef3c7;
+          color: #92400e;
+        }
+        
+        .badge-register {
+          background-color: #d1fae5;
+          color: #065f46;
+        }
+        
+        .badge-purchase {
+          background-color: #e0e7ff;
+          color: #3730a3;
+        }
+        
+        .badge-password-reset {
+          background-color: #fce7f3;
+          color: #9f1239;
+        }
+        
+        .badge-order_placed {
+          background-color: #e0f2fe;
+          color: #0369a1;
+        }
+        
+        .badge-payment_success {
+          background-color: #dcfce7;
+          color: #15803d;
+        }
+        
+        /* User Info in Table */
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+        
+        .user-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 600;
+          font-size: 0.875rem;
+          flex-shrink: 0;
+        }
+        
+        .user-details {
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .user-name {
+          font-weight: 600;
+          color: #111827;
+          font-size: 0.9rem;
+        }
+        
+        .user-email {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+        
+        /* Priority Badge Style */
+        .priority-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          font-weight: 600;
+          font-size: 0.875rem;
+          background-color: #dbeafe;
+          color: #1e40af;
+        }
+      </style>
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Audit Log Management'}">Audit Log Management</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+    <div class="main-content">
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-clipboard-data'"></div>
+
+      <div class="container-fluid px-4">
+        <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+          <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        
+        <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+          <h6 class="mb-3"><i class="bi bi-funnel"></i> Filter Audit Logs</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">User</label>
+              <select class="form-select" id="userFilter" onchange="applyFilters()">
+                <option value="">All Users</option>
+                <option th:each="user : ${allUsers}" 
+                        th:value="${user.id}" 
+                        th:text="${user.firstName + ' ' + (user.lastName != null ? user.lastName : '') + ' (' + user.email + ')'}">
+                  User
+                </option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Activity Type</label>
+              <select class="form-select" id="activityTypeFilter" onchange="applyFilters()">
+                <option value="">All Activities</option>
+                <option value="LOGIN">Login</option>
+                <option value="LOGOUT">Logout</option>
+                <option value="REGISTER">Register</option>
+                <option value="PURCHASE">Purchase</option>
+                <option value="ORDER_PLACED">Order Placed</option>
+                <option value="PAYMENT_SUCCESS">Payment Success</option>
+                <option value="PASSWORD_RESET">Password Reset</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                <i class="bi bi-x-circle"></i> Clear Filters
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-row mb-4">
+          <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-clipboard-data"></i></div>
+            <div style="flex: 1;">
+              <div class="stat-value" th:text="${totalActivities ?: 0}">0</div>
+              <div class="stat-label">Total Activities</div>
+            </div>
+          </div>
+        </div>
+
+        <div th:if="${#lists.isEmpty(activities)}" class="card mt-4">
+          <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h5>No Audit Logs Found</h5>
+            <p>There are no activity logs available at the moment.</p>
+          </div>
+        </div>
+
+        <div th:unless="${#lists.isEmpty(activities)}" class="audit-table">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 60px;">#</th>
+                  <th><i class="bi bi-person"></i> User</th>
+                  <th><i class="bi bi-activity"></i> Action</th>
+                  <th><i class="bi bi-info-circle"></i> Details</th>
+                  <th style="width: 180px;"><i class="bi bi-calendar"></i> Timestamp</th>
+                  <th style="width: 120px;"><i class="bi bi-gear"></i> Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="activity, iterStat : ${activities}">
+                  <td class="text-muted fw-semibold" th:text="${iterStat.count}">1</td>
+                  <td>
+                    <div class="user-info">
+                      <div class="user-avatar" th:text="${activity.user.firstName != null ? activity.user.firstName.substring(0, 1).toUpperCase() : activity.user.email.substring(0, 1).toUpperCase()}">
+                        U
+                      </div>
+                      <div class="user-details">
+                        <div class="user-name">
+                          <span th:if="${activity.user.firstName != null}" th:text="${activity.user.firstName}"></span>
+                          <span th:if="${activity.user.firstName != null and activity.user.lastName != null}"> </span>
+                          <span th:if="${activity.user.lastName != null}" th:text="${activity.user.lastName}"></span>
+                          <span th:if="${activity.user.firstName == null and activity.user.lastName == null}">User</span>
+                        </div>
+                        <div class="user-email" th:text="${activity.user.email}">email@example.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span th:class="'activity-badge badge-' + ${#strings.toLowerCase(activity.activityType.toString())}"
+                          th:text="${activity.activityType}">
+                      ACTION
+                    </span>
+                  </td>
+                  <td>
+                    <span class="text-dark" th:text="${activity.details != null ? activity.details : 'N/A'}">Details</span>
+                  </td>
+                  <td>
+                    <span class="text-muted" th:text="${#temporals.format(activity.timestamp, 'MMM dd, yyyy HH:mm')}">
+                      Feb 19, 2026 22:30
+                    </span>
+                  </td>
+                  <td>
+                    <div class="table-actions">
+                      <button 
+                        class="btn-action" 
+                        th:attr="onclick='viewActivityDetails(' + ${activity.id} + ')'"
+                        title="View Details"
+                      >
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="mt-4 text-center mb-5">
+          <p class="text-muted" th:text="'Total Activities: ' + ${totalActivities ?: 0}">Total: 0</p>
+        </div>
+      </div>
+    </div>
+    </th:block>
+    <th:block th:fragment="script">
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script>
+        function applyFilters() {
+          const userId = document.getElementById('userFilter').value;
+          const activityType = document.getElementById('activityTypeFilter').value;
+          
+          let url = '/views/audit-logs?';
+          if (userId) url += 'userId=' + userId + '&';
+          if (activityType) url += 'activityType=' + activityType;
+          
+          if (url.endsWith('&') || url.endsWith('?')) {
+            url = url.slice(0, -1);
+          }
+          
+          window.location.href = url;
+        }
+        
+        function clearFilters() {
+          window.location.href = '/views/audit-logs';
+        }
+        
+        function viewActivityDetails(activityId) {
+          // Show activity details in a modal or navigate to details page
+          showToast('Viewing activity details...', 'info');
+          // You can implement a modal here or navigate to a details page
+        }
+      </script>
+    </th:block>
+</html>

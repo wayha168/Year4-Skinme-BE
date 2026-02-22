@@ -1,11 +1,11 @@
 <!doctype html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en" th:fragment="layout(content, head, scripts)">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en" th:fragment="layout(content, head, scripts)">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="_csrf" th:content="${_csrf.token}" />
     <meta name="_csrf_header" th:content="${_csrf.headerName}" />
-    <title th:text="${pageTitle} ?: 'SkinMe'">SkinMe</title>
+    <title th:text="${pageTitle != null} ? ${pageTitle} : 'SkinMe'">SkinMe</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link
       rel="stylesheet"
@@ -16,12 +16,18 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" th:href="@{/css/layout.css}" />
+    <link rel="stylesheet" th:href="@{/css/alerts.css}" />
     <th:block th:replace="${head}"></th:block>
   </head>
   <body>
+    <span id="msgLoggingOut" style="display:none" aria-hidden="true">Logging out...</span>
     <div class="app-shell">
-      <div class="app-sidebar" th:replace="components/sidebar :: sidebar"></div>
-      <main class="app-content" th:replace="${content}"></main>
+      <div class="app-sidebar">
+        <div th:replace="~{components/sidebar :: sidebar}"></div>
+      </div>
+      <div class="app-content">
+        <th:block th:replace="${content}"></th:block>
+      </div>
     </div>
     
     <!-- Toast Notification Container -->
@@ -110,6 +116,160 @@
     
     <th:block th:replace="${scripts}"></th:block>
     
+    <!-- WebSocket Client Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="/js/websocket-client.js"></script>
+    <script>
+      // Initialize WebSocket notifications on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        if (typeof window.webSocketClient !== 'undefined' && window.webSocketClient) {
+          // Subscribe to notifications
+          window.webSocketClient.subscribeToNotifications(function(notification) {
+            if (typeof showToast === 'function') {
+              showToast(notification.message, notification.type === 'ERROR' ? 'error' : 
+                       notification.type === 'SUCCESS' ? 'success' : 'info', 5000);
+            }
+          });
+          
+          // Subscribe to order updates
+          window.webSocketClient.subscribeToOrders(function(update) {
+            if (typeof showToast === 'function' && update.data) {
+              const message = update.data.message || 'Order updated';
+              showToast(message, 'info', 5000);
+            }
+          });
+        }
+      });
+    </script>
+    
+    <!-- Live Reload Script (Development Only) -->
+    <!-- Only loads if LiveReload is explicitly enabled -->
+    <script th:if="${@environment.getProperty('spring.devtools.livereload.enabled', 'false') == 'true'}">
+      // Live Reload connection for Spring Boot DevTools
+      // This script only runs when LiveReload is explicitly enabled
+      (function() {
+        // Suppress all WebSocket errors from appearing in console
+        const originalError = console.error;
+        const suppressWebSocketErrors = function() {
+          const args = Array.from(arguments);
+          const errorMsg = args.join(' ');
+          // Don't log WebSocket connection errors
+          if (errorMsg.includes('WebSocket') || errorMsg.includes('livereload') || errorMsg.includes('35729')) {
+            return;
+          }
+          originalError.apply(console, args);
+        };
+        
+        try {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const host = window.location.hostname;
+          const port = '35729';
+          
+          if (typeof WebSocket !== 'undefined') {
+            // Temporarily suppress console errors
+            console.error = suppressWebSocketErrors;
+            
+            const ws = new WebSocket(protocol + '//' + host + ':' + port + '/livereload');
+            
+            ws.onopen = function() {
+              console.error = originalError; // Restore console.error
+            };
+            
+            ws.onmessage = function(event) {
+              try {
+                const data = JSON.parse(event.data);
+                if (data.command === 'reload') {
+                  window.location.reload();
+                }
+              } catch (e) {
+                // Ignore parse errors
+              }
+            };
+            
+            ws.onerror = function(error) {
+              // Silently fail - this is normal if DevTools is not active
+            };
+            
+            ws.onclose = function() {
+              console.error = originalError; // Restore console.error on close
+            };
+            
+            // Set a timeout to close connection if it doesn't connect quickly
+            setTimeout(function() {
+              if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+                ws.close();
+              }
+              console.error = originalError; // Restore console.error
+            }, 2000);
+          } else {
+            console.error = originalError;
+          }
+        } catch (e) {
+          // Silently ignore all errors - LiveReload is optional
+          console.error = originalError;
+        }
+      })();
+    </script>
+    
+    <!-- Auto-refresh polling script (works for Docker and localhost) -->
+    <script>
+      // Polling-based auto-refresh - checks for page updates every 2 seconds
+      // Works in both Docker and localhost environments
+      (function() {
+        let lastModified = null;
+        let lastCheck = Date.now();
+        
+        // Initial check to get baseline
+        fetch(window.location.href, { 
+          method: 'HEAD', 
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        })
+          .then(function(response) {
+            lastModified = response.headers.get('Last-Modified') || response.headers.get('ETag');
+            lastCheck = Date.now();
+          })
+          .catch(function() {
+            // Ignore initial errors
+          });
+        
+        // Poll for changes every 2 seconds
+        setInterval(function() {
+          fetch(window.location.href, { 
+            method: 'HEAD', 
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          })
+            .then(function(response) {
+              const currentModified = response.headers.get('Last-Modified') || response.headers.get('ETag');
+              const currentTime = Date.now();
+              
+              // Check if page was modified or if it's been more than 30 seconds (force check)
+              if (currentModified && currentModified !== lastModified) {
+                lastModified = currentModified;
+                window.location.reload();
+              } else if (currentTime - lastCheck > 30000) {
+                // Force refresh check every 30 seconds
+                lastCheck = currentTime;
+                if (currentModified) {
+                  lastModified = currentModified;
+                }
+              }
+            })
+            .catch(function(error) {
+              // Silently ignore network errors
+            });
+        }, 2000); // Check every 2 seconds
+      })();
+    </script>
+    
     <!-- Global Logout Function -->
     <script>
       // Global logout function - ensures single instance
@@ -119,7 +279,7 @@
         }
         
         if (typeof showToast === 'function') {
-          showToast('Logging out...', 'info');
+          showToast(document.getElementById('msgLoggingOut')?.textContent || 'Logging out...', 'info');
         }
         
         // Find logout form
@@ -136,10 +296,11 @@
         if (!csrfInput) {
           // Try to get from meta tag
           const csrfMeta = document.querySelector('meta[name="_csrf"]');
+          const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
           if (csrfMeta) {
             csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
-            csrfInput.name = '_csrf';
+            csrfInput.name = csrfHeaderMeta ? csrfHeaderMeta.getAttribute('content') : '_csrf';
             csrfInput.value = csrfMeta.getAttribute('content') || csrfMeta.content;
             logoutForm.appendChild(csrfInput);
           }

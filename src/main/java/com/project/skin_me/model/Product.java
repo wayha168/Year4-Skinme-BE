@@ -55,6 +55,10 @@ public class Product {
     @JsonIgnore
     private User user;
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Promotion> promotions;
+
     public Product(String name, String brand, BigDecimal price,
                    String productType, int inventory, String description,
                    String howToUse, Category category) {

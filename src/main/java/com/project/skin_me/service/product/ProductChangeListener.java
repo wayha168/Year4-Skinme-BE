@@ -4,6 +4,7 @@ import com.project.skin_me.event.ProductAddedEvent;
 import com.project.skin_me.event.ProductDeletedEvent;
 import com.project.skin_me.event.ProductUpdatedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -13,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductChangeListener {
@@ -45,10 +47,9 @@ public class ProductChangeListener {
 
             Files.writeString(catalogFile, md);
 
-            System.out.println("[CATALOG] Exported to " + catalogFile.toAbsolutePath());
+            log.info("Catalog exported to {}", catalogFile.toAbsolutePath());
         } catch (Exception e) {
-            System.err.println("[CATALOG] EXPORT FAILED!");
-            e.printStackTrace();
+            log.error("Catalog export failed", e);
         }
     }
 }

@@ -55,6 +55,12 @@ public class User {
         @Column(name = "last_activity")
         private LocalDateTime lastActivity;
 
+        @Column(name = "reset_token")
+        private String resetToken;
+
+        @Column(name = "reset_token_expiry")
+        private LocalDateTime resetTokenExpiry;
+
         @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
         private Cart cart;
 

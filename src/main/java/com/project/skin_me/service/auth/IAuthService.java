@@ -12,5 +12,6 @@ public interface IAuthService {
     ResponseEntity<ApiResponse> googleLogin(String code, HttpServletRequest request, HttpServletResponse response);
     ResponseEntity<ApiResponse> signup(SignupRequest signupRequest);
     ResponseEntity<ApiResponse> logout();
-    ResponseEntity<ApiResponse> resetPassword(String email, String newPassword, String confirmPassword);
+    ResponseEntity<ApiResponse> resetPassword(String email, String token, String newPassword, String confirmPassword);
+    ResponseEntity<ApiResponse> forgotPassword(String email);
 }

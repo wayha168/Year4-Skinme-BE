@@ -1,6 +1,6 @@
 package com.project.skin_me.service.notification;
 
-import com.project.skin_me.controller.WebSocketController;
+import com.project.skin_me.controller.api.WebSocketController;
 import com.project.skin_me.dto.NotificationDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

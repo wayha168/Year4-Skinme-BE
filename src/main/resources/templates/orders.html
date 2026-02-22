@@ -2,7 +2,7 @@
 <html
   xmlns:th="http://www.thymeleaf.org"
   lang="en"
-  th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::scripts})}"
 >
   <head>
     <th:block th:fragment="style">
@@ -16,8 +16,8 @@
   </head>
   <body>
     <th:block th:fragment="main">
-    <main class="main-content">
-      <div th:replace="components/page-header :: page-header" th:with="pageIcon='bi-bag-check'"></div>
+    <div class="main-content">
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-bag-check'"></div>
 
       <div class="container-fluid px-4">
         <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -49,51 +49,106 @@
         </div>
 
         <div th:unless="${#lists.isEmpty(orders)}" class="order-table">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th><i class="bi bi-hash"></i> Order ID</th>
-                <th><i class="bi bi-calendar"></i> Order Date</th>
-                <th><i class="bi bi-currency-dollar"></i> Total Amount</th>
-                <th><i class="bi bi-tags"></i> Status</th>
-                <th><i class="bi bi-truck"></i> Tracking</th>
-                <th><i class="bi bi-gear"></i> Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr th:each="order : ${orders}">
-                <td><strong th:text="'#' + ${order.orderId}">Order ID</strong></td>
-                <td th:text="${#dates.format(order.orderDate, 'MM/dd/yyyy')}">Date</td>
-                <td>
-                  <strong th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount, 1, 2)}"
-                    >$0.00</strong
-                  >
-                </td>
-                <td>
-                  <span
-                    th:class="'status-badge status-' + ${order.orderStatus?.toString()?.toLowerCase() ?: 'pending'}"
-                    th:text="${order.orderStatus}"
-                    >PENDING</span
-                  >
-                </td>
-                <td th:text="${order.trackingNumber ?: 'N/A'}">N/A</td>
-                <td>
-                  <a th:href="'/view/orders/' + ${order.orderId}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-eye"></i> View
-                  </a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">#</th>
+                  <th><i class="bi bi-calendar"></i> Order Date</th>
+                  <th style="width: 140px;"><i class="bi bi-currency-dollar"></i> Total Amount</th>
+                  <th style="width: 120px;"><i class="bi bi-tags"></i> Status</th>
+                  <th><i class="bi bi-truck"></i> Tracking</th>
+                  <th style="width: 100px;"><i class="bi bi-gear"></i> Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="order : ${orders}">
+                  <td class="text-muted fw-semibold" th:text="'#' + ${order.orderId}">#1</td>
+                  <td>
+                    <span class="text-dark" th:text="${#temporals.format(order.orderDate, 'MMM dd, yyyy')}">Date</span>
+                  </td>
+                  <td>
+                    <span class="fw-bold price-badge text-success" th:text="'$' + ${#numbers.formatDecimal(order.totalAmount != null ? order.totalAmount : 0, 1, 2)}">$0.00</span>
+                  </td>
+                  <td>
+                    <span th:if="${order.orderStatus != null and (order.orderStatus == 'COMPLETED' or order.orderStatus == 'DELIVERED')}" class="status-badge-active">
+                      <i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span>
+                    </span>
+                    <span th:if="${order.orderStatus == null or (order.orderStatus != 'COMPLETED' and order.orderStatus != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
+                  </td>
+                  <td>
+                    <span th:if="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="text-dark" th:text="${order.trackingNumber}">TRK-123</span>
+                    <span th:unless="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="text-muted">N/A</span>
+                  </td>
+                  <td>
+                    <div class="table-actions">
+                      <a th:href="'/view/orders/' + ${order.orderId}" class="btn-action" title="View">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      <button 
+                        class="btn-action" 
+                        th:attr="onclick='editOrder(' + ${order.orderId} + ')'"
+                        title="Edit"
+                      >
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button 
+                        class="btn-action" 
+                        th:attr="onclick='deleteOrder(' + ${order.orderId} + ')'"
+                        title="Delete"
+                      >
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+        
+        <!-- Pagination -->
+        <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/orders', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
 
         <div class="mt-4 text-center mb-5">
           <p class="text-muted" th:text="'Total Orders: ' + ${totalOrders ?: 0}">Total: 0</p>
         </div>
       </div>
-    </main>
+    </div>
     </th:block>
-    <th:block th:fragment="script">
+    <th:block th:fragment="scripts">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script>
+        function editOrder(orderId) {
+          if (typeof showToast === 'function') {
+            showToast('Redirecting to edit order...', 'info');
+          }
+          window.location.href = '/view/orders/' + orderId;
+        }
+        
+        function deleteOrder(orderId) {
+          if (confirm('Are you sure you want to delete order #' + orderId + '? This action cannot be undone.')) {
+            if (typeof showToast === 'function') {
+              showToast('Deleting order...', 'info');
+            }
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/views/orders/' + orderId + '/delete';
+            
+            const csrfToken = document.querySelector('meta[name="_csrf"]');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+            if (csrfToken) {
+              const csrfInput = document.createElement('input');
+              csrfInput.type = 'hidden';
+              csrfInput.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
+              csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
+              form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+          }
+        }
+      </script>
     </th:block>
 </html>

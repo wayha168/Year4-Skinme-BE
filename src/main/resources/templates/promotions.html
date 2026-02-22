@@ -1,0 +1,225 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+      <link rel="stylesheet" href="/css/badges.css" />
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Promotion Management'}">Promotion Management</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+      <div class="main-content">
+        <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag', pageTitle='Promotion Management'"></div>
+
+        <div class="container-fluid px-4">
+          <!-- Action Buttons -->
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0" style="font-weight: 700; color: #111827;">
+              <i class="bi bi-tag"></i> Promotions
+            </h2>
+            <a href="/views/promotions/create" class="btn btn-primary">
+              <i class="bi bi-plus-circle"></i> Create Promotion
+            </a>
+          </div>
+
+          <!-- Promotions Table -->
+          <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white;">
+              <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Promotions</h5>
+            </div>
+            <div class="card-body p-0">
+              <div th:if="${#lists.isEmpty(promotions)}" class="p-4 text-center text-muted">
+                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                <p class="mt-2">No promotions found. <a href="/views/promotions/create">Create your first promotion</a>.</p>
+              </div>
+
+              <div th:unless="${#lists.isEmpty(promotions)}" class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th><i class="bi bi-hash"></i> ID</th>
+                      <th><i class="bi bi-tag"></i> Title</th>
+                      <th><i class="bi bi-box"></i> Product</th>
+                      <th><i class="bi bi-percent"></i> Discount</th>
+                      <th><i class="bi bi-calendar-check"></i> Start Date</th>
+                      <th><i class="bi bi-calendar-x"></i> Deadline</th>
+                      <th><i class="bi bi-calendar-event"></i> Created/Updated</th>
+                      <th><i class="bi bi-currency-dollar"></i> Prices</th>
+                      <th><i class="bi bi-image"></i> Images</th>
+                      <th><i class="bi bi-toggles"></i> Status</th>
+                      <th><i class="bi bi-gear"></i> Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr th:each="promotion : ${promotions}">
+                      <td th:text="${promotion.id}">1</td>
+                      <td>
+                        <span class="table-tag table-tag-name" th:text="${promotion.title}">Title</span>
+                        <br />
+                        <small class="text-muted" th:if="${promotion.description}" th:text="${#strings.abbreviate(promotion.description, 50)}">Description</small>
+                      </td>
+                      <td>
+                        <span class="table-tag table-tag-product" th:text="${promotion.productName}">Product</span>
+                        <br />
+                        <small class="text-muted" th:text="'ID: ' + ${promotion.productId}">ID</small>
+                      </td>
+                      <td>
+                        <span class="table-tag table-tag-green" th:text="${#numbers.formatDecimal(promotion.discountPercentage, 1, 2)} + '%'">0%</span>
+                      </td>
+                      <td>
+                        <span class="table-tag table-tag-blue" th:text="${#temporals.format(promotion.startDate, 'MM/dd/yyyy HH:mm')}">Date</span>
+                        <br />
+                        <small class="text-muted" th:text="'Use Date'">Use Date</small>
+                      </td>
+                      <td>
+                        <span class="table-tag table-tag-red" th:text="${#temporals.format(promotion.deadline, 'MM/dd/yyyy HH:mm')}">Date</span>
+                        <br />
+                        <span th:if="${promotion.deadline.isBefore(T(java.time.LocalDateTime).now())}" 
+                              class="table-tag table-tag-expired">Expired</span>
+                        <span th:if="${promotion.currentlyActive}" 
+                              class="table-tag table-tag-active">Active</span>
+                      </td>
+                      <td>
+                        <small class="text-muted">
+                          <div th:text="'Created: ' + ${#temporals.format(promotion.createdAt, 'MM/dd/yyyy HH:mm')}">Created</div>
+                          <div th:if="${promotion.updatedAt != null}" 
+                               th:text="'Updated: ' + ${#temporals.format(promotion.updatedAt, 'MM/dd/yyyy HH:mm')}">Updated</div>
+                        </small>
+                      </td>
+                      <td>
+                        <div>
+                          <small class="text-muted" style="text-decoration: line-through;" 
+                                 th:text="'$' + ${#numbers.formatDecimal(promotion.originalPrice, 1, 2)}">$0.00</small>
+                          <br />
+                          <strong style="color: #28a745;" 
+                                  th:text="'$' + ${#numbers.formatDecimal(promotion.discountedPrice, 1, 2)}">$0.00</strong>
+                        </div>
+                      </td>
+                      <td>
+                        <div th:if="${promotion.images != null and !promotion.images.isEmpty()}">
+                          <div class="d-flex gap-1 flex-wrap mb-2">
+                            <img th:each="image : ${promotion.images}" 
+                                 th:src="${image.downloadUrl}" 
+                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 2px solid #ddd; cursor: pointer; transition: transform 0.2s;"
+                                 th:alt="${image.fileName}"
+                                 th:attr="onclick=|window.open('${image.downloadUrl}', '_blank')|"
+                                 th:title="${image.fileName}"
+                                 onmouseover="this.style.transform='scale(1.1)'"
+                                 onmouseout="this.style.transform='scale(1)'"
+                                 onerror="this.style.display='none'" />
+                          </div>
+                          <span class="table-tag table-tag-green" th:text="${#lists.size(promotion.images)} + ' image(s)'"></span>
+                        </div>
+                        <span th:if="${promotion.images == null or promotion.images.isEmpty()}" 
+                              class="table-tag table-tag-inactive">No images</span>
+                      </td>
+                      <td>
+                        <span th:if="${promotion.active}" class="status-badge-active">
+                          <i class="bi bi-check-circle-fill"></i> Active
+                        </span>
+                        <span th:unless="${promotion.active}" class="status-badge-inactive">Inactive</span>
+                      </td>
+                      <td>
+                        <div class="table-actions">
+                          <button class="btn-action" th:attr="onclick='viewPromotion(' + ${promotion.id} + ')'" title="View">
+                            <i class="bi bi-eye"></i>
+                          </button>
+                          <button class="btn-action" th:attr="onclick='editPromotion(' + ${promotion.id} + ')'" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                          </button>
+                          <button class="btn-action" th:attr="onclick='deletePromotion(' + ${promotion.id} + ')'" title="Delete">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Pagination -->
+            <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/promotions', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
+          </div>
+        </div>
+      </div>
+    </th:block>
+
+    <th:block th:fragment="script">
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script th:inline="javascript">
+        const API_PREFIX = /*[[${api.prefix}]]*/ '/api/v1';
+
+        // View promotion details
+        function viewPromotion(id) {
+          if (typeof showToast === 'function') {
+            showToast('Loading promotion details...', 'info');
+          }
+          window.location.href = '/views/promotions/' + id;
+        }
+        
+        // Edit promotion - navigate to create page with edit parameter
+        function editPromotion(id) {
+          if (typeof showToast === 'function') {
+            showToast('Loading promotion for editing...', 'info');
+          }
+          window.location.href = '/views/promotions/create?id=' + id;
+        }
+
+        // Delete promotion
+        async function deletePromotion(id) {
+          if (!confirm('Are you sure you want to delete this promotion? This action cannot be undone.')) {
+            return;
+          }
+          
+          if (typeof showToast === 'function') {
+            showToast('Deleting promotion...', 'info');
+          }
+          
+          try {
+            const csrfToken = document.querySelector('meta[name="_csrf"]');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+            const headers = {
+              'Content-Type': 'application/json'
+            };
+            
+            if (csrfToken && csrfHeader) {
+              headers[csrfHeader.getAttribute('content')] = csrfToken.getAttribute('content') || csrfToken.content;
+            }
+            
+            const response = await fetch(`${API_PREFIX}/promotions/${id}`, {
+              method: 'DELETE',
+              headers: headers
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+              if (typeof showToast === 'function') {
+                showToast('Promotion deleted successfully', 'success');
+              }
+              setTimeout(() => location.reload(), 1000);
+            } else {
+              if (typeof showToast === 'function') {
+                showToast('Failed to delete promotion: ' + (result.message || 'Unknown error'), 'error');
+              }
+            }
+          } catch (error) {
+            console.error('Error deleting promotion:', error);
+            if (typeof showToast === 'function') {
+              showToast('Error deleting promotion: ' + error.message, 'error');
+            }
+          }
+        }
+      </script>
+    </th:block>
+  </body>
+</html>

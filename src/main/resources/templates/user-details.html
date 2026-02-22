@@ -2,7 +2,7 @@
 <html
   xmlns:th="http://www.thymeleaf.org"
   lang="en"
-  th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
   <head>
     <th:block th:fragment="style">
@@ -18,7 +18,7 @@
   <body>
     <th:block th:fragment="main">
     <main class="main-content">
-      <div th:replace="components/page-header :: page-header" th:with="pageIcon='bi-person-circle'"></div>
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-person-circle'"></div>
       <div class="container-fluid px-4 mb-2">
         <a th:href="@{/views/users}" class="btn btn-light btn-sm">
           <i class="bi bi-arrow-left"></i> Back
@@ -82,11 +82,11 @@
                 </div>
                 <div class="info-row">
                   <span class="info-label"><i class="bi bi-circle-fill"></i> Status</span>
-                  <span th:class="'status-badge badge-' + (${user.enabled} ? 'active' : 'inactive')" th:text="${user.enabled ? 'Active' : 'Inactive'}">Active</span>
+                  <span th:class="'table-tag table-tag-' + (${user.enabled} ? 'active' : 'inactive')" th:text="${user.enabled ? 'Active' : 'Inactive'}">Active</span>
                 </div>
                 <div class="info-row border-0">
                   <span class="info-label"><i class="bi bi-circle"></i> Online Status</span>
-                  <span th:class="'badge ' + (${user.isOnline} ? 'bg-success' : 'bg-secondary')" th:text="${user.isOnline ? 'Online' : 'Offline'}">Offline</span>
+                  <span th:class="'table-tag table-tag-' + (${user.isOnline} ? 'online' : 'offline')" th:text="${user.isOnline ? 'Online' : 'Offline'}">Offline</span>
                 </div>
               </div>
             </div>
@@ -113,12 +113,17 @@
                         <td th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MM/dd/yyyy') : 'N/A'}">Date</td>
                         <td th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount != null ? order.orderTotalAmount : 0, 1, 2)}">$0.00</td>
                         <td>
-                          <span th:class="'status-badge status-' + (${order.orderStatus != null ? order.orderStatus.toString().toLowerCase() : 'pending'})" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
+                          <span th:if="${order.orderStatus?.toString() == 'COMPLETED' || order.orderStatus?.toString() == 'DELIVERED'}" class="status-badge-active">
+                            <i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span>
+                          </span>
+                          <span th:if="${order.orderStatus?.toString() != 'COMPLETED' && order.orderStatus?.toString() != 'DELIVERED'}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
                         </td>
                         <td>
-                          <button class="btn btn-sm btn-primary" th:onclick="'viewOrderDetails(' + ${order.orderId} + ')'">
-                            <i class="bi bi-eye"></i> View
-                          </button>
+                          <div class="table-actions">
+                            <button class="btn-action" th:attr="onclick='viewOrderDetails(' + ${order.orderId} + ')'" title="View">
+                              <i class="bi bi-eye"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     </tbody>

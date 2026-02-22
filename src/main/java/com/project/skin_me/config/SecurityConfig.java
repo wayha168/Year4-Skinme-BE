@@ -101,6 +101,7 @@ public class SecurityConfig {
                                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                                 .requestCache(cache -> cache.requestCache(requestCache))
                                 .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico").permitAll()
                                                 .requestMatchers(PUBLIC_API).permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(ADMIN_URLS).hasRole("ADMIN")

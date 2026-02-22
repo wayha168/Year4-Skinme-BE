@@ -6,12 +6,15 @@
     border: none;
     border-radius: var(--border-radius-md);
     box-shadow: var(--box-shadow-sm);
+    background: var(--white);
     overflow: hidden;
     margin-bottom: 2rem;
+    transition: all 0.3s ease;
 }
 
 .detail-card:hover {
-    box-shadow: var(--box-shadow-lg);
+    box-shadow: var(--box-shadow-md);
+    transform: translateY(-2px);
 }
 
 .info-row {

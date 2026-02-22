@@ -27,7 +27,7 @@
 
       .login-wrapper {
         width: 100%;
-        max-width: 420px;
+        max-width: 550px;
         padding: 20px;
       }
 
@@ -107,20 +107,53 @@
       }
 
       .alert-custom {
-        border-radius: 8px;
+        border-radius: 12px;
         border: none;
+        padding: 16px 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 12px;
         margin-bottom: 20px;
-        font-size: 14px;
+        font-weight: 500;
+        animation: slideInRight 0.3s ease-out;
       }
 
       .alert-danger {
-        background-color: #fee;
-        color: #c33;
+        background-color: #dc3545;
+        color: white;
       }
 
       .alert-success {
-        background-color: #efe;
-        color: #3c3;
+        background-color: #28a745;
+        color: white;
+      }
+
+      .alert-warning {
+        background-color: #ffc107;
+        color: #000;
+      }
+
+      /* Alert icons */
+      .alert-custom i {
+        font-size: 20px;
+        flex-shrink: 0;
+      }
+
+      .alert-custom span {
+        flex: 1;
+      }
+
+      /* Animation */
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
       }
 
       .login-footer {

@@ -9,6 +9,7 @@ import java.util.Optional;
 public interface IOrderService {
     Order placeOrderItem(Long userId);
     OrderDto getOrder(Long orderId);
+    Order getOrderById(Long orderId);
     List<OrderDto> getUserOrders(Long userId);
     List<OrderDto> getAllUserOrders();
     OrderDto convertToDto(Order order);

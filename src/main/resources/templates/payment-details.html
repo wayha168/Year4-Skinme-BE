@@ -2,7 +2,7 @@
 <html
   xmlns:th="http://www.thymeleaf.org"
   lang="en"
-  th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
   <head>
     <th:block th:fragment="style">
@@ -17,7 +17,7 @@
   <body>
     <th:block th:fragment="main">
     <main class="main-content">
-    <div th:replace="components/page-header :: page-header" th:with="pageIcon='bi-receipt'"></div>
+    <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-receipt'"></div>
     <div class="container-fluid px-4 mb-2">
       <a th:href="@{/views/payments}" class="btn btn-light btn-sm"> <i class="bi bi-arrow-left"></i> Back </a>
     </div>
@@ -87,6 +87,7 @@
 
     <div class="container-fluid px-4 mb-5" th:unless="${payment}">
       <div class="alert alert-danger">
+        <i class="bi bi-exclamation-circle"></i>
         <i class="bi bi-exclamation-circle"></i> <span th:text="${error ?: 'Payment not found'}"></span>
       </div>
     </div>

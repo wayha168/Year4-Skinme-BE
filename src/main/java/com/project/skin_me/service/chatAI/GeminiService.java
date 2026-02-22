@@ -5,10 +5,12 @@ import com.google.genai.types.GenerateContentResponse;
 import com.project.skin_me.model.Product;
 import com.project.skin_me.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GeminiService {
@@ -52,7 +54,7 @@ public class GeminiService {
         try {
             return productService.getAllProducts().stream().limit(10).toList();
         } catch (Exception e) {
-            System.err.println("Error fetching all products for fallback: " + e.getMessage());
+            log.error("Error fetching all products for fallback", e);
             return List.of();
         }
     }
