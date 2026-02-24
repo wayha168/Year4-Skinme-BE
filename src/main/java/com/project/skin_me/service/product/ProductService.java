@@ -13,10 +13,10 @@ import com.project.skin_me.dto.ImageDto;
 import com.project.skin_me.dto.ProductDto;
 import com.project.skin_me.exception.ProductNotFoundException;
 import com.project.skin_me.exception.ResourceNotFoundException;
-import com.project.skin_me.model.Category;
+import com.project.skin_me.model.Brand;
 import com.project.skin_me.model.Image;
 import com.project.skin_me.model.Product;
-import com.project.skin_me.repository.CategoryRepository;
+import com.project.skin_me.repository.BrandRepository;
 import com.project.skin_me.repository.ImageRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.AddProductRequest;
@@ -24,7 +24,6 @@ import com.project.skin_me.request.ProductUpdateRequest;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,7 +31,7 @@ import java.util.stream.Collectors;
 public class ProductService implements IProductService {
 
     private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
     private final ImageRepository imageRepository;
     private final ModelMapper modelMapper;
 
@@ -41,23 +40,18 @@ public class ProductService implements IProductService {
 
     @Override
     public Product addProduct(AddProductRequest request) {
-        if (productExists(request.getBrand(), request.getName())) {
-            throw new AlreadyExistsException(request.getBrand() + " " + request.getName() + " already exists, you might need to update");
+        if (request.getBrandId() == null) {
+            throw new ResourceNotFoundException("Brand is required!");
+        }
+        Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new ResourceNotFoundException("Brand not found with ID: " + request.getBrandId()));
+        if (productExists(brand.getId(), request.getName())) {
+            throw new AlreadyExistsException(brand.getName() + " " + request.getName() + " already exists, you might need to update");
         }
 
-        Category category;
-        if (request.getCategory() != null && request.getCategory().getId() != null) {
-            category = categoryRepository.findById(request.getCategory().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category not found with ID: " + request.getCategory().getId()));
-        } else if (request.getCategory() != null && request.getCategory().getName() != null) {
-            category = Optional.ofNullable(categoryRepository.findByname(request.getCategory().getName()))
-                    .orElseGet(() -> categoryRepository.save(new Category(request.getCategory().getName())));
-        } else {
-            throw new ResourceNotFoundException("Category information is missing!");
-        }
-
-        request.setCategory(category);
-        Product product = productRepository.save(createProduct(request, category));
+        Product product = createProduct(request, brand);
+        product.setCategory(brand.getCategory());
+        product = productRepository.save(product);
         eventPublisher.publishEvent(new ProductAddedEvent(this));
 
         return product;
@@ -108,40 +102,34 @@ public class ProductService implements IProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found!"));
     }
 
-    private boolean productExists(String brand, String name) {
-        return productRepository.existsByNameAndBrand(name, brand);
+    private boolean productExists(Long brandId, String name) {
+        return productRepository.existsByNameAndBrand_Id(name, brandId);
     }
 
-    private Product createProduct(AddProductRequest request, Category category) {
+    private Product createProduct(AddProductRequest request, Brand brand) {
         return new Product(
                 request.getName(),
-                request.getBrand(),
                 request.getPrice(),
                 request.getProductType(),
                 request.getInventory(),
                 request.getDescription(),
                 request.getHowToUse(),
-                category);
+                brand);
     }
 
     private Product updateExistingProduct(Product existingProduct, ProductUpdateRequest request) {
         existingProduct.setName(request.getName());
-        existingProduct.setBrand(request.getBrand());
         existingProduct.setPrice(request.getPrice());
         existingProduct.setProductType(request.getProductType());
         existingProduct.setInventory(request.getInventory());
         existingProduct.setDescription(request.getDescription());
         existingProduct.setHowToUse(request.getHowToUse());
 
-        if (request.getCategory() != null) {
-            Category category = categoryRepository.findByname(request.getCategory().getName());
-            if (category == null && request.getCategory().getId() != null) {
-                category = categoryRepository.findById(request.getCategory().getId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-            }
-            if (category != null) {
-                existingProduct.setCategory(category);
-            }
+        if (request.getBrandId() != null) {
+            Brand brand = brandRepository.findById(request.getBrandId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Brand not found with ID: " + request.getBrandId()));
+            existingProduct.setBrand(brand);
+            existingProduct.setCategory(brand.getCategory());
         }
 
         if (request.getStatus() != null) {
@@ -153,13 +141,13 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getAllProductsByCategory(String category) {
-        // Use optimized query with JOIN FETCH to avoid N+1 issues
+        // Use direct category relationship (previous relationship)
         return productRepository.findByCategoryNameWithCategory(category);
     }
 
     @Override
     public List<Product> getProductsByBrand(String brand) {
-        return productRepository.findByBrand(brand);
+        return productRepository.findByBrand_Name(brand);
     }
 
     @Override
@@ -189,7 +177,7 @@ public class ProductService implements IProductService {
 
     @Override
     public Long countProductsByBrandAndName(String brand, String name) {
-        return productRepository.countByBrandAndName(brand, name);
+        return productRepository.countByBrand_NameAndName(brand, name);
     }
 
     @Override
@@ -200,6 +188,12 @@ public class ProductService implements IProductService {
     @Override
     public ProductDto convertToDto(Product product) {
         ProductDto productDto = modelMapper.map(product, ProductDto.class);
+
+        if (product.getBrand() != null) {
+            productDto.setBrand(product.getBrand());
+        }
+        // Use direct category relationship (previous relationship)
+        productDto.setCategory(product.getCategory());
 
         List<Image> images = imageRepository.findByProductId(product.getId());
         List<ImageDto> imageDtos = images.stream().map(image -> {
@@ -243,12 +237,14 @@ public class ProductService implements IProductService {
                     .collect(Collectors.joining(", "))
                     : "_none_";
 
-            String category = p.getCategory() != null ? escapeMarkdown(p.getCategory().getName()) : "_none_";
+            String brandName = p.getBrand() != null ? escapeMarkdown(p.getBrand().getName()) : "_none_";
+            String category = (p.getBrand() != null && p.getBrand().getCategory() != null)
+                    ? escapeMarkdown(p.getBrand().getCategory().getName()) : "_none_";
 
             md.append(String.format("| %d | %s | %s | $%s | %s | %d | %s | %s |\n",
                     p.getId(),
                     escapeMarkdown(p.getName()),
-                    escapeMarkdown(p.getBrand()),
+                    brandName,
                     p.getPrice(),
                     escapeMarkdown(p.getProductType()),
                     p.getInventory(),

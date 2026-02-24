@@ -114,7 +114,7 @@ public class FavoriteService implements IFavoriteService {
                 .productId(product.getId())
                 .product(product)
                 .productName(product.getName())
-                .productBrand(product.getBrand())
+                .productBrand(product.getBrand() != null ? product.getBrand().getName() : null)
                 .productThumbnailUrl(thumbnailUrl)
                 .build();
     }

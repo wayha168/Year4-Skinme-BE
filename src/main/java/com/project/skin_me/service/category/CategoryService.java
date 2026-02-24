@@ -20,12 +20,10 @@ public class CategoryService implements ICategoryService {
 
     @Override
     public Category getCategoryById(Long id) {
-        // Try to get category with products first
-        Category category = categoryRepository.findByIdWithProducts(id);
+        Category category = categoryRepository.findByIdWithBrands(id);
         if (category != null) {
             return category;
         }
-        // Fallback to regular findById
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
     }
@@ -41,8 +39,8 @@ public class CategoryService implements ICategoryService {
         return categoryRepository.findAll();
     }
 
-    public List<Category> getAllCategoriesWithProductCount() {
-        return categoryRepository.findAllWithProducts();
+    public List<Category> getAllCategoriesWithBrands() {
+        return categoryRepository.findAllWithBrands();
     }
 
     @Override

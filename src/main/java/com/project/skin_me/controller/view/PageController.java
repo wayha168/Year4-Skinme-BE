@@ -20,6 +20,7 @@ import com.project.skin_me.repository.UserRepository;
 import com.project.skin_me.request.CreateUserRequest;
 import com.project.skin_me.request.UserUpdateRequest;
 import com.project.skin_me.model.Role;
+import com.project.skin_me.service.brand.IBrandService;
 import com.project.skin_me.service.category.ICategoryService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
@@ -48,6 +49,7 @@ import com.project.skin_me.enums.ProductStatus;
 public class PageController {
 
     private final ICategoryService categoryService;
+    private final IBrandService brandService;
     private final IProductService productService;
     private final ChatMessageRepository chatMessageRepository;
     private final IOrderService orderService;
@@ -417,7 +419,9 @@ public class PageController {
     public String createProductPage(Model model) {
         try {
             List<Category> categories = categoryService.getAllCategories();
+            List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
             model.addAttribute("categories", categories);
+            model.addAttribute("brands", brands);
             model.addAttribute("product", null);
             model.addAttribute("pageTitle", "Create Product");
             return "product-form";
@@ -431,35 +435,32 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String createProduct(
             @RequestParam String name,
-            @RequestParam String brand,
             @RequestParam java.math.BigDecimal price,
             @RequestParam String productType,
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
-            @RequestParam Long categoryId,
+            @RequestParam Long brandId,
             Model model) {
         try {
-            categoryService.getCategoryById(categoryId); // Validate category exists
             AddProductRequest request = new AddProductRequest();
             request.setName(name);
-            request.setBrand(brand);
             request.setPrice(price);
             request.setProductType(productType);
             request.setInventory(inventory);
             request.setDescription(description != null ? description : "");
             request.setHowToUse(howToUse != null ? howToUse : "");
-            Category cat = new Category();
-            cat.setId(categoryId);
-            request.setCategory(cat);
-            
+            request.setBrandId(brandId);
+
             productService.addProduct(request);
             return "redirect:/views/products?success=Product created successfully";
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create product: " + e.getMessage());
             try {
                 List<Category> categories = categoryService.getAllCategories();
+                List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
                 model.addAttribute("categories", categories);
+                model.addAttribute("brands", brands);
             } catch (Exception ex) {
                 // Ignore
             }
@@ -474,8 +475,10 @@ public class PageController {
         try {
             Product product = productService.getProductById(productId);
             List<Category> categories = categoryService.getAllCategories();
+            List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
             model.addAttribute("product", product);
             model.addAttribute("categories", categories);
+            model.addAttribute("brands", brands);
             model.addAttribute("pageTitle", "Edit Product");
             return "product-form";
         } catch (Exception e) {
@@ -488,32 +491,27 @@ public class PageController {
     public String updateProduct(
             @PathVariable Long productId,
             @RequestParam String name,
-            @RequestParam String brand,
             @RequestParam java.math.BigDecimal price,
             @RequestParam String productType,
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
-            @RequestParam Long categoryId,
+            @RequestParam Long brandId,
             @RequestParam(required = false) String status,
             Model model) {
         try {
-            categoryService.getCategoryById(categoryId); // Validate category exists
             ProductUpdateRequest request = new ProductUpdateRequest();
             request.setName(name);
-            request.setBrand(brand);
             request.setPrice(price);
             request.setProductType(productType);
             request.setInventory(inventory);
             request.setDescription(description != null ? description : "");
             request.setHowToUse(howToUse != null ? howToUse : "");
-            Category cat = new Category();
-            cat.setId(categoryId);
-            request.setCategory(cat);
+            request.setBrandId(brandId);
             if (status != null) {
                 request.setStatus(ProductStatus.valueOf(status));
             }
-            
+
             productService.updateProduct(request, productId);
             return "redirect:/views/products?success=Product updated successfully";
         } catch (Exception e) {
@@ -521,8 +519,10 @@ public class PageController {
             try {
                 Product product = productService.getProductById(productId);
                 List<Category> categories = categoryService.getAllCategories();
+                List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
                 model.addAttribute("product", product);
                 model.addAttribute("categories", categories);
+                model.addAttribute("brands", brands);
             } catch (Exception ex) {
                 // Ignore
             }

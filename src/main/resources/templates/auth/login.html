@@ -9,6 +9,7 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
     />
+    <link rel="stylesheet" href="/css/common.css" />
     <style>
       * {
         margin: 0;
@@ -17,12 +18,13 @@
       }
 
       body {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--light-bg, #f8f9fa);
         min-height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text-dark, #111827);
       }
 
       .login-wrapper {
@@ -32,14 +34,14 @@
       }
 
       .login-card {
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        background: var(--white, #ffffff);
+        border-radius: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         overflow: hidden;
       }
 
       .login-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary, #111111) 0%, var(--primary-dark, #2b2b2b) 100%);
         color: white;
         padding: 40px 30px;
         text-align: center;
@@ -67,7 +69,7 @@
 
       .form-group label {
         font-weight: 600;
-        color: #333;
+        color: var(--text-dark, #111827);
         margin-bottom: 8px;
         display: block;
         font-size: 14px;
@@ -75,22 +77,23 @@
 
       .form-control {
         padding: 12px 15px;
-        border: 2px solid #e0e0e0;
+        border: 2px solid #e5e7eb;
         border-radius: 8px;
         font-size: 14px;
         transition: all 0.3s;
+        background: #fff;
       }
 
       .form-control:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--primary, #111111);
+        box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.1);
         outline: none;
       }
 
       .btn-login {
         width: 100%;
         padding: 12px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--primary, #111111);
         color: white;
         border: none;
         border-radius: 8px;
@@ -102,15 +105,17 @@
       }
 
       .btn-login:hover {
+        background: var(--primary-dark, #2b2b2b);
         transform: translateY(-2px);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        color: white;
       }
 
       .alert-custom {
         border-radius: 12px;
         border: none;
         padding: 16px 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         display: flex;
         align-items: center;
         gap: 12px;
@@ -130,11 +135,10 @@
       }
 
       .alert-warning {
-        background-color: #ffc107;
-        color: #000;
+        background-color: #fef3c7;
+        color: #92400e;
       }
 
-      /* Alert icons */
       .alert-custom i {
         font-size: 20px;
         flex-shrink: 0;
@@ -144,7 +148,6 @@
         flex: 1;
       }
 
-      /* Animation */
       @keyframes slideInRight {
         from {
           transform: translateX(100%);
@@ -160,26 +163,26 @@
         text-align: center;
         padding: 20px 30px;
         background-color: #f8f9fa;
-        border-top: 1px solid #e0e0e0;
+        border-top: 1px solid #e5e7eb;
         font-size: 14px;
-        color: #666;
+        color: #6b7280;
       }
 
       .login-footer a {
-        color: #667eea;
+        color: var(--primary, #111111);
         text-decoration: none;
         font-weight: 600;
-        transition: color 0.3s;
+        transition: color 0.2s;
       }
 
       .login-footer a:hover {
-        color: #764ba2;
+        color: var(--primary-dark, #2b2b2b);
         text-decoration: underline;
       }
 
       .divider {
         margin: 0 8px;
-        color: #ddd;
+        color: #9ca3af;
       }
 
       .password-input-wrapper {
@@ -197,20 +200,20 @@
         right: 12px;
         background: none;
         border: none;
-        color: #667eea;
+        color: #374151;
         cursor: pointer;
         font-size: 18px;
         padding: 5px 8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: color 0.3s;
+        transition: color 0.2s;
         z-index: 10;
         margin-top: 2px;
       }
 
       .password-toggle:hover {
-        color: #764ba2;
+        color: var(--primary, #111111);
       }
 
       .password-toggle:focus {
