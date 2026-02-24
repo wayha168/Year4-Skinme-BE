@@ -33,7 +33,7 @@
 .payment-table thead th,
 .audit-table thead th,
 .delivery-table thead th {
-    padding: 1rem 1.25rem;
+    padding: 12px 6px;
     font-weight: 600;
     font-size: 0.75rem;
     text-transform: uppercase;

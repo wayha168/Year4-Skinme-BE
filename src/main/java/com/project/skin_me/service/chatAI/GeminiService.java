@@ -85,7 +85,7 @@ public class GeminiService {
             sb.append("{\n");
             sb.append("  PRODUCT_ID: ").append(p.getId()).append("\n");
             sb.append("  NAME: ").append(p.getName()).append("\n");
-            sb.append("  BRAND: ").append(p.getBrand()).append("\n");
+            sb.append("  BRAND: ").append(p.getBrand() != null ? p.getBrand().getName() : "N/A").append("\n");
             sb.append("  TYPE: ").append(p.getProductType()).append("\n");
             sb.append("  Description: ").append(p.getDescription()).append("\n");
 

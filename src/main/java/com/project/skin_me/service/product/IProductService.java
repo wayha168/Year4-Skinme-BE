@@ -23,6 +23,8 @@ public interface IProductService {
 
     List<Product> getAllProductsByCategory(String category);
 
+    List<Product> getProductsByCategoryId(Long categoryId);
+
     List<Product> getProductsByBrand(String brand);
 
     List<Product> getProductsByProductType(String productType);
@@ -47,6 +49,9 @@ public interface IProductService {
     List<Product> getPopularProducts();
 
     String toMarkdownTable(List<Product> products);
+
+    /** Export all products as CSV (header + rows, proper escaping). */
+    String toCsv(List<Product> products);
 
     List<Product> getAllProductsWithoutImages();
 

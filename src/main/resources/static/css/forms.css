@@ -103,11 +103,11 @@ textarea.form-control {
 }
 
 .btn-outline-secondary {
-    border: 2px solid var(--gray-200);
-    color: var(--text-dark);
+    border: 2px solid #0e3ba4;
+    color: #ffffff;
     background: var(--white);
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--border-radius-md);
+    padding: 6px 12px;
+    border-radius: 12px;
     font-weight: 600;
     transition: all 0.2s ease;
 }
@@ -122,8 +122,8 @@ textarea.form-control {
     border: 2px solid var(--primary);
     color: var(--primary);
     background: var(--white);
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--border-radius-md);
+    padding: 6px 12px;
+    border-radius: 12px;
     font-weight: 600;
     transition: all 0.2s ease;
 }

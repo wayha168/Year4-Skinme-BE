@@ -49,7 +49,7 @@
       </div>
 
       <div class="container-fluid px-4 mb-2 no-print">
-        <a th:href="@{/views/orders}" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i> Back to Orders</a>
+        <a th:href="@{/views/orders}" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
       </div>
 
       <div class="container-fluid px-4 mb-5" th:if="${order}" id="orderDetailsContent" th:data-order-id="${order.orderId}">
@@ -70,10 +70,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr th:each="item, iterStat : ${order.orderItems}" th:with="unitPrice=${item.price != null ? item.price : 0}, lineTotal=${item.price != null ? item.price.doubleValue() * item.quantity : 0}">
+                <tr th:each="item, iterStat : ${order.orderItems}" th:with="unitPrice=${item.price != null ? item.price : 0}, lineTotal=${item.price != null ? item.price.doubleValue() * item.quantity : 0}, brandName=${item.product != null and item.product.brand != null ? item.product.brand.name : 'N/A'}">
                   <td class="text-center" th:text="${iterStat.count}">1</td>
                   <td><strong th:text="${item.product != null and item.product.name != null ? item.product.name : 'N/A'}">Product</strong></td>
-                  <td th:text="${item.product != null and item.product.brand != null ? item.product.brand : 'N/A'}">Brand</td>
+                  <td th:text="${brandName}">Brand</td>
                   <td class="text-center" th:text="${item.quantity}">1</td>
                   <td class="text-end" th:text="'$' + ${#numbers.formatDecimal(unitPrice, 1, 2)}">$0.00</td>
                   <td class="text-end"><strong th:text="'$' + ${#numbers.formatDecimal(lineTotal, 1, 2)}">$0.00</strong></td>
@@ -101,8 +101,8 @@
               </div>
               <div class="col-md-6 col-lg-3">
                 <span class="text-muted d-block small">Status</span>
-                <span th:if="${order.orderStatus != null and (order.orderStatus.toString() == 'COMPLETED' or order.orderStatus.toString() == 'DELIVERED')}" class="status-badge-active"><i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span></span>
-                <span th:if="${order.orderStatus == null or (order.orderStatus.toString() != 'COMPLETED' and order.orderStatus.toString() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
+                <span th:if="${order.orderStatus != null and (order.orderStatus.name() == 'COMPLETED' or order.orderStatus.name() == 'SUCCESS' or order.orderStatus.name() == 'DELIVERED')}" class="status-badge-active"><i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span></span>
+                <span th:if="${order.orderStatus == null or (order.orderStatus.name() != 'COMPLETED' and order.orderStatus.name() != 'SUCCESS' and order.orderStatus.name() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
               </div>
             </div>
           </div>
@@ -112,17 +112,17 @@
         <div class="card mb-4 delivery-row">
           <div class="card-body py-3">
             <h6 class="mb-2"><i class="bi bi-truck"></i> Delivery</h6>
-            <div th:if="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="mb-1">
+            <div th:if="${order.trackingNumber != null and order.trackingNumber != ''}" class="mb-1">
               <span class="text-muted">Tracking:</span> <span class="fw-semibold" th:text="${order.trackingNumber}">-</span>
             </div>
-            <div th:if="${order.deliveryAddressFull != null and !order.deliveryAddressFull.isEmpty()}" class="mb-1" th:text="${order.deliveryAddressFull}">Address</div>
-            <div th:if="${order.deliveryStreet != null and !order.deliveryStreet.isEmpty()}"><span th:text="${order.deliveryStreet + ', ' + (order.deliveryCity != null ? order.deliveryCity : '') + ', ' + (order.deliveryProvince != null ? order.deliveryProvince : '')}">Street, City, Province</span></div>
+            <div th:if="${order.deliveryAddressFull != null and order.deliveryAddressFull != ''}" class="mb-1" th:text="${order.deliveryAddressFull}">Address</div>
+            <div th:if="${order.deliveryStreet != null and order.deliveryStreet != ''}"><span th:text="${order.deliveryStreet + ', ' + (order.deliveryCity != null ? order.deliveryCity : '') + ', ' + (order.deliveryProvince != null ? order.deliveryProvince : '')}">Street, City, Province</span></div>
             <div th:if="${order.deliveryLatitude != null and order.deliveryLongitude != null}">
               <a th:href="${'https://www.google.com/maps?q=' + order.deliveryLatitude + ',' + order.deliveryLongitude}" target="_blank" class="btn btn-sm btn-outline-primary no-print"><i class="bi bi-map"></i> View on Map</a>
             </div>
             <div th:if="${order.shippedAt != null}" class="small mt-1">Shipped: <span th:text="${#temporals.format(order.shippedAt, 'MM/dd/yyyy HH:mm')}">-</span></div>
             <div th:if="${order.deliveredAt != null}" class="small">Delivered: <span th:text="${#temporals.format(order.deliveredAt, 'MM/dd/yyyy HH:mm')}">-</span></div>
-            <p th:if="${(order.deliveryAddressFull == null or order.deliveryAddressFull.isEmpty()) and (order.deliveryStreet == null or order.deliveryStreet.isEmpty())}" class="text-muted mb-0 small">No delivery address set.</p>
+            <p th:if="${(order.deliveryAddressFull == null or order.deliveryAddressFull == '') and (order.deliveryStreet == null or order.deliveryStreet == '')}" class="text-muted mb-0 small">No delivery address set.</p>
           </div>
         </div>
 

@@ -59,6 +59,7 @@
                 <th style="width: 120px;"><i class="bi bi-credit-card"></i> Method</th>
                 <th style="width: 120px;"><i class="bi bi-toggles"></i> Status</th>
                 <th><i class="bi bi-hash"></i> Transaction</th>
+                <th style="width: 120px;"><i class="bi bi-person"></i> Card</th>
                 <th style="width: 100px;"><i class="bi bi-gear"></i> Actions</th>
               </tr>
             </thead>
@@ -84,6 +85,11 @@
                 </td>
                 <td>
                   <code class="text-muted" th:text="${payment.transactionRef ?: 'N/A'}" style="font-size: 0.8rem; background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 6px;">N/A</code>
+                </td>
+                <td class="small">
+                  <span th:if="${payment.cardHolderName != null and !payment.cardHolderName.isEmpty()}" th:text="${payment.cardHolderName}">Name</span>
+                  <span th:if="${payment.cardLast4 != null and !payment.cardLast4.isEmpty()}" th:text="${payment.cardHolderName != null ? ' ****' + payment.cardLast4 : '**** ' + payment.cardLast4}">**** 0000</span>
+                  <span th:if="${(payment.cardHolderName == null or payment.cardHolderName.isEmpty()) and (payment.cardLast4 == null or payment.cardLast4.isEmpty())}" class="text-muted">-</span>
                 </td>
                 <td>
                   <div class="table-actions">

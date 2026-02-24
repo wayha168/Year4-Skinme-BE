@@ -25,7 +25,7 @@ public class CategoryService implements ICategoryService {
             return category;
         }
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not Success!"));
     }
 
     @Override
@@ -55,7 +55,7 @@ public class CategoryService implements ICategoryService {
         return Optional.ofNullable(getCategoryById(id)).map(oldCategory -> {
             oldCategory.setName(category.getName());
             return categoryRepository.save(oldCategory);
-        }).orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
+        }).orElseThrow(() -> new ResourceNotFoundException("Category not Success!"));
     }
 
     @Override
@@ -63,7 +63,7 @@ public class CategoryService implements ICategoryService {
         categoryRepository.findById(id)
                 .ifPresentOrElse(categoryRepository::delete,
                         () -> {
-                            throw new ResourceNotFoundException("Category not found!");
+                            throw new ResourceNotFoundException("Category not Success!");
                         });
         return null;
     }

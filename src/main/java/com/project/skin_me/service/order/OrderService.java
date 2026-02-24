@@ -1,6 +1,7 @@
 package com.project.skin_me.service.order;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.OrderItemDto;
 import com.project.skin_me.dto.RealTimeUpdateDto;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
@@ -15,14 +16,16 @@ import com.project.skin_me.service.cart.ICartService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.popularProduct.IPopularProductService;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityNotFoundException;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +39,6 @@ public class OrderService implements IOrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final PaymentRepository paymentRepository;
-    private final ModelMapper modelMapper;
     private final ICartService cartService;
     private final IPopularProductService popularProductService;
     private final NotificationService notificationService;
@@ -156,7 +158,46 @@ public class OrderService implements IOrderService {
 
     @Override
     public OrderDto convertToDto(Order order) {
-        return modelMapper.map(order, OrderDto.class);
+        OrderDto dto = new OrderDto();
+        dto.setOrderId(order.getOrderId());
+        dto.setUserId(order.getUser() != null ? order.getUser().getId() : null);
+        dto.setOrderDate(order.getOrderDate());
+        dto.setTotalAmount(order.getOrderTotalAmount());
+        dto.setOrderStatus(order.getOrderStatus() != null ? order.getOrderStatus().toString() : null);
+        dto.setTrackingNumber(order.getTrackingNumber());
+
+        List<OrderItemDto> itemDtos = new ArrayList<>();
+        if (order.getOrderItems() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                OrderItemDto itemDto = new OrderItemDto();
+                Product product = item.getProduct();
+                if (product != null) {
+                    itemDto.setProductId(product.getId());
+                    itemDto.setProductName(product.getName());
+                    itemDto.setProductBrand(safeBrandName(product));
+                    itemDto.setProductType(product.getProductType());
+                }
+                itemDto.setQuantity(item.getQuantity());
+                itemDto.setPrice(item.getPrice());
+                itemDto.setDiscount(0);
+                itemDtos.add(itemDto);
+            }
+        }
+        dto.setOrderItems(itemDtos);
+        return dto;
+    }
+
+    /**
+     * Get brand name from product without triggering lazy load on missing Brand (e.g. id 0).
+     */
+    private String safeBrandName(Product product) {
+        if (product == null) return "";
+        try {
+            if (product.getBrand() == null) return "";
+            return product.getBrand().getName() != null ? product.getBrand().getName() : "";
+        } catch (EntityNotFoundException e) {
+            return "";
+        }
     }
 
 //    public void updatePopularProducts(List<OrderItem> items) {

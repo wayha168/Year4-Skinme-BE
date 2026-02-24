@@ -38,7 +38,7 @@ public class Product {
     private int totalOrders;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "brand_id", nullable = false)
+    @JoinColumn(name = "brand_id")
     @JsonIgnoreProperties("products")
     private Brand brand;
 

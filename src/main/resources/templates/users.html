@@ -103,6 +103,7 @@
                   <th><i class="bi bi-person"></i> User</th>
                   <th><i class="bi bi-shield-check"></i> Role</th>
                   <th style="width: 120px;"><i class="bi bi-circle-fill"></i> Status</th>
+                  <th style="width: 100px;"><i class="bi bi-broadcast"></i> Online</th>
                   <th style="width: 150px;"><i class="bi bi-calendar"></i> Created</th>
                   <th style="width: 120px;"><i class="bi bi-gear"></i> Actions</th>
                 </tr>
@@ -137,6 +138,10 @@
                       <i class="bi bi-check-circle-fill"></i> Active
                     </span>
                     <span th:if="${!user.enabled}" class="status-badge-inactive">Inactive</span>
+                  </td>
+                  <td>
+                    <span th:if="${user.isOnline}" class="table-tag table-tag-online"><i class="bi bi-circle-fill"></i> Online</span>
+                    <span th:unless="${user.isOnline}" class="table-tag table-tag-offline"><i class="bi bi-circle"></i> Offline</span>
                   </td>
                   <td>
                     <span class="text-muted" th:text="${user.registrationDate != null ? #temporals.format(user.registrationDate, 'MMM dd, yyyy') : 'N/A'}">Date</span>

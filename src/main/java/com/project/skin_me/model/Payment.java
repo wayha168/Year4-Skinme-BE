@@ -50,4 +50,16 @@ public class Payment {
     private LocalDateTime transactionTime;
 
     private String message;
+
+    /** Card holder name (e.g. from Stripe or manual input). */
+    @Column(name = "card_holder_name", length = 255)
+    private String cardHolderName;
+
+    /** Last 4 digits of card (e.g. 4242). */
+    @Column(name = "card_last4", length = 4)
+    private String cardLast4;
+
+    /** Card brand (e.g. visa, mastercard). */
+    @Column(name = "card_brand", length = 32)
+    private String cardBrand;
 }

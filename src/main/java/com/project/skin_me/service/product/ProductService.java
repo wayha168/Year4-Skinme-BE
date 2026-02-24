@@ -46,7 +46,8 @@ public class ProductService implements IProductService {
         Brand brand = brandRepository.findById(request.getBrandId())
                 .orElseThrow(() -> new ResourceNotFoundException("Brand not found with ID: " + request.getBrandId()));
         if (productExists(brand.getId(), request.getName())) {
-            throw new AlreadyExistsException(brand.getName() + " " + request.getName() + " already exists, you might need to update");
+            throw new AlreadyExistsException(
+                    brand.getName() + " " + request.getName() + " already exists, you might need to update");
         }
 
         Product product = createProduct(request, brand);
@@ -65,7 +66,7 @@ public class ProductService implements IProductService {
                     productRepository.save(product);
                     eventPublisher.publishEvent(new ProductDeletedEvent(this));
                 }, () -> {
-                    throw new ProductNotFoundException("Product not found!");
+                    throw new ProductNotFoundException("Product not Success!");
                 });
     }
 
@@ -84,7 +85,7 @@ public class ProductService implements IProductService {
                     eventPublisher.publishEvent(new ProductUpdatedEvent(this));
                     return savedProduct;
                 })
-                .orElseThrow(() -> new ProductNotFoundException("Product not found!!"));
+                .orElseThrow(() -> new ProductNotFoundException("Product not Success!!"));
     }
 
     @Override
@@ -99,7 +100,7 @@ public class ProductService implements IProductService {
     @Override
     public Product getProductById(Long productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not Success!"));
     }
 
     private boolean productExists(Long brandId, String name) {
@@ -127,7 +128,8 @@ public class ProductService implements IProductService {
 
         if (request.getBrandId() != null) {
             Brand brand = brandRepository.findById(request.getBrandId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Brand not found with ID: " + request.getBrandId()));
+                    .orElseThrow(
+                            () -> new ResourceNotFoundException("Brand not found with ID: " + request.getBrandId()));
             existingProduct.setBrand(brand);
             existingProduct.setCategory(brand.getCategory());
         }
@@ -141,8 +143,12 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getAllProductsByCategory(String category) {
-        // Use direct category relationship (previous relationship)
         return productRepository.findByCategoryNameWithCategory(category);
+    }
+
+    @Override
+    public List<Product> getProductsByCategoryId(Long categoryId) {
+        return productRepository.findByCategoryIdWithCategory(categoryId);
     }
 
     @Override
@@ -162,12 +168,12 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getProductsByCategoryAndBrand(String category, String brand) {
-        return productRepository.findByCategory_NameAndBrand(category, brand);
+        return productRepository.findByCategory_NameAndBrand_Name(category, brand);
     }
 
     @Override
     public List<Product> getProductsByBrandAndName(String brand, String name) {
-        return productRepository.findByBrandAndName(brand, name);
+        return productRepository.findByBrand_NameAndName(brand, name);
     }
 
     @Override
@@ -233,13 +239,15 @@ public class ProductService implements IProductService {
         for (Product p : products) {
             String images = (p.getImages() != null && !p.getImages().isEmpty())
                     ? p.getImages().stream()
-                    .map(img -> String.format("[%s](%s)", escapeMarkdown(img.getFileName()), img.getDownloadUrl()))
-                    .collect(Collectors.joining(", "))
+                            .map(img -> String.format("[%s](%s)", escapeMarkdown(img.getFileName()),
+                                    img.getDownloadUrl()))
+                            .collect(Collectors.joining(", "))
                     : "_none_";
 
             String brandName = p.getBrand() != null ? escapeMarkdown(p.getBrand().getName()) : "_none_";
             String category = (p.getBrand() != null && p.getBrand().getCategory() != null)
-                    ? escapeMarkdown(p.getBrand().getCategory().getName()) : "_none_";
+                    ? escapeMarkdown(p.getBrand().getCategory().getName())
+                    : "_none_";
 
             md.append(String.format("| %d | %s | %s | $%s | %s | %d | %s | %s |\n",
                     p.getId(),
@@ -252,5 +260,37 @@ public class ProductService implements IProductService {
                     images));
         }
         return md.toString();
+    }
+
+    private static String escapeCsv(String s) {
+        if (s == null)
+            return "";
+        if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
+    @Override
+    public String toCsv(List<Product> products) {
+        if (products == null || products.isEmpty()) {
+            return "ID,Name,Brand,Price,Type,Inventory,Status,Category,Total Orders\n";
+        }
+        StringBuilder csv = new StringBuilder();
+        csv.append("ID,Name,Brand,Price,Type,Inventory,Status,Category,Total Orders\n");
+        for (Product p : products) {
+            String brandName = p.getBrand() != null ? p.getBrand().getName() : "";
+            String category = (p.getCategory() != null) ? p.getCategory().getName() : "";
+            csv.append(p.getId()).append(",")
+                    .append(escapeCsv(p.getName())).append(",")
+                    .append(escapeCsv(brandName)).append(",")
+                    .append(p.getPrice()).append(",")
+                    .append(escapeCsv(p.getProductType())).append(",")
+                    .append(p.getInventory()).append(",")
+                    .append(escapeCsv(p.getStatus() != null ? p.getStatus().name() : "")).append(",")
+                    .append(escapeCsv(category)).append(",")
+                    .append(p.getTotalOrders()).append("\n");
+        }
+        return csv.toString();
     }
 }

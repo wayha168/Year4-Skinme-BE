@@ -24,7 +24,7 @@
 
     <div class="container-fluid px-4 mb-5" th:if="${payment}">
       <div class="row">
-        <div class="col-lg-8">
+        <div class="col-lg-12">
           <div class="card detail-card">
             <div class="card-body p-4">
               <h3 th:text="'Payment #' + ${payment.id}" class="mb-3">Payment ID</h3>
@@ -53,9 +53,21 @@
                   >PENDING</span
                 >
               </div>
-              <div class="info-row border-0" th:if="${payment.transactionRef}">
+              <div class="info-row" th:if="${payment.transactionRef}">
                 <span class="info-label"><i class="bi bi-hash"></i> Transaction Reference</span>
                 <span class="info-value text-monospace" th:text="${payment.transactionRef}">REF</span>
+              </div>
+              <div class="info-row" th:if="${payment.cardHolderName != null and !payment.cardHolderName.isEmpty()}">
+                <span class="info-label"><i class="bi bi-person-badge"></i> Card Holder</span>
+                <span class="info-value" th:text="${payment.cardHolderName}">-</span>
+              </div>
+              <div class="info-row" th:if="${payment.cardLast4 != null and !payment.cardLast4.isEmpty()}">
+                <span class="info-label"><i class="bi bi-credit-card-2-back"></i> Card (last 4)</span>
+                <span class="info-value">**** <span th:text="${payment.cardLast4}">0000</span></span>
+              </div>
+              <div class="info-row border-0" th:if="${payment.cardBrand != null and !payment.cardBrand.isEmpty()}">
+                <span class="info-label"><i class="bi bi-bank"></i> Card Brand</span>
+                <span class="info-value text-capitalize" th:text="${payment.cardBrand}">-</span>
               </div>
             </div>
           </div>

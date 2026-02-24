@@ -194,7 +194,22 @@ All API endpoints return `ApiResponse` format with the following structure:
 - **Endpoint**: `POST /api/v1/payment/verify-khqr/{orderId}`
 - **Response**: `ApiResponse` with verification status
 
-#### 6. Stripe Webhook
+#### 6. Record Payment (API / Webhook input)
+- **Endpoint**: `POST /api/v1/payment/record`
+- **Description**: Record or update a payment (e.g. from external gateway webhook or manual input). Optionally stores card holder name, last 4 digits, and card brand.
+- **Request Body** (JSON):
+  - `orderId` (optional if transactionRef provided): order ID
+  - `transactionRef` (optional): external reference (e.g. Stripe session/payment intent id)
+  - `amount` (optional): payment amount
+  - `status`: `PENDING`, `SUCCESS`, `PAYMENT_PENDING`, etc.
+  - `method` (optional): `CREDIT_CARD`, `KHQR`, etc. (used when creating new payment)
+  - `cardHolderName` (optional): card holder name
+  - `cardLast4` (optional): last 4 digits of card
+  - `cardBrand` (optional): e.g. visa, mastercard
+  - `message` (optional): note
+- **Response**: `ApiResponse` with `paymentId`, `orderId`, `status`
+
+#### 7. Stripe Webhook
 - **Endpoint**: `POST /api/v1/payment/webhook`
 - **Response**: `ApiResponse` with processed events
 

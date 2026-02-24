@@ -221,6 +221,79 @@ public class PaymentController {
         }
     }
 
+    /**
+     * Record or update a payment via API (e.g. from external gateway webhook or manual input).
+     * Accepts: orderId (or transactionRef), amount, status; optional: method, transactionRef, cardHolderName, cardLast4, cardBrand, message.
+     */
+    @PostMapping("/record")
+    public ResponseEntity<ApiResponse> recordPayment(@RequestBody Map<String, Object> body) {
+        try {
+            Long orderId = body.get("orderId") != null ? Long.parseLong(body.get("orderId").toString()) : null;
+            String transactionRef = body.get("transactionRef") != null ? body.get("transactionRef").toString().trim() : null;
+            if (orderId == null && (transactionRef == null || transactionRef.isEmpty())) {
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse("Either orderId or transactionRef is required", null));
+            }
+
+            BigDecimal amount = body.get("amount") != null ? new BigDecimal(body.get("amount").toString()) : null;
+            String statusStr = body.get("status") != null ? body.get("status").toString().toUpperCase() : "PENDING";
+            OrderStatus status = OrderStatus.valueOf(statusStr.replace(" ", "_"));
+
+            Payment payment = null;
+            if (transactionRef != null && !transactionRef.isEmpty()) {
+                payment = paymentRepository.findByTransactionRef(transactionRef).orElse(null);
+            }
+            if (payment == null && orderId != null) {
+                Order order = orderRepository.findById(orderId)
+                        .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+                payment = paymentRepository.findByOrder(order).orElse(null);
+                if (payment == null) {
+                    String methodStr = body.get("method") != null ? body.get("method").toString().toUpperCase() : "CREDIT_CARD";
+                    PaymentMethod method = PaymentMethod.valueOf(methodStr.replace("-", "_").replace(" ", "_"));
+                    payment = Payment.builder()
+                            .order(order)
+                            .amount(amount != null ? amount : order.getOrderTotalAmount())
+                            .method(method)
+                            .status(status)
+                            .transactionRef(transactionRef)
+                            .transactionTime(LocalDateTime.now())
+                            .build();
+                }
+            }
+            if (payment == null) {
+                return ResponseEntity.badRequest().body(new ApiResponse("Payment not found and cannot create without orderId", null));
+            }
+
+            if (amount != null) payment.setAmount(amount);
+            payment.setStatus(status);
+            if (transactionRef != null && !transactionRef.isEmpty()) payment.setTransactionRef(transactionRef);
+            if (body.get("cardHolderName") != null) payment.setCardHolderName(body.get("cardHolderName").toString().trim());
+            if (body.get("cardLast4") != null) {
+                String digits = body.get("cardLast4").toString().replaceAll("\\D", "");
+                if (!digits.isEmpty()) payment.setCardLast4(digits.length() >= 4 ? digits.substring(digits.length() - 4) : digits);
+            }
+            if (body.get("cardBrand") != null) payment.setCardBrand(body.get("cardBrand").toString().trim());
+            if (body.get("message") != null) payment.setMessage(body.get("message").toString());
+            if (status == OrderStatus.SUCCESS) payment.setTransactionTime(LocalDateTime.now());
+
+            paymentRepository.save(payment);
+
+            if (status == OrderStatus.SUCCESS && payment.getOrder() != null) {
+                orderService.confirmOrderPayment(payment.getOrder());
+            }
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("paymentId", payment.getId());
+            data.put("orderId", payment.getOrder() != null ? payment.getOrder().getOrderId() : null);
+            data.put("status", payment.getStatus().toString());
+            return ResponseEntity.ok(new ApiResponse("Payment recorded", data));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(new ApiResponse("Error recording payment: " + e.getMessage(), null));
+        }
+    }
+
     @PostMapping("/webhook")
     public ResponseEntity<ApiResponse> handleWebhook(@RequestBody String payload, @RequestHeader("Stripe-Signature") String sigHeader) {
         try {

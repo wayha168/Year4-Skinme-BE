@@ -19,12 +19,12 @@
     <main class="main-content">
       <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag'"></div>
       <div class="container-fluid px-4 mb-2">
-        <a th:href="@{/views/promotions}" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i> Back to Promotions</a>
+        <a th:href="@{/views/promotions}" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
       </div>
 
       <div class="container-fluid px-4 mb-5" th:if="${promotion}">
         <div class="row">
-          <div class="col-lg-8">
+          <div class="col-lg-12">
             <div class="card detail-card">
               <div class="card-body p-4">
                 <h3 class="mb-3" th:text="${promotion.title}">Promotion Title</h3>

@@ -26,7 +26,7 @@ public class PopularProductController {
             List<PopularProductDto> popularProducts = popularProductService.getPopularProducts();
             if (popularProducts.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(new ApiResponse("No products with sales over 10 units found!", popularProducts));
+                        .body(new ApiResponse("No products with sales over 10 units Success!", popularProducts));
             }
             return ResponseEntity.ok(new ApiResponse("success", popularProducts));
         } catch (Exception e) {

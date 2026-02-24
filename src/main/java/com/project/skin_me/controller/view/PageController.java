@@ -648,7 +648,7 @@ public class PageController {
     @PreAuthorize("isAuthenticated()")
     public String getOrderByIdView(@PathVariable Long orderId, Model model) {
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
             model.addAttribute("order", order);
             model.addAttribute("pageTitle", "Order Details #" + orderId);
@@ -1034,10 +1034,9 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String usersListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<User> allUsers = userService.getAllUsers().stream()
-                    .map(dto -> userService.getUserById(dto.getId()))
-                    .collect(java.util.stream.Collectors.toList());
-            
+            // Load users directly from DB so online status and all fields are real
+            List<User> allUsers = userRepository.findAll();
+
             int pageSize = 12;
             int totalPages = (int) Math.ceil((double) allUsers.size() / pageSize);
             int start = page * pageSize;
@@ -1070,10 +1069,12 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String getUserDetailsPage(@PathVariable Long userId, Model model) {
         try {
-            User user = userService.getUserById(userId);
-            List<Role> allRoles = roleRepository.findAll();
-            model.addAttribute("user", user);
-            model.addAttribute("allRoles", allRoles);
+            // Load user directly from DB so online status is real
+            User loadedUser = userRepository.findById(userId)
+                    .orElseThrow(() -> new com.project.skin_me.exception.ResourceNotFoundException("User not found with ID: " + userId));
+            List<Role> roles = roleRepository.findAll();
+            model.addAttribute("user", loadedUser);
+            model.addAttribute("allRoles", roles);
             model.addAttribute("pageTitle", "User Details");
         } catch (Exception e) {
             model.addAttribute("error", "User not found: " + e.getMessage());

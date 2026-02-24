@@ -65,6 +65,14 @@
           padding: 0.25rem 0.5rem;
           font-size: 0.875rem;
         }
+        @media print {
+          body * { visibility: hidden; }
+          .main-content, .main-content * { visibility: visible; }
+          .main-content { position: absolute; left: 0; top: 0; width: 100%; }
+          .no-print, .filter-section, .table-actions, .btn, .dropdown, nav, .page-header .dropdown, .pagination { display: none !important; }
+          .product-table { box-shadow: none; }
+          .product-table thead { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
       </style>
     </th:block>
     <meta charset="UTF-8" />
@@ -77,8 +85,24 @@
     <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-box-seam'"></div>
 
     <div class="container-fluid px-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div></div>
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+              <li>
+                <a class="dropdown-item" th:href="${(api.prefix.startsWith('/') ? api.prefix : '/' + api.prefix) + '/admin/products/export-csv'}" download="products.csv">
+                  <i class="bi bi-file-earmark-spreadsheet"></i> Export as CSV (all products)
+                </a>
+              </li>
+            </ul>
+          </div>
+          <button type="button" class="btn btn-outline-secondary no-print" id="btnPrintProducts" title="Print product table">
+            <i class="bi bi-printer"></i> Print table
+          </button>
+        </div>
         <a th:href="@{/views/products/create}" class="btn btn-primary">
           <i class="bi bi-plus-circle"></i> Create New Product
         </a>
@@ -280,6 +304,13 @@
         if (statusFilter) {
           statusFilter.addEventListener("change", function (e) {
             // Filter applied
+          });
+        }
+
+        var btnPrint = document.getElementById("btnPrintProducts");
+        if (btnPrint) {
+          btnPrint.addEventListener("click", function () {
+            window.print();
           });
         }
       });

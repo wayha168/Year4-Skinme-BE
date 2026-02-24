@@ -6,6 +6,7 @@ import com.project.skin_me.enums.ProductStatus;
 import com.project.skin_me.model.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -25,6 +26,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByProductType(String productType);
 
+    List<Product> findByCategory_NameAndBrand_Name(String categoryName, String brandName);
+
     List<Product> findByBrand_Category_NameAndBrand_Name(String categoryName, String brandName);
 
     List<Product> findByBrand_NameAndName(String brandName, String productName);
@@ -35,15 +38,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsByNameAndBrand_Id(String name, Long brandId);
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.images LEFT JOIN FETCH p.brand b LEFT JOIN FETCH b.category")
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH p.category")
     List<Product> findAllWithImages();
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH b.category")
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH p.category")
     List<Product> findAllWithCategory();
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH b.category LEFT JOIN FETCH p.category WHERE p.category.name = :categoryName")
+    @Query("SELECT DISTINCT p FROM Product p JOIN FETCH p.brand INNER JOIN FETCH p.category c WHERE c.name = :categoryName")
     List<Product> findByCategoryNameWithCategory(String categoryName);
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.category WHERE p.category.id = :categoryId")
-    List<Product> findByCategoryIdWithCategory(Long categoryId);
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category c LEFT JOIN FETCH p.brand WHERE c.id = :categoryId")
+    List<Product> findByCategoryIdWithCategory(@Param("categoryId") Long categoryId);
 }
