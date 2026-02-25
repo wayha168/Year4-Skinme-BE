@@ -1,14 +1,46 @@
 package com.project.skin_me.controller.view;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.OrderStatusCountDto;
+import com.project.skin_me.dto.ProductDto;
+import com.project.skin_me.dto.SalesMonthDto;
+import com.project.skin_me.enums.OrderStatus;
+import com.project.skin_me.enums.ProductStatus;
+import com.project.skin_me.model.Activity;
+import com.project.skin_me.model.Brand;
 import com.project.skin_me.model.Category;
+import com.project.skin_me.model.FavoriteItem;
 import com.project.skin_me.model.Order;
 import com.project.skin_me.model.Payment;
-import com.project.skin_me.model.Product;
-import com.project.skin_me.model.User;
-import com.project.skin_me.model.Activity;
-import com.project.skin_me.model.FavoriteItem;
 import com.project.skin_me.model.PopularProduct;
+import com.project.skin_me.model.Product;
+import com.project.skin_me.model.Role;
+import com.project.skin_me.model.User;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.skin_me.repository.ActivityRepository;
 import com.project.skin_me.repository.ChatMessageRepository;
 import com.project.skin_me.repository.FavoriteItemRepository;
@@ -17,40 +49,32 @@ import com.project.skin_me.repository.PaymentRepository;
 import com.project.skin_me.repository.PopularProductRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
+import com.project.skin_me.request.AddProductRequest;
 import com.project.skin_me.request.CreateUserRequest;
+import com.project.skin_me.request.ProductUpdateRequest;
 import com.project.skin_me.request.UserUpdateRequest;
-import com.project.skin_me.model.Role;
 import com.project.skin_me.service.brand.IBrandService;
 import com.project.skin_me.service.category.ICategoryService;
+import com.project.skin_me.service.image.IImageService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
 import com.project.skin_me.service.product.IProductService;
 import com.project.skin_me.service.user.IUserService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
-import java.util.List;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import com.project.skin_me.dto.ProductDto;
-import com.project.skin_me.request.AddProductRequest;
-import com.project.skin_me.request.ProductUpdateRequest;
-import com.project.skin_me.enums.ProductStatus;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 @Controller
 @RequiredArgsConstructor
 public class PageController {
 
+    /** Number of items per page; only this many are loaded from DB per request. */
+    private static final int PAGE_SIZE = 25;
+
     private final ICategoryService categoryService;
     private final IBrandService brandService;
     private final IProductService productService;
+    private final IImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
@@ -63,23 +87,35 @@ public class PageController {
     private final ActivityRepository activityRepository;
     private final FavoriteItemRepository favoriteItemRepository;
     private final PopularProductRepository popularProductRepository;
+    private final ObjectMapper objectMapper;
 
     @org.springframework.beans.factory.annotation.Value("${stripe.public.key}")
     private String stripePublicKey;
 
     @GetMapping("/login-page")
-    public String loginPage(Model model, 
-                           @RequestParam(required = false) String error,
-                           @RequestParam(required = false) String expired,
-                           @RequestParam(required = false) String logout) {
+    public String loginPage(Model model,
+            HttpServletRequest request,
+            @RequestParam(required = false) String error,
+            @RequestParam(required = false) String expired,
+            @RequestParam(required = false) String logout) {
         // If user is already authenticated, redirect to dashboard
-        org.springframework.security.core.Authentication auth = 
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && 
-            !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() &&
+                !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
             return "redirect:/dashboard";
         }
-        
+
+        // Ensure CSRF token is available for the standalone login form (required for
+        // POST /login)
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        if (csrfToken == null) {
+            csrfToken = (CsrfToken) request.getAttribute("_csrf");
+        }
+        if (csrfToken != null) {
+            model.addAttribute("_csrf", csrfToken);
+        }
+
         if (expired != null) {
             model.addAttribute("error", "Your session has expired. Please login again.");
         } else if (logout != null) {
@@ -87,17 +123,17 @@ public class PageController {
         } else if (error != null) {
             model.addAttribute("error", "Invalid email or password. Please try again.");
         }
-        
+
         return "auth/login";
     }
 
     @GetMapping("/")
     public String homePage() {
         // Check if user is authenticated
-        org.springframework.security.core.Authentication auth = 
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && 
-            !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() &&
+                !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
             return "redirect:/dashboard";
         }
         return "redirect:/login-page";
@@ -135,19 +171,19 @@ public class PageController {
             java.time.LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
             java.time.LocalDateTime weekStart = now.minusDays(7);
             java.time.LocalDateTime monthStart = now.minusDays(30);
-            
+
             long newUsersToday = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null && 
+                    .filter(u -> u.getRegistrationDate() != null &&
                             !u.getRegistrationDate().isBefore(todayStart))
                     .count();
-            
+
             long newUsersThisWeek = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null && 
+                    .filter(u -> u.getRegistrationDate() != null &&
                             !u.getRegistrationDate().isBefore(weekStart))
                     .count();
-            
+
             long newUsersThisMonth = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null && 
+                    .filter(u -> u.getRegistrationDate() != null &&
                             !u.getRegistrationDate().isBefore(monthStart))
                     .count();
 
@@ -158,21 +194,21 @@ public class PageController {
             model.addAttribute("newUsersToday", newUsersToday);
             model.addAttribute("newUsersThisWeek", newUsersThisWeek);
             model.addAttribute("newUsersThisMonth", newUsersThisMonth);
-            
+
             // Get recent favorite products (latest 5)
             List<FavoriteItem> recentFavorites = favoriteItemRepository.findRecentFavoritesWithRelations();
             List<FavoriteItem> top5Favorites = recentFavorites.stream()
                     .limit(5)
                     .collect(java.util.stream.Collectors.toList());
             model.addAttribute("recentFavorites", top5Favorites);
-            
+
             // Get popular products (top 5)
             List<PopularProduct> popularProducts = popularProductRepository.findTopPopularProductsWithRelations();
             List<PopularProduct> top5Popular = popularProducts.stream()
                     .limit(5)
                     .collect(java.util.stream.Collectors.toList());
             model.addAttribute("popularProducts", top5Popular);
-            
+
         } catch (Exception e) {
             model.addAttribute("totalProducts", 0);
             model.addAttribute("totalOrders", 0);
@@ -228,20 +264,15 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String categoriesPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<Category> allCategories = categoryService.getAllCategories();
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allCategories.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allCategories.size());
-            
-            List<Category> categories = start < allCategories.size() 
-                ? allCategories.subList(start, end) 
-                : List.<Category>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id"));
+            var categoryPage = categoryService.getAllCategories(pageable);
+            List<Category> categories = categoryPage.getContent();
+            int totalPages = categoryPage.getTotalPages();
+            long totalItems = categoryPage.getTotalElements();
             model.addAttribute("categories", categories);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
-            model.addAttribute("totalItems", allCategories.size());
+            model.addAttribute("totalItems", totalItems);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
         } catch (Exception e) {
@@ -298,19 +329,18 @@ public class PageController {
             category.setImage(image != null ? image.trim() : null);
             category.setLink(link != null ? link.trim() : null);
             Category savedCategory = categoryService.addCategory(category);
-            
+
             // Send WebSocket notification for category creation (broadcast to admins)
             try {
                 notificationService.broadcastNotification(
-                    "New Category Created",
-                    "Category '" + savedCategory.getName() + "' has been created.",
-                    "PRODUCT"
-                );
+                        "New Category Created",
+                        "Category '" + savedCategory.getName() + "' has been created.",
+                        "PRODUCT");
             } catch (Exception e) {
                 // Log but don't fail the category creation
                 System.err.println("Failed to send category creation notification: " + e.getMessage());
             }
-            
+
             return "redirect:/views/categories?success=Category created successfully";
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create category: " + e.getMessage());
@@ -347,7 +377,8 @@ public class PageController {
             Category existingCategory = categoryService.getCategoryById(categoryId);
             existingCategory.setName(name != null ? name.trim() : existingCategory.getName());
             existingCategory.setTitle(title != null ? title.trim() : existingCategory.getTitle());
-            existingCategory.setDescription(description != null ? description.trim() : existingCategory.getDescription());
+            existingCategory
+                    .setDescription(description != null ? description.trim() : existingCategory.getDescription());
             existingCategory.setImage(image != null ? image.trim() : existingCategory.getImage());
             existingCategory.setLink(link != null ? link.trim() : existingCategory.getLink());
             categoryService.updateCategory(existingCategory, categoryId);
@@ -376,27 +407,113 @@ public class PageController {
         }
     }
 
+    // Brands list and CRUD
+    @GetMapping("/views/brands")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String brandsListPage(Model model) {
+        try {
+            List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
+            model.addAttribute("brands", brands);
+            model.addAttribute("pageTitle", "Brands Management");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load brands: " + e.getMessage());
+            model.addAttribute("brands", List.<com.project.skin_me.model.Brand>of());
+            model.addAttribute("pageTitle", "Brands Management");
+        }
+        return "brands";
+    }
+
+    @GetMapping("/views/brands/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String createBrandPage(Model model) {
+        List<Category> categories = categoryService.getAllCategories();
+        model.addAttribute("categories", categories);
+        model.addAttribute("brand", null);
+        model.addAttribute("pageTitle", "Create Brand");
+        return "brand-form";
+    }
+
+    @PostMapping("/views/brands/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String createBrand(
+            @RequestParam String name,
+            @RequestParam Long categoryId,
+            @RequestParam(required = false) String imageUrl,
+            Model model) {
+        try {
+            brandService.createBrand(name, imageUrl != null ? imageUrl : "", categoryId);
+            return "redirect:/views/brands?success=Brand created successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to create brand: " + e.getMessage());
+            model.addAttribute("categories", categoryService.getAllCategories());
+            model.addAttribute("brand", null);
+            model.addAttribute("pageTitle", "Create Brand");
+            return "brand-form";
+        }
+    }
+
+    @GetMapping("/views/brands/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String editBrandPage(@PathVariable Long id, Model model) {
+        try {
+            com.project.skin_me.model.Brand brand = brandService.getBrandById(id);
+            model.addAttribute("brand", brand);
+            model.addAttribute("categories", List.<Category>of());
+            model.addAttribute("pageTitle", "Edit Brand");
+            return "brand-form";
+        } catch (Exception e) {
+            return "redirect:/views/brands?error=Brand not found";
+        }
+    }
+
+    @PostMapping("/views/brands/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String updateBrand(
+            @PathVariable Long id,
+            @RequestParam String name,
+            @RequestParam(required = false) String imageUrl,
+            Model model) {
+        try {
+            brandService.updateBrand(id, name, imageUrl);
+            return "redirect:/views/brands?success=Brand updated successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to update brand: " + e.getMessage());
+            try {
+                model.addAttribute("brand", brandService.getBrandById(id));
+            } catch (Exception ex) {
+                return "redirect:/views/brands?error=Brand not found";
+            }
+            model.addAttribute("pageTitle", "Edit Brand");
+            return "brand-form";
+        }
+    }
+
+    @PostMapping("/views/brands/{id}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String deleteBrand(@PathVariable Long id) {
+        try {
+            brandService.deleteBrandById(id);
+            return "redirect:/views/brands?success=Brand deleted successfully";
+        } catch (Exception e) {
+            return "redirect:/views/brands?error=Failed to delete brand: " + e.getMessage();
+        }
+    }
+
     @GetMapping("/views/products")
     @PreAuthorize("hasRole('ADMIN')")
     public String productsListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<Product> allProducts = productService.getAllProducts();
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id"));
+            var productPage = productService.getAllProducts(pageable);
+            List<Product> products = productPage.getContent();
             List<Category> categories = categoryService.getAllCategories();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allProducts.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allProducts.size());
-            
-            List<Product> products = start < allProducts.size() 
-                ? allProducts.subList(start, end) 
-                : List.<Product>of();
-            
+            int totalPages = productPage.getTotalPages();
+            long totalItems = productPage.getTotalElements();
             model.addAttribute("products", products);
             model.addAttribute("categories", categories);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
-            model.addAttribute("totalItems", allProducts.size());
+            model.addAttribute("totalItems", totalItems);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
         } catch (Exception e) {
@@ -440,7 +557,10 @@ public class PageController {
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
+            @RequestParam(required = false) String skinType,
+            @RequestParam(required = false) String benefit,
             @RequestParam Long brandId,
+            @RequestParam(value = "product-images", required = false) List<MultipartFile> productImages,
             Model model) {
         try {
             AddProductRequest request = new AddProductRequest();
@@ -450,9 +570,14 @@ public class PageController {
             request.setInventory(inventory);
             request.setDescription(description != null ? description : "");
             request.setHowToUse(howToUse != null ? howToUse : "");
+            request.setSkinType(skinType);
+            request.setBenefit(benefit);
             request.setBrandId(brandId);
 
-            productService.addProduct(request);
+            Product product = productService.addProduct(request);
+            if (productImages != null && !productImages.isEmpty()) {
+                imageService.saveImages(product.getId(), productImages);
+            }
             return "redirect:/views/products?success=Product created successfully";
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create product: " + e.getMessage());
@@ -496,6 +621,8 @@ public class PageController {
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
+            @RequestParam(required = false) String skinType,
+            @RequestParam(required = false) String benefit,
             @RequestParam Long brandId,
             @RequestParam(required = false) String status,
             Model model) {
@@ -507,6 +634,8 @@ public class PageController {
             request.setInventory(inventory);
             request.setDescription(description != null ? description : "");
             request.setHowToUse(howToUse != null ? howToUse : "");
+            request.setSkinType(skinType);
+            request.setBenefit(benefit);
             request.setBrandId(brandId);
             if (status != null) {
                 request.setStatus(ProductStatus.valueOf(status));
@@ -581,10 +710,9 @@ public class PageController {
     public String getProductsByCategory(@PathVariable Long categoryId, Model model) {
         try {
             Category category = categoryService.getCategoryById(categoryId);
-            
-            List<Product> products = productService.getAllProductsByCategory(category.getName());
+            List<Product> products = productService.getProductsByCategoryId(categoryId);
             List<ProductDto> productDtos = productService.getConvertedProducts(products);
-            
+
             model.addAttribute("products", productDtos);
             model.addAttribute("category", category);
             model.addAttribute("pageTitle", category.getName() + " Products");
@@ -605,6 +733,34 @@ public class PageController {
         return "products-by-category";
     }
 
+    @GetMapping("/view/products/brand/{brandId}")
+    @PreAuthorize("isAuthenticated()")
+    public String getProductsByBrand(@PathVariable Long brandId, Model model) {
+        try {
+            Brand brand = brandService.getBrandById(brandId);
+            List<Product> products = productService.getProductsByBrandId(brandId);
+            List<ProductDto> productDtos = productService.getConvertedProducts(products);
+
+            model.addAttribute("products", productDtos);
+            model.addAttribute("brand", brand);
+            model.addAttribute("pageTitle", brand.getName() + " Products");
+            model.addAttribute("pageIcon", "bi-award");
+        } catch (com.project.skin_me.exception.ResourceNotFoundException e) {
+            model.addAttribute("error", "Brand not found: " + e.getMessage());
+            model.addAttribute("products", List.<ProductDto>of());
+            model.addAttribute("brand", null);
+            model.addAttribute("pageTitle", "Brand Not Found");
+            model.addAttribute("pageIcon", "bi-exclamation-triangle");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load products: " + e.getMessage());
+            model.addAttribute("products", List.<ProductDto>of());
+            model.addAttribute("brand", null);
+            model.addAttribute("pageTitle", "Products Error");
+            model.addAttribute("pageIcon", "bi-exclamation-triangle");
+        }
+        return "products-by-brand";
+    }
+
     @GetMapping("/views/products/product-details")
     public String getProductDetailsPage(@RequestParam Long productId, Model model) {
         try {
@@ -616,7 +772,6 @@ public class PageController {
         model.addAttribute("pageTitle", "Product Details");
         return "product-details";
     }
-
 
     @GetMapping("/view/orders")
     @PreAuthorize("isAuthenticated()")
@@ -659,29 +814,81 @@ public class PageController {
         return "order-details";
     }
 
+    /** Status colors for order charts (could be moved to DB/settings later). */
+    private static final Map<OrderStatus, String> ORDER_STATUS_COLORS = new LinkedHashMap<>() {{
+        put(OrderStatus.DELIVERED, "#10b981");
+        put(OrderStatus.PAID, "#10b981");
+        put(OrderStatus.SUCCESS, "#10b981");
+        put(OrderStatus.PENDING, "#f59e0b");
+        put(OrderStatus.PROCESSING, "#f59e0b");
+        put(OrderStatus.PAYMENT_PENDING, "#f97316");
+        put(OrderStatus.PAYMENT, "#f97316");
+        put(OrderStatus.SHIPPED, "#3b82f6");
+        put(OrderStatus.CANCELLED, "#ef4444");
+        put(OrderStatus.FAILED, "#ef4444");
+    }};
+
+    private static final String DEFAULT_STATUS_COLOR = "#6b7280";
+
     @GetMapping("/views/orders")
     @PreAuthorize("hasRole('ADMIN')")
     public String ordersListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<OrderDto> allOrders = orderService.getAllUserOrders();
-            long completedOrders = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && o.getOrderStatus().toString().equals("COMPLETED"))
-                    .count();
-            long pendingPaymentOrders = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && o.getOrderStatus().toString().equals("PAYMENT_PENDING"))
-                    .count();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allOrders.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allOrders.size());
-            
-            List<OrderDto> orders = start < allOrders.size() 
-                ? allOrders.subList(start, end) 
-                : List.<OrderDto>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
+            var orderPage = orderService.getAllUserOrders(pageable);
+            List<OrderDto> orders = orderPage.getContent();
+            long totalOrders = orderPage.getTotalElements();
+            long completedOrders = orderRepository.countByOrderStatus(OrderStatus.DELIVERED);
+            long pendingPaymentOrders = orderRepository.countByOrderStatus(OrderStatus.PAYMENT_PENDING);
+            int totalPages = orderPage.getTotalPages();
+
+            BigDecimal totalRevenue = orderRepository.sumOrderTotalAmount();
+            if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
+            model.addAttribute("totalRevenue", totalRevenue);
+
+            List<OrderStatusCountDto> orderStatusCounts = new ArrayList<>();
+            List<Object[]> statusRows = orderRepository.countGroupByOrderStatus();
+            for (Object[] row : statusRows) {
+                OrderStatus status = (OrderStatus) row[0];
+                Long count = ((Number) row[1]).longValue();
+                String color = ORDER_STATUS_COLORS.getOrDefault(status, DEFAULT_STATUS_COLOR);
+                orderStatusCounts.add(new OrderStatusCountDto(status.name(), count, color));
+            }
+            model.addAttribute("orderStatusCounts", orderStatusCounts);
+
+            LocalDate since = LocalDate.now().minusMonths(11).withDayOfMonth(1);
+            java.sql.Date sinceSql = java.sql.Date.valueOf(since);
+            List<Object[]> revenueByMonth = orderRepository.sumRevenueByMonthSince(sinceSql);
+            Map<String, BigDecimal> monthToRevenue = new LinkedHashMap<>();
+            for (Object[] row : revenueByMonth) {
+                int y = ((Number) row[0]).intValue();
+                int m = ((Number) row[1]).intValue();
+                BigDecimal sum = BigDecimal.ZERO;
+                if (row[2] != null) {
+                    sum = row[2] instanceof BigDecimal ? (BigDecimal) row[2] : BigDecimal.valueOf(((Number) row[2]).doubleValue());
+                }
+                String key = y + "-" + m;
+                monthToRevenue.put(key, sum);
+            }
+            List<SalesMonthDto> salesByMonth = new ArrayList<>();
+            for (int i = 0; i < 12; i++) {
+                LocalDate d = since.plusMonths(i);
+                String key = d.getYear() + "-" + d.getMonthValue();
+                String label = d.getMonth().name().substring(0, 1) + d.getMonth().name().substring(1).toLowerCase() + " " + d.getYear();
+                BigDecimal rev = monthToRevenue.getOrDefault(key, BigDecimal.ZERO);
+                salesByMonth.add(new SalesMonthDto(label, rev));
+            }
+            model.addAttribute("salesByMonth", salesByMonth);
+            try {
+                model.addAttribute("orderStatusCountsJson", objectMapper.writeValueAsString(orderStatusCounts));
+                model.addAttribute("salesByMonthJson", objectMapper.writeValueAsString(salesByMonth));
+            } catch (JsonProcessingException e) {
+                model.addAttribute("orderStatusCountsJson", "[]");
+                model.addAttribute("salesByMonthJson", "[]");
+            }
+
             model.addAttribute("orders", orders);
-            model.addAttribute("totalOrders", allOrders.size());
+            model.addAttribute("totalOrders", totalOrders);
             model.addAttribute("completedOrders", completedOrders);
             model.addAttribute("pendingPaymentOrders", pendingPaymentOrders);
             model.addAttribute("currentPage", page);
@@ -691,7 +898,12 @@ public class PageController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load orders: " + e.getMessage());
             model.addAttribute("orders", List.<OrderDto>of());
-            model.addAttribute("totalOrders", 0);
+            model.addAttribute("totalOrders", 0L);
+            model.addAttribute("totalRevenue", BigDecimal.ZERO);
+            model.addAttribute("orderStatusCounts", List.<OrderStatusCountDto>of());
+            model.addAttribute("salesByMonth", List.<SalesMonthDto>of());
+            model.addAttribute("orderStatusCountsJson", "[]");
+            model.addAttribute("salesByMonthJson", "[]");
             model.addAttribute("completedOrders", 0);
             model.addAttribute("pendingPaymentOrders", 0);
             model.addAttribute("currentPage", 0);
@@ -722,25 +934,18 @@ public class PageController {
 
     @GetMapping("/views/my-orders")
     @PreAuthorize("isAuthenticated()")
-    public String myOrdersListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication, Model model) {
+    public String myOrdersListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication,
+            Model model) {
         try {
             User user = userService.getAuthenticatedUser();
-            List<OrderDto> allOrders = orderService.getUserOrders(user.getId());
-            long deliveredOrders = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && o.getOrderStatus().equals("COMPLETED"))
-                    .count();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allOrders.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allOrders.size());
-            
-            List<OrderDto> orders = start < allOrders.size() 
-                ? allOrders.subList(start, end) 
-                : List.<OrderDto>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
+            var orderPage = orderService.getUserOrders(user.getId(), pageable);
+            List<OrderDto> orders = orderPage.getContent();
+            long totalOrders = orderPage.getTotalElements();
+            long deliveredOrders = orderRepository.countByUser_IdAndOrderStatus(user.getId(), OrderStatus.DELIVERED);
+            int totalPages = orderPage.getTotalPages();
             model.addAttribute("orders", orders);
-            model.addAttribute("totalOrders", allOrders.size());
+            model.addAttribute("totalOrders", totalOrders);
             model.addAttribute("deliveredOrders", deliveredOrders);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
@@ -838,25 +1043,16 @@ public class PageController {
     @PreAuthorize("isAuthenticated()")
     public String paymentsListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<Payment> allPayments = paymentRepository.findAll();
-            long completedPayments = allPayments.stream()
-                    .filter(p -> p.getStatus() != null && p.getStatus().toString().equals("COMPLETED"))
-                    .count();
-            double totalPaymentAmount = allPayments.stream()
-                    .mapToDouble(p -> p.getAmount() != null ? p.getAmount().doubleValue() : 0)
-                    .sum();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allPayments.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allPayments.size());
-            
-            List<Payment> payments = start < allPayments.size() 
-                ? allPayments.subList(start, end) 
-                : List.<Payment>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id").descending());
+            var paymentPage = paymentRepository.findAll(pageable);
+            List<Payment> payments = paymentPage.getContent();
+            long totalPayments = paymentPage.getTotalElements();
+            long completedPayments = paymentRepository.countByStatus(OrderStatus.SUCCESS);
+            java.math.BigDecimal sum = paymentRepository.sumAllAmounts();
+            double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
+            int totalPages = paymentPage.getTotalPages();
             model.addAttribute("payments", payments);
-            model.addAttribute("totalPayments", allPayments.size());
+            model.addAttribute("totalPayments", totalPayments);
             model.addAttribute("completedPayments", completedPayments);
             model.addAttribute("totalPaymentAmount", totalPaymentAmount);
             model.addAttribute("currentPage", page);
@@ -880,25 +1076,19 @@ public class PageController {
 
     @GetMapping("/views/my-payments")
     @PreAuthorize("isAuthenticated()")
-    public String myPaymentsListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication, Model model) {
+    public String myPaymentsListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication,
+            Model model) {
         try {
             User user = userService.getAuthenticatedUser();
-            List<Payment> allPayments = paymentRepository.findByOrderUserId(user.getId());
-            double totalPaymentAmount = allPayments.stream()
-                    .mapToDouble(p -> p.getAmount() != null ? p.getAmount().doubleValue() : 0)
-                    .sum();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allPayments.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allPayments.size());
-            
-            List<Payment> payments = start < allPayments.size() 
-                ? allPayments.subList(start, end) 
-                : List.<Payment>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id").descending());
+            var paymentPage = paymentRepository.findByOrderUserId(user.getId(), pageable);
+            List<Payment> payments = paymentPage.getContent();
+            long totalPayments = paymentPage.getTotalElements();
+            java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
+            double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
+            int totalPages = paymentPage.getTotalPages();
             model.addAttribute("payments", payments);
-            model.addAttribute("totalPayments", allPayments.size());
+            model.addAttribute("totalPayments", totalPayments);
             model.addAttribute("totalPaymentAmount", totalPaymentAmount);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
@@ -925,37 +1115,22 @@ public class PageController {
             User currentUser = userService.getAuthenticatedUser();
             boolean isAdmin = currentUser.getRoles().stream()
                     .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
-            
-            // Get chat history
-            List<com.project.skin_me.model.ChatMessage> allChatHistory;
+
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("timestamp").descending());
+            List<com.project.skin_me.model.ChatMessage> chatHistory;
+            int totalPages;
             if (isAdmin) {
-                // Admin sees all chats
-                allChatHistory = chatMessageRepository.findAllByOrderByTimestampDesc();
+                var chatPage = chatMessageRepository.findAllByOrderByTimestampDesc(pageable);
+                chatHistory = chatPage.getContent();
+                totalPages = chatPage.getTotalPages();
             } else {
-                // User sees their own chats
-                allChatHistory = chatMessageRepository.findByUserIdOrderByTimestampAsc(currentUser.getId());
+                var chatPage = chatMessageRepository.findByUserIdOrderByTimestampDesc(currentUser.getId(), pageable);
+                chatHistory = chatPage.getContent();
+                totalPages = chatPage.getTotalPages();
             }
-            
-            // Paginate chat history
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allChatHistory.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allChatHistory.size());
-            
-            List<com.project.skin_me.model.ChatMessage> chatHistory = start < allChatHistory.size() 
-                ? allChatHistory.subList(start, end) 
-                : List.<com.project.skin_me.model.ChatMessage>of();
-            
-            // Get AI responses (also paginated)
-            List<com.project.skin_me.model.ChatMessage> allAiResponses = chatMessageRepository.findAllAiResponses();
-            int aiStart = page * pageSize;
-            int aiEnd = Math.min(aiStart + pageSize, allAiResponses.size());
-            List<com.project.skin_me.model.ChatMessage> aiResponses = aiStart < allAiResponses.size() 
-                ? allAiResponses.subList(aiStart, aiEnd) 
-                : List.<com.project.skin_me.model.ChatMessage>of();
-            
+
             model.addAttribute("chatHistory", chatHistory);
-            model.addAttribute("aiResponses", aiResponses);
+            model.addAttribute("aiResponses", List.<com.project.skin_me.model.ChatMessage>of());
             model.addAttribute("isAdmin", isAdmin);
             model.addAttribute("currentUserId", currentUser.getId());
             model.addAttribute("currentUserEmail", currentUser.getEmail());
@@ -981,32 +1156,17 @@ public class PageController {
     @PreAuthorize("isAuthenticated()")
     public String deliveryListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<Order> allOrders = orderRepository.findAll();
-            long shippedOrders = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && 
-                            (o.getOrderStatus().toString().equals("SHIPPED") || 
-                             o.getOrderStatus().toString().equals("DELIVERED")))
-                    .count();
-            long deliveredOrders = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && o.getOrderStatus().toString().equals("DELIVERED"))
-                    .count();
-            long pendingDeliveries = allOrders.stream()
-                    .filter(o -> o.getOrderStatus() != null && 
-                            (o.getOrderStatus().toString().equals("COMPLETED") || 
-                             o.getOrderStatus().toString().equals("PAYMENT_PENDING")))
-                    .count();
-            
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allOrders.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allOrders.size());
-            
-            List<Order> deliveries = start < allOrders.size() 
-                ? allOrders.subList(start, end) 
-                : List.<Order>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
+            var orderPage = orderRepository.findAllWithOrderItems(pageable);
+            List<Order> deliveries = orderPage.getContent();
+            long totalDeliveries = orderPage.getTotalElements();
+            long shippedOrders = orderRepository.countByOrderStatus(OrderStatus.SHIPPED)
+                    + orderRepository.countByOrderStatus(OrderStatus.DELIVERED);
+            long deliveredOrders = orderRepository.countByOrderStatus(OrderStatus.DELIVERED);
+            long pendingDeliveries = orderRepository.countByOrderStatus(OrderStatus.PAYMENT_PENDING);
+            int totalPages = orderPage.getTotalPages();
             model.addAttribute("deliveries", deliveries);
-            model.addAttribute("totalDeliveries", allOrders.size());
+            model.addAttribute("totalDeliveries", totalDeliveries);
             model.addAttribute("shippedOrders", shippedOrders);
             model.addAttribute("deliveredOrders", deliveredOrders);
             model.addAttribute("pendingDeliveries", pendingDeliveries);
@@ -1034,20 +1194,15 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String usersListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            // Load users directly from DB so online status and all fields are real
-            List<User> allUsers = userRepository.findAll();
-
-            int pageSize = 12;
-            int totalPages = (int) Math.ceil((double) allUsers.size() / pageSize);
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, allUsers.size());
-            
-            List<User> users = start < allUsers.size() 
-                ? allUsers.subList(start, end) 
-                : List.<User>of();
-            
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id"));
+            var userPage = userRepository.findAll(pageable);
+            List<User> users = userPage.getContent();
+            long totalUsers = userPage.getTotalElements();
+            int totalPages = userPage.getTotalPages();
+            List<Role> allRoles = roleRepository.findAll();
             model.addAttribute("users", users);
-            model.addAttribute("totalUsers", allUsers.size());
+            model.addAttribute("allRoles", allRoles);
+            model.addAttribute("totalUsers", totalUsers);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
@@ -1055,6 +1210,7 @@ public class PageController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load users: " + e.getMessage());
             model.addAttribute("users", List.<User>of());
+            model.addAttribute("allRoles", List.<Role>of());
             model.addAttribute("totalUsers", 0);
             model.addAttribute("currentPage", 0);
             model.addAttribute("totalPages", 0);
@@ -1071,7 +1227,8 @@ public class PageController {
         try {
             // Load user directly from DB so online status is real
             User loadedUser = userRepository.findById(userId)
-                    .orElseThrow(() -> new com.project.skin_me.exception.ResourceNotFoundException("User not found with ID: " + userId));
+                    .orElseThrow(() -> new com.project.skin_me.exception.ResourceNotFoundException(
+                            "User not found with ID: " + userId));
             List<Role> roles = roleRepository.findAll();
             model.addAttribute("user", loadedUser);
             model.addAttribute("allRoles", roles);
@@ -1099,7 +1256,8 @@ public class PageController {
 
     @PostMapping("/views/users/create")
     @PreAuthorize("hasRole('ADMIN')")
-    public String createUser(@ModelAttribute CreateUserRequest request, @RequestParam(required = false) String roleName, Model model) {
+    public String createUser(@ModelAttribute CreateUserRequest request, @RequestParam(required = false) String roleName,
+            Model model) {
         try {
             // Handle role assignment from form
             if (roleName != null && !roleName.isEmpty()) {
@@ -1140,7 +1298,8 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String updateUser(@PathVariable Long userId, @ModelAttribute UserUpdateRequest request, Model model) {
         try {
-            // Handle enabled checkbox - Spring will set it to true if checkbox is checked, null otherwise
+            // Handle enabled checkbox - Spring will set it to true if checkbox is checked,
+            // null otherwise
             // We need to preserve current state if not provided
             if (request.getEnabled() == null) {
                 User currentUser = userService.getUserById(userId);
@@ -1205,13 +1364,13 @@ public class PageController {
             Model model) {
         try {
             List<Activity> activities;
-            
+
             if (userId != null) {
                 activities = activityRepository.findByUserIdOrderByTimestampDesc(userId);
             } else if (activityType != null && !activityType.isEmpty()) {
                 try {
-                    com.project.skin_me.enums.ActivityType type = 
-                        com.project.skin_me.enums.ActivityType.valueOf(activityType.toUpperCase());
+                    com.project.skin_me.enums.ActivityType type = com.project.skin_me.enums.ActivityType
+                            .valueOf(activityType.toUpperCase());
                     activities = activityRepository.findByActivityType(type);
                     activities.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
                 } catch (IllegalArgumentException e) {
@@ -1220,15 +1379,15 @@ public class PageController {
             } else {
                 activities = activityRepository.findAllWithUserOrderByTimestampDesc();
             }
-            
+
             model.addAttribute("activities", activities);
             model.addAttribute("totalActivities", activities.size());
             model.addAttribute("pageTitle", "Audit Log Management");
-            
+
             // Get filter options
             List<User> allUsers = userRepository.findAll();
             model.addAttribute("allUsers", allUsers);
-            
+
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load audit logs: " + e.getMessage());
             model.addAttribute("activities", List.<Activity>of());

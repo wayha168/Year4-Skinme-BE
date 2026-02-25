@@ -4,8 +4,8 @@
    ============================================ */
 
 :root {
-  --primary: #111111;
-  --primary-dark: #2b2b2b;
+  --primary: #c78d89;
+  --primary-dark: #a86d69;
   --secondary: #f5f5f5;
   --secondary-text: #333;
   --light-bg: #f8f8f8;
@@ -17,6 +17,10 @@
   --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.12);
   --sidebar-width: 16%;
   --main-content-width: 84%;
+  --color-price: #c78d89;
+  --color-sale-price: #c78d89;
+  --color-sale-badge-background: #ffffff;
+  --color-reviews: #c78d89;
 }
 
 * {
@@ -82,28 +86,25 @@
   overflow-y: auto;
   overflow-x: hidden;
   background: #ffffff;
-  display: flex;
+  /* display: flex; */
   flex-direction: column;
   box-sizing: border-box;
 }
 
-/* Content wrapper inside main-content */
+/* Content wrapper - minimal padding so table sits up (overrides px-4) */
 .main-content .container-fluid {
-  /* padding: 12px; */
   flex: 1;
   width: 100%;
   box-sizing: border-box;
+  /* padding-top: 0 !important;
+  padding-bottom: 0 !important; */
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
 }
 
-/* Ensure page header has proper spacing */
 .main-content > .page-header {
   flex-shrink: 0;
   width: 100%;
-}
-
-/* Ensure container-fluid after page-header has padding */
-.main-content > .page-header + .container-fluid {
-  padding-top: 0;
 }
 
 /* Bootstrap Card Overrides - Modern Concept Style */
@@ -139,11 +140,10 @@
   gap: 0.5rem !important;
 }
 
-/* Page header - white background */
+/* Page header - compact so table sits higher */
 .page-header {
   background: var(--white);
   color: var(--text-dark);
-  /* padding: 0; */
   border-bottom: 1px solid #e9ecef;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: sticky;
@@ -153,7 +153,33 @@
 }
 
 .page-header .container-fluid {
-  padding: 12px 16px;
+  padding: 6px 12px;
+}
+
+.main-content .container-fluid .d-flex.justify-content-between.mb-3,
+.main-content .container-fluid .d-flex.justify-content-between.mb-4 {
+  margin-bottom: 0.5rem;
+}
+
+/* No free space: same compact spacing as category section on all list/detail/form pages */
+/* .main-content .container-fluid > .data-table.mt-4,
+.main-content .container-fluid > .product-table,
+.main-content .container-fluid > .order-table,
+.main-content .container-fluid > .user-table,
+.main-content .container-fluid > .promotion-table,
+.main-content .container-fluid > .payment-table,
+.main-content .container-fluid > .delivery-table,
+.main-content .container-fluid > .review-table,
+.main-content .container-fluid > .message-table,
+.main-content .container-fluid > .notification-table,
+.main-content .container-fluid > .setting-table,
+.main-content .container-fluid > .card.mt-4 {
+  margin-top: 0.5rem !important;
+} */
+
+.main-content .container-fluid .filter-section {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .page-title-section {
@@ -412,7 +438,8 @@
   display: none;
 }
 
-.sidebar.sidebar-collapsed .nav-link.dropdown-toggle::after {
+.sidebar.sidebar-collapsed .nav-link.dropdown-toggle::after,
+.sidebar.sidebar-collapsed .nav-link .nav-dropdown-arrow {
   display: none;
 }
 
@@ -578,24 +605,24 @@
   position: relative;
 }
 
+/* Select-style dropdown chevron: use explicit .nav-dropdown-arrow, hide Bootstrap caret */
 .nav-link.dropdown-toggle::after {
-  content: '';
-  display: inline-block;
-  width: 0;
-  height: 0;
-  margin-left: auto;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 6px solid currentColor;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.7;
+  display: none;
 }
 
-.nav-link.dropdown-toggle:hover::after {
+.nav-link .nav-dropdown-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  opacity: 0.8;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.nav-link.dropdown-toggle:hover .nav-dropdown-arrow {
   opacity: 1;
 }
 
-.nav-link.dropdown-toggle[aria-expanded="true"]::after {
+.nav-link.dropdown-toggle[aria-expanded="true"] .nav-dropdown-arrow {
   transform: rotate(180deg);
   opacity: 1;
 }
@@ -684,8 +711,8 @@
   color: #ffffff !important;
 }
 
-.nav-link.dropdown-toggle[aria-expanded="true"]::after {
-  border-top-color: #ffffff;
+.nav-link.dropdown-toggle[aria-expanded="true"] .nav-dropdown-arrow {
+  color: inherit;
 }
 
 
@@ -982,6 +1009,106 @@
   background: white !important;
   border-color: #e0e0e0 !important;
   color: #b0b0b0 !important;
+}
+
+/* ========== Toast notification - flexible dropdown popup, auto-dismiss ========== */
+#toastContainer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 10000;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+#toastContainer .toast-notification {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  max-width: min(400px, calc(100vw - 24px));
+  font-family: sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  animation: toastSlideDown 0.3s ease-out;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#toastContainer .toast-notification.toast-out {
+  animation: toastFadeOut 0.25s ease-out forwards;
+}
+
+#toastContainer .toast-notification .toast-icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+#toastContainer .toast-notification .toast-message {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+#toastContainer .toast-notification .toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+#toastContainer .toast-notification.toast-success {
+  background: #166534;
+  color: #fff;
+  border: 1px solid #15803d;
+}
+
+#toastContainer .toast-notification.toast-error {
+  background: #991b1b;
+  color: #fff;
+  border: 1px solid #b91c1c;
+}
+
+#toastContainer .toast-notification.toast-warning {
+  background: #b45309;
+  color: #fff;
+  border: 1px solid #c2410c;
+}
+
+#toastContainer .toast-notification.toast-info {
+  background: #1e40af;
+  color: #fff;
+  border: 1px solid #2563eb;
+}
+
+@keyframes toastSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toastFadeOut {
+  to {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
 }
 
 /* Responsive */

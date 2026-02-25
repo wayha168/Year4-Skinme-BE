@@ -13,6 +13,8 @@ public class AddProductRequest {
     private int inventory;
     private String description;
     private String howToUse;
+    private String skinType;
+    private String benefit;
     /** Brand ID (required). */
     private Long brandId;
 }

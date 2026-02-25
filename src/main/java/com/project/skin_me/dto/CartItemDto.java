@@ -23,7 +23,12 @@ public class CartItemDto {
         if (p != null) {
             var images = p.getImages() != null
                     ? p.getImages().stream()
-                    .map(img -> new ImageDto(img.getId(), img.getFileName(), img.getDownloadUrl()))
+                    .map(img -> {
+                        String url = (img.getFileName() != null && !img.getFileName().isBlank())
+                                ? "/uploads/" + img.getFileName()
+                                : (img.getDownloadUrl() != null ? img.getDownloadUrl() : "");
+                        return new ImageDto(img.getId(), img.getFileName(), url);
+                    })
                     .collect(Collectors.toList())
                     : List.<ImageDto>of();
             this.product = new ProductDto(

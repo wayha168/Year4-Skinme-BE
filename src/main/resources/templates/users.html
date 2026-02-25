@@ -8,6 +8,8 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/tables.css" />
       <style>
         /* User Info in Table */
@@ -59,30 +61,52 @@
 
       <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <div></div>
-          <a th:href="@{/views/users/create}" class="btn btn-primary btn-gradient">
-            <i class="bi bi-person-plus"></i> Create New User
+          <h2 class="mb-0" style="font-weight: 600; color: #111827;">
+            <i class="bi bi-people"></i> Account management
+          </h2>
+          <a th:href="@{/views/users/create}" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Add New User
           </a>
         </div>
-        
-        <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+
+        <div th:if="${param.success}" class="alert alert-box alert-success alert-dismissible fade show" role="alert">
           <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        
-        <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div th:if="${param.error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div th:if="${error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+        </div>
 
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-value" th:text="${totalUsers ?: 0}">0</div>
-            <div class="stat-label">Total Users</div>
+          <div class="px-4 py-2 font-weight-bold font-size-lg flex align-items-center gap-2">
+            <div class="stat-label">Total Users: <div class="stat-value" th:text="${totalUsers ?: 0}">0</div></div>
+          </div>
+
+
+        <div class="filter-section">
+          <h6 class="mb-3"><i class="bi bi-funnel"></i> Filter & Search</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <input type="text" class="form-control" placeholder="Search by name or email..." id="userSearchInput" />
+            </div>
+            <div class="col-md-4">
+              <select class="form-select" id="userRoleFilter">
+                <option value="">All Roles</option>
+                <option th:each="role : ${allRoles}" th:value="${role.name}" th:text="${role.name}">Role</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <select class="form-select" id="userStatusFilter">
+                <option value="">All Status</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -109,7 +133,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr th:each="user : ${users}">
+                <tr th:each="user : ${users}" th:attr="data-enabled=${user.enabled != null ? user.enabled : false}, data-roles=${user.roles != null ? #strings.listJoin(user.roles.![name], ',') : ''}">
                   <td class="text-muted fw-semibold" th:text="${user.id}">1</td>
                   <td>
                     <div class="user-info">
@@ -171,6 +195,29 @@
     <th:block th:fragment="script">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script>
+        function applyUserFilters() {
+          var searchTerm = (document.getElementById("userSearchInput") && document.getElementById("userSearchInput").value) ? document.getElementById("userSearchInput").value.toLowerCase() : "";
+          var roleVal = document.getElementById("userRoleFilter") ? document.getElementById("userRoleFilter").value : "";
+          var statusVal = document.getElementById("userStatusFilter") ? document.getElementById("userStatusFilter").value : "";
+          var rows = document.querySelectorAll(".users-table tbody tr");
+          rows.forEach(function(row) {
+            var text = row.textContent.toLowerCase();
+            var matchSearch = !searchTerm || text.indexOf(searchTerm) !== -1;
+            var rowRoles = (row.getAttribute("data-roles") || "").toLowerCase();
+            var matchRole = !roleVal || rowRoles.indexOf(roleVal.toLowerCase()) !== -1;
+            var rowEnabled = row.getAttribute("data-enabled");
+            var matchStatus = !statusVal || (statusVal === "true" && rowEnabled === "true") || (statusVal === "false" && rowEnabled === "false");
+            row.style.display = (matchSearch && matchRole && matchStatus) ? "" : "none";
+          });
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+          var searchInput = document.getElementById("userSearchInput");
+          if (searchInput) searchInput.addEventListener("keyup", applyUserFilters);
+          var roleFilter = document.getElementById("userRoleFilter");
+          if (roleFilter) roleFilter.addEventListener("change", applyUserFilters);
+          var statusFilter = document.getElementById("userStatusFilter");
+          if (statusFilter) statusFilter.addEventListener("change", applyUserFilters);
+        });
         function viewUserDetails(userId) {
           showToast('Loading user details...', 'info');
           window.location.href = '/views/users/' + userId;

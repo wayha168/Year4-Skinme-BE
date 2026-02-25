@@ -35,6 +35,11 @@ public class Product {
     @Column(columnDefinition = "TEXT")
     private String howToUse;
 
+    private String skinType;
+
+    @Column(columnDefinition = "TEXT")
+    private String benefit;
+
     private int totalOrders;
 
     @ManyToOne(fetch = FetchType.LAZY)

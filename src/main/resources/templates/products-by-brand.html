@@ -45,19 +45,19 @@
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title th:text="${pageTitle != null ? pageTitle : 'Products by Category'}">Products by Category</title>
+    <title th:text="${pageTitle != null ? pageTitle : 'Products by Brand'}">Products by Brand</title>
   </head>
   <body>
     <th:block th:fragment="main">
     <main class="main-content">
-      <th:block th:with="icon=${pageIcon != null ? pageIcon : 'bi-box-seam'}, title=${pageTitle != null ? pageTitle : 'Products by Category'}">
+      <th:block th:with="icon=${pageIcon != null ? pageIcon : 'bi-award'}, title=${pageTitle != null ? pageTitle : 'Products by Brand'}">
         <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon=${icon}, pageTitle=${title}"></div>
       </th:block>
 
       <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
           <div class="d-flex align-items-center gap-2">
-            <a th:href="@{/views/categories}" class="btn btn-light btn-sm">
+            <a th:href="@{/views/brands}" class="btn btn-light btn-sm">
               <i class="bi bi-arrow-left"></i> Back
             </a>
             <a th:href="@{/views/products}" class="btn btn-outline-primary btn-sm">
@@ -71,23 +71,23 @@
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
 
-        <div th:if="${category != null and #lists.isEmpty(products)}" class="card mt-4">
+        <div th:if="${brand != null and #lists.isEmpty(products)}" class="card mt-4">
           <div class="empty-state">
             <i class="bi bi-inbox"></i>
             <h5>No Products Found</h5>
-            <p th:text="${'No products available in ' + category.name}">No products in this category.</p>
+            <p th:text="${'No products available for brand ' + brand.name}">No products in this brand.</p>
           </div>
         </div>
 
-        <div th:if="${category == null}" class="card mt-4">
+        <div th:if="${brand == null}" class="card mt-4">
           <div class="empty-state">
             <i class="bi bi-exclamation-triangle"></i>
-            <h5>Category Not Found</h5>
-            <p>The requested category could not be found.</p>
+            <h5>Brand Not Found</h5>
+            <p>The requested brand could not be found.</p>
           </div>
         </div>
 
-        <div th:unless="${category == null or #lists.isEmpty(products)}" class="product-table mt-4">
+        <div th:unless="${brand == null or #lists.isEmpty(products)}" class="product-table mt-4">
           <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
               <thead>
@@ -148,8 +148,8 @@
           </div>
         </div>
 
-        <div th:if="${category != null and !#lists.isEmpty(products)}" class="mt-4 text-center mb-5">
-          <p class="text-muted" th:text="${'Total: ' + #lists.size(products) + ' product(s) in this category'}">Total: 0</p>
+        <div th:if="${brand != null and !#lists.isEmpty(products)}" class="mt-4 text-center mb-5">
+          <p class="text-muted" th:text="${'Total: ' + #lists.size(products) + ' product(s) for this brand'}">Total: 0</p>
         </div>
       </div>
     </main>

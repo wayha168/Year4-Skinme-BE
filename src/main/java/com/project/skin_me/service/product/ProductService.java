@@ -22,6 +22,8 @@ import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.AddProductRequest;
 import com.project.skin_me.request.ProductUpdateRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -52,6 +54,8 @@ public class ProductService implements IProductService {
 
         Product product = createProduct(request, brand);
         product.setCategory(brand.getCategory());
+        product.setSkinType(request.getSkinType());
+        product.setBenefit(request.getBenefit());
         product = productRepository.save(product);
         eventPublisher.publishEvent(new ProductAddedEvent(this));
 
@@ -93,6 +97,24 @@ public class ProductService implements IProductService {
         return productRepository.findAllWithCategory(); // Optimized: fetch category to avoid N+1
     }
 
+    @Override
+    public Page<Product> getAllProducts(Pageable pageable) {
+        Page<Product> page = productRepository.findAllWithCategory(pageable);
+        loadImagesForProducts(page.getContent());
+        return page;
+    }
+
+    /** Load images for products (one product can have many images). Used for list/table view. */
+    public void loadImagesForProducts(List<Product> products) {
+        if (products == null || products.isEmpty()) return;
+        List<Long> ids = products.stream().map(Product::getId).toList();
+        List<Image> images = imageRepository.findByProduct_IdIn(ids);
+        java.util.Map<Long, List<Image>> byProductId = images.stream()
+                .filter(img -> img.getProductId() != null)
+                .collect(Collectors.groupingBy(Image::getProductId));
+        products.forEach(p -> p.setImages(byProductId.getOrDefault(p.getId(), List.of())));
+    }
+
     public List<Product> getAllProductsWithoutImages() {
         return productRepository.findAll();
     }
@@ -125,6 +147,8 @@ public class ProductService implements IProductService {
         existingProduct.setInventory(request.getInventory());
         existingProduct.setDescription(request.getDescription());
         existingProduct.setHowToUse(request.getHowToUse());
+        existingProduct.setSkinType(request.getSkinType());
+        existingProduct.setBenefit(request.getBenefit());
 
         if (request.getBrandId() != null) {
             Brand brand = brandRepository.findById(request.getBrandId())
@@ -149,6 +173,11 @@ public class ProductService implements IProductService {
     @Override
     public List<Product> getProductsByCategoryId(Long categoryId) {
         return productRepository.findByCategoryIdWithCategory(categoryId);
+    }
+
+    @Override
+    public List<Product> getProductsByBrandId(Long brandId) {
+        return productRepository.findByBrandIdWithBrand(brandId);
     }
 
     @Override
@@ -206,12 +235,21 @@ public class ProductService implements IProductService {
             ImageDto dto = new ImageDto();
             dto.setImageId(image.getId());
             dto.setFileName(image.getFileName());
-            dto.setDownloadUrl(image.getDownloadUrl());
+            dto.setDownloadUrl(imageDisplayUrl(image));
             return dto;
         }).toList();
 
         productDto.setImages(imageDtos);
         return productDto;
+    }
+
+    /** Display URL for API/templates: use /uploads/fileName so response is based on fileName, not DB downloadUrl. */
+    private static String imageDisplayUrl(Image image) {
+        String fileName = image.getFileName();
+        if (fileName != null && !fileName.isBlank()) {
+            return "/uploads/" + fileName;
+        }
+        return image.getDownloadUrl() != null ? image.getDownloadUrl() : "";
     }
 
     @Override

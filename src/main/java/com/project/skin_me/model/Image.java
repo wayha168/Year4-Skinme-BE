@@ -38,6 +38,10 @@ public class Image {
     @JsonIgnore
     private Product product;
 
+    /** Read-only copy of product_id for grouping without lazy-loading Product. */
+    @Column(name = "product_id", insertable = false, updatable = false)
+    private Long productId;
+
     @ManyToOne
     @JoinColumn(name = "promotion_id")
     @JsonIgnore

@@ -54,6 +54,12 @@
         .message.user {
           align-items: flex-end;
         }
+        .message.user.message--from-customer {
+          align-items: flex-start;
+        }
+        .message.user.message--from-customer .message-bubble {
+          margin-left: 0;
+        }
         
         .message.admin {
           align-items: flex-start;
@@ -75,6 +81,43 @@
           background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
           color: white;
           border-bottom-right-radius: 4px;
+        }
+        
+        /* User message: show profile icon + online (for admin viewing users who ask) */
+        .message.user .message-meta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 6px;
+        }
+        .message-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          color: white;
+          font-weight: 700;
+          font-size: 0.95rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          position: relative;
+        }
+        .message-avatar.online::after {
+          content: '';
+          position: absolute;
+          bottom: 2px;
+          right: 2px;
+          width: 10px;
+          height: 10px;
+          background: #22c55e;
+          border: 2px solid #f8f9fa;
+          border-radius: 50%;
+        }
+        .message.user .message-sender {
+          margin-bottom: 0;
+          font-size: 0.8rem;
         }
         
         .message.admin .message-bubble {
@@ -224,7 +267,7 @@
         </div>
 
         <div class="row">
-          <div class="col-lg-12">
+          <div class="col-lg-8">
             <div class="chat-container">
               <div class="chat-header">
                 <h5>
@@ -239,9 +282,14 @@
               <div class="chat-messages" id="chat-messages">
                 <!-- Chat messages will be loaded here -->
                 <div th:each="message : ${chatHistory}" 
-                     th:classappend="'message ' + ${message.type}"
+                     th:classappend="'message ' + ${message.type} + (isAdmin and message.type == 'user' ? ' message--from-customer' : '')"
                      class="message">
-                  <div class="message-sender" th:text="${message.sender}">Sender</div>
+                  <!-- From-customer (user messaging admin): profile icon + online -->
+                  <div th:if="${isAdmin and message.type == 'user'}" class="message-meta">
+                    <div class="message-avatar online" th:attr="data-initial=${#strings.substring(message.sender, 0, 1)}" th:text="${#strings.toUpperCase(#strings.substring(message.sender, 0, 1))}">U</div>
+                    <div class="message-sender" th:text="${message.sender}">Sender</div>
+                  </div>
+                  <div th:if="${!(isAdmin and message.type == 'user')}" class="message-sender" th:text="${message.sender}">Sender</div>
                   <div class="message-bubble">
                     <div class="message-content" th:utext="${message.content}">Message content</div>
                     <div class="message-time" th:text="${#temporals.format(message.timestamp, 'MMM dd, yyyy HH:mm')}">Time</div>
@@ -321,7 +369,6 @@
         // Initialize WebSocket
         function initWebSocket() {
           if (typeof window.WebSocketClient === 'undefined') {
-            console.error('WebSocketClient not available');
             updateConnectionStatus('disconnected');
             return;
           }
@@ -330,7 +377,6 @@
           
           webSocketClient.connect(
             function(frame) {
-              console.log('WebSocket connected');
               updateConnectionStatus('connected');
               
               // Subscribe to chat topic
@@ -344,7 +390,6 @@
               });
             },
             function(error) {
-              console.error('WebSocket connection error:', error);
               updateConnectionStatus('disconnected');
             }
           );
@@ -366,14 +411,19 @@
         function displayMessage(message) {
           const messagesContainer = document.getElementById('chat-messages');
           const messageDiv = document.createElement('div');
-          messageDiv.className = 'message ' + (message.type || 'user');
+          const type = message.type || 'user';
+          const fromCustomer = IS_ADMIN && type === 'user';
+          messageDiv.className = 'message ' + type + (fromCustomer ? ' message--from-customer' : '');
           
           const sender = message.sender || 'Unknown';
           const content = message.content || '';
           const timestamp = message.timestamp ? new Date(message.timestamp).toLocaleString() : new Date().toLocaleString();
+          const initial = sender.charAt(0).toUpperCase();
+          const metaHtml = fromCustomer
+            ? '<div class="message-meta"><div class="message-avatar online" title="Online">' + initial + '</div><div class="message-sender">' + sender + '</div></div>'
+            : '<div class="message-sender">' + sender + '</div>';
           
-          messageDiv.innerHTML = `
-            <div class="message-sender">${sender}</div>
+          messageDiv.innerHTML = metaHtml + `
             <div class="message-bubble">
               <div class="message-content">${content}</div>
               <div class="message-time">${timestamp}</div>
@@ -391,7 +441,7 @@
           
           if (!webSocketClient || !webSocketClient.isConnected) {
             if (typeof showToast === 'function') {
-              showToast('WebSocket not connected. Please wait...', 'warning');
+              showToast('Connection not established. Please wait...', 'warning');
             }
             return;
           }

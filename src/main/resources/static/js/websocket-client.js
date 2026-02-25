@@ -33,7 +33,6 @@
     this.stompClient.connect(
       {},
       (frame) => {
-        console.log("WebSocket Connected: " + frame.command);
         this.isConnected = true;
         this.reconnectAttempts = 0;
         if (onConnect) onConnect(frame);
@@ -65,7 +64,6 @@
     });
 
     this.subscriptions[destination] = subscription;
-    console.log("Subscribed to: " + destination);
   }
 
   /**
@@ -91,7 +89,6 @@
     }
 
     this.stompClient.send(destination, {}, JSON.stringify(message));
-    console.log("Message sent to: " + destination);
     return true;
   }
 
@@ -102,7 +99,6 @@
     if (this.subscriptions[destination]) {
       this.subscriptions[destination].unsubscribe();
       delete this.subscriptions[destination];
-      console.log("Unsubscribed from: " + destination);
     }
   }
 
@@ -126,7 +122,6 @@
 
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
       setTimeout(() => {
         this.connect(null, onError);
       }, this.reconnectDelay);
@@ -265,8 +260,6 @@
     window.webSocketClient = new window.WebSocketClient();
     window.webSocketClient.connect(
       () => {
-        console.log("WebSocket ready for use");
-        // Subscribe to your required topics here
       },
       (error) => {
         console.error("WebSocket initialization failed:", error);

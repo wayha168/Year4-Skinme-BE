@@ -15,6 +15,8 @@ public class ProductUpdateRequest {
     private int inventory;
     private String description;
     private String howToUse;
+    private String skinType;
+    private String benefit;
     private Long brandId;
     private ProductStatus status;
 }

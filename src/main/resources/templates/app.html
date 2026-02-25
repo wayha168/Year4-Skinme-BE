@@ -30,83 +30,43 @@
       </div>
     </div>
     
-    <!-- Toast Notification Container -->
-    <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000;"></div>
+    <!-- Toast Notification Container (flexible dropdown, auto-dismiss) -->
+    <div id="toastContainer"></div>
     
     <script>
-      // Global Toast Notification System
-      function showToast(message, type = 'info', duration = 3000) {
+      // Global Toast - flexible popup dropdown, disappears in a few seconds
+      function showToast(message, type = 'info', duration = 2500) {
         const container = document.getElementById('toastContainer');
         if (!container) return;
         
         const toast = document.createElement('div');
-        toast.className = 'toast-notification';
-        toast.style.cssText = `
-          background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8'};
-          color: white;
-          padding: 16px 20px;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-          margin-bottom: 10px;
-          min-width: 300px;
-          max-width: 400px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          animation: slideInRight 0.3s ease-out;
-          cursor: pointer;
-        `;
+        toast.className = 'toast-notification toast-' + (type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info');
         
-        const icon = type === 'success' ? 'bi-check-circle' : 
-                     type === 'error' ? 'bi-x-circle' : 
-                     type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+        const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-x-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
         
         toast.innerHTML = `
-          <i class="bi ${icon}" style="font-size: 20px;"></i>
-          <span style="flex: 1; font-weight: 500;">${message}</span>
-          <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer; opacity: 0.8;">&times;</button>
+          <i class="bi ${icon} toast-icon"></i>
+          <span class="toast-message">${escapeHtml(message)}</span>
+          <button type="button" class="toast-close" aria-label="Close">&times;</button>
         `;
         
         container.appendChild(toast);
         
-        // Auto remove after duration
-        setTimeout(() => {
-          toast.style.animation = 'slideOutRight 0.3s ease-out';
-          setTimeout(() => toast.remove(), 300);
-        }, duration);
+        function dismiss() {
+          toast.classList.add('toast-out');
+          setTimeout(function() { toast.remove(); }, 250);
+        }
         
-        // Click to dismiss
-        toast.addEventListener('click', () => {
-          toast.style.animation = 'slideOutRight 0.3s ease-out';
-          setTimeout(() => toast.remove(), 300);
-        });
+        setTimeout(dismiss, duration);
+        toast.querySelector('.toast-close').addEventListener('click', function(e) { e.stopPropagation(); dismiss(); });
+        toast.addEventListener('click', function(e) { if (e.target === toast || e.target.classList.contains('toast-message')) dismiss(); });
+        
+        function escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        }
       }
-      
-      // Add CSS animations
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        @keyframes slideOutRight {
-          from {
-            transform: translateX(0);
-            opacity: 1;
-          }
-          to {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-        }
-      `;
-      document.head.appendChild(style);
     </script>
     
     <!-- Logout Form (single instance for entire app) -->

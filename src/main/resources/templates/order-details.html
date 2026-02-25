@@ -8,16 +8,14 @@
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
       <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/badges.css" />
       <link rel="stylesheet" href="/css/tables.css" />
       <style>
-        .order-details-table { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
-        .order-details-table table { margin-bottom: 0; }
-        .order-details-table thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #fff; }
-        .order-details-table thead th { padding: 0.75rem 1rem; font-weight: 600; font-size: 0.875rem; border: none; }
-        .order-details-table tbody td { padding: 0.75rem 1rem; vertical-align: middle; }
-        .order-summary-row { background: #f8f9fa; font-weight: 600; }
-        .delivery-row { background: #e8f5e9; }
+        .order-details-table { font-family: sans-serif; margin-bottom: 0; }
+        .order-details-table thead th { font-weight: 600; font-size: 0.8rem; }
+        .order-summary-row { background: #f8fafc; font-weight: 600; color: #334155; }
+        .delivery-row { background: #f0fdf4; color: #166534; }
         .no-print { }
         @media print {
           .no-print { display: none !important; }
@@ -27,9 +25,9 @@
           .app-content { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
           .app-sidebar, .app-sidebar *, #toastContainer, #msgLoggingOut { display: none !important; }
           .main-content { padding: 0 !important; }
-          .order-details-table thead { background: #2c3e50 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .order-details-table table { border: 1px solid #dee2e6; }
-          .order-details-table th, .order-details-table td { border: 1px solid #dee2e6; }
+          .detail-card thead { background: #2c3e50 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .detail-card table { border: 1px solid #dee2e6; }
+          .detail-card th, .detail-card td { border: 1px solid #dee2e6; }
           .card { border: 1px solid #dee2e6; box-shadow: none !important; }
           .delivery-row { background: #f0f8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
@@ -53,11 +51,13 @@
       </div>
 
       <div class="container-fluid px-4 mb-5" th:if="${order}" id="orderDetailsContent" th:data-order-id="${order.orderId}">
-        <h4 class="mb-3" th:text="${'Order #' + order.orderId}">Order #</h4>
-
         <!-- 1. Order items list (table) -->
-        <div class="order-details-table mb-4">
-          <div class="table-responsive">
+        <div class="card detail-card mb-4">
+          <div class="card-header detail-header">
+            <h5 class="mb-0 text-white"><i class="bi bi-bag-check"></i> <span th:text="${'Order #' + order.orderId}">Order #</span></h5>
+          </div>
+          <div class="card-body p-0">
+          <div class="table-responsive order-details-table">
             <table class="table table-hover mb-0 invoice-table">
               <thead>
                 <tr>
@@ -81,26 +81,30 @@
               </tbody>
             </table>
           </div>
+          </div>
         </div>
 
-        <!-- 2. Summary: Date, Total, Discount, Status (one block) -->
-        <div class="card mb-4">
+        <!-- 2. Summary: Date, Total, Discount, Status -->
+        <div class="card detail-card summary-card summary-card--order mb-4">
+          <div class="card-header detail-header">
+            <h5 class="mb-0 text-white"><i class="bi bi-info-circle"></i> Order Summary</h5>
+          </div>
           <div class="card-body">
-            <div class="row g-3">
-              <div class="col-md-6 col-lg-3">
-                <span class="text-muted d-block small">Order Date</span>
-                <span class="fw-semibold" th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MM/dd/yyyy') : 'N/A'}">Date</span>
+            <div class="detail-summary">
+              <div class="summary-line">
+                <span class="summary-label">Order Date</span>
+                <span class="summary-value" th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MM/dd/yyyy') : 'N/A'}">Date</span>
               </div>
-              <div class="col-md-6 col-lg-3">
-                <span class="text-muted d-block small">Total Amount</span>
-                <span class="fw-bold text-success" style="font-size: 1.1rem;" th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount != null ? order.orderTotalAmount : 0, 1, 2)}">$0.00</span>
+              <div class="summary-line">
+                <span class="summary-label">Total Amount</span>
+                <span class="summary-value info-value badge-gradient" th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount != null ? order.orderTotalAmount : 0, 1, 2)}">$0.00</span>
               </div>
-              <div class="col-md-6 col-lg-3">
-                <span class="text-muted d-block small">Discount</span>
-                <span class="fw-semibold" th:text="'None'">None</span>
+              <div class="summary-line">
+                <span class="summary-label">Discount</span>
+                <span class="summary-value" th:text="'None'">None</span>
               </div>
-              <div class="col-md-6 col-lg-3">
-                <span class="text-muted d-block small">Status</span>
+              <div class="summary-line">
+                <span class="summary-label">Status</span>
                 <span th:if="${order.orderStatus != null and (order.orderStatus.name() == 'COMPLETED' or order.orderStatus.name() == 'SUCCESS' or order.orderStatus.name() == 'DELIVERED')}" class="status-badge-active"><i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span></span>
                 <span th:if="${order.orderStatus == null or (order.orderStatus.name() != 'COMPLETED' and order.orderStatus.name() != 'SUCCESS' and order.orderStatus.name() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
               </div>
@@ -108,16 +112,18 @@
           </div>
         </div>
 
-        <!-- 3. Delivery: one row -->
-        <div class="card mb-4 delivery-row">
-          <div class="card-body py-3">
-            <h6 class="mb-2"><i class="bi bi-truck"></i> Delivery</h6>
+        <!-- 3. Delivery -->
+        <div class="card detail-card summary-card summary-card--delivery mb-4">
+          <div class="card-header detail-header">
+            <h5 class="mb-0 text-white"><i class="bi bi-truck"></i> Delivery</h5>
+          </div>
+          <div class="card-body">
             <div th:if="${order.trackingNumber != null and order.trackingNumber != ''}" class="mb-1">
               <span class="text-muted">Tracking:</span> <span class="fw-semibold" th:text="${order.trackingNumber}">-</span>
             </div>
             <div th:if="${order.deliveryAddressFull != null and order.deliveryAddressFull != ''}" class="mb-1" th:text="${order.deliveryAddressFull}">Address</div>
             <div th:if="${order.deliveryStreet != null and order.deliveryStreet != ''}"><span th:text="${order.deliveryStreet + ', ' + (order.deliveryCity != null ? order.deliveryCity : '') + ', ' + (order.deliveryProvince != null ? order.deliveryProvince : '')}">Street, City, Province</span></div>
-            <div th:if="${order.deliveryLatitude != null and order.deliveryLongitude != null}">
+            <div th:if="${order.deliveryLatitude != null and order.deliveryLongitude != null}" class="mt-2">
               <a th:href="${'https://www.google.com/maps?q=' + order.deliveryLatitude + ',' + order.deliveryLongitude}" target="_blank" class="btn btn-sm btn-outline-primary no-print"><i class="bi bi-map"></i> View on Map</a>
             </div>
             <div th:if="${order.shippedAt != null}" class="small mt-1">Shipped: <span th:text="${#temporals.format(order.shippedAt, 'MM/dd/yyyy HH:mm')}">-</span></div>
@@ -127,7 +133,10 @@
         </div>
 
         <!-- 4. Download & Print -->
-        <div class="card no-print">
+        <div class="card detail-card no-print">
+          <div class="card-header detail-header">
+            <h5 class="mb-0"><i class="bi bi-download"></i> Actions</h5>
+          </div>
           <div class="card-body">
             <div class="d-flex gap-2 flex-wrap">
               <button type="button" class="btn btn-primary" id="btnDownloadInvoice">
@@ -142,7 +151,7 @@
       </div>
 
       <div class="container-fluid px-4 mb-5" th:unless="${order}">
-        <div class="alert alert-danger">
+        <div class="alert alert-box alert-danger">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${error != null ? error : 'Order not found'}">Order not found</span>
         </div>
       </div>

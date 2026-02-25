@@ -53,10 +53,14 @@ public class ImageController {
     @GetMapping("/image/download/{imageId}")
     public ResponseEntity<ByteArrayResource> downloadImage(@PathVariable Long imageId) throws SQLException {
         Image image = imageService.getImageById(imageId);
-        ByteArrayResource resource = new ByteArrayResource(image.getImage());
+        byte[] data = image.getImage();
+        if (data == null || data.length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+        ByteArrayResource resource = new ByteArrayResource(data);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(image.getFileType()))
+                .contentType(MediaType.parseMediaType(image.getFileType() != null ? image.getFileType() : "application/octet-stream"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + image.getFileName() + "\"")
                 .body(resource);
     }

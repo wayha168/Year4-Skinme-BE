@@ -3,8 +3,8 @@
    ============================================ */
 
 :root {
-    --primary: #111111;
-    --primary-dark: #2b2b2b;
+    --primary: #c78d89;
+    --primary-dark: #a86d69;
     --light-bg: #f8f9fa;
     --text-dark: #111827;
     --white: #ffffff;
@@ -15,6 +15,10 @@
     --box-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
     --box-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
     --box-shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.12);
+    --color-price: #c78d89;
+    --color-sale-price: #c78d89;
+    --color-sale-badge-background: #ffffff;
+    --color-reviews: #c78d89;
 }
 
 /* Global Styles */
@@ -69,6 +73,24 @@ body {
     position: relative;
     overflow: hidden;
 }
+
+/* Colored top border like dashboard (order, payment, delivery summary cards) */
+.stats-row .stat-card::before,
+.summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: #94a3b8;
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+}
+
+.stats-row .stat-card:nth-child(1)::before { background: #f59e0b; }
+.stats-row .stat-card:nth-child(2)::before { background: #10b981; }
+.stats-row .stat-card:nth-child(3)::before { background: #3b82f6; }
+.stats-row .stat-card:nth-child(4)::before { background: #8b5cf6; }
 
 .stat-card:hover {
     transform: translateY(-4px);

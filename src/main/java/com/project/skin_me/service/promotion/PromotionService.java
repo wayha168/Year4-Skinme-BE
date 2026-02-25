@@ -1,5 +1,21 @@
 package com.project.skin_me.service.promotion;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.project.skin_me.dto.ImageDto;
 import com.project.skin_me.dto.PromotionDto;
 import com.project.skin_me.exception.ResourceNotFoundException;
@@ -11,19 +27,8 @@ import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.repository.PromotionRepository;
 import com.project.skin_me.request.CreatePromotionRequest;
 import com.project.skin_me.request.UpdatePromotionRequest;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -145,6 +150,16 @@ public class PromotionService implements IPromotionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<PromotionDto> getAllPromotions(Pageable pageable) {
+        Page<Promotion> page = promotionRepository.findAllByOrderByCreatedAtDesc(pageable);
+        List<PromotionDto> dtos = page.getContent().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PromotionDto> getActivePromotions() {
         List<Promotion> promotions = promotionRepository.findActivePromotions(LocalDateTime.now());
         return promotions.stream()
@@ -183,7 +198,8 @@ public class PromotionService implements IPromotionService {
         dto.setCreatedAt(promotion.getCreatedAt());
         dto.setUpdatedAt(promotion.getUpdatedAt());
         dto.setCurrentlyActive(promotion.isCurrentlyActive());
-        
+        dto.setExpired(promotion.getDeadline() != null && promotion.getDeadline().isBefore(LocalDateTime.now()));
+
         if (promotion.getProduct() != null) {
             dto.setProductId(promotion.getProduct().getId());
             dto.setProductName(promotion.getProduct().getName());
@@ -198,7 +214,10 @@ public class PromotionService implements IPromotionService {
                         ImageDto imageDto = new ImageDto();
                         imageDto.setImageId(image.getId());
                         imageDto.setFileName(image.getFileName());
-                        imageDto.setDownloadUrl(image.getDownloadUrl());
+                        String url = (image.getFileName() != null && !image.getFileName().isBlank())
+                                ? "/uploads/" + image.getFileName()
+                                : (image.getDownloadUrl() != null ? image.getDownloadUrl() : "");
+                        imageDto.setDownloadUrl(url);
                         return imageDto;
                     })
                     .collect(Collectors.toList());
@@ -227,15 +246,15 @@ public class PromotionService implements IPromotionService {
 
                 Image savedImage = imageRepository.save(image);
 
-                String buildDownloadUrl = "/api/v1/images/image/download/";
-                String downloadUrl = buildDownloadUrl + savedImage.getId();
+                String fileName = savedImage.getFileName();
+                String downloadUrl = (fileName != null && !fileName.isBlank()) ? "/uploads/" + fileName : "";
                 savedImage.setDownloadUrl(downloadUrl);
                 imageRepository.save(savedImage);
 
                 ImageDto imageDto = new ImageDto();
                 imageDto.setImageId(savedImage.getId());
                 imageDto.setFileName(savedImage.getFileName());
-                imageDto.setDownloadUrl(savedImage.getDownloadUrl());
+                imageDto.setDownloadUrl(downloadUrl);
                 savedImageDtos.add(imageDto);
 
             } catch (IOException e) {

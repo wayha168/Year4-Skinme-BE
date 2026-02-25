@@ -7,6 +7,8 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/tables.css" />
     </th:block>
     <meta charset="UTF-8" />
@@ -21,26 +23,33 @@
     <div class="container-fluid px-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0" style="font-weight: 700; color: #111827;">
-          <i class="bi bi-tags"></i> Categories
+          <i class="bi bi-card-checklist"></i> Categories
         </h2>
         <a th:href="@{/views/categories/create}" class="btn btn-primary">
-          <i class="bi bi-plus-circle"></i> Create New Category
+          <i class="bi bi-plus-circle"></i> Add New Category
         </a>
       </div>
 
-      <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+      <div th:if="${param.success}" class="alert alert-box alert-success alert-dismissible fade show" role="alert">
         <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
-      
-      <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <div th:if="${param.error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
-
-      <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <div th:if="${error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div class="filter-section">
+        <h6 class="mb-3"><i class="bi bi-funnel"></i> Filter & Search</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <input type="text" class="form-control" placeholder="Search by name or description..." id="categorySearchInput" />
+          </div>
+        </div>
       </div>
 
       <div th:if="${#lists.isEmpty(categories)}" class="card mt-4">
@@ -143,6 +152,18 @@
   <th:block th:fragment="script">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script th:inline="javascript">
+      function applyCategoryFilters() {
+        var searchTerm = (document.getElementById("categorySearchInput") && document.getElementById("categorySearchInput").value) ? document.getElementById("categorySearchInput").value.toLowerCase() : "";
+        var rows = document.querySelectorAll(".data-table tbody tr");
+        rows.forEach(function(row) {
+          var text = row.textContent.toLowerCase();
+          row.style.display = !searchTerm || text.indexOf(searchTerm) !== -1 ? "" : "none";
+        });
+      }
+      document.addEventListener("DOMContentLoaded", function() {
+        var searchInput = document.getElementById("categorySearchInput");
+        if (searchInput) searchInput.addEventListener("keyup", applyCategoryFilters);
+      });
       function deleteCategory(categoryId, categoryName) {
         if (confirm('Are you sure you want to delete category "' + categoryName + '"? This action cannot be undone.')) {
           if (typeof showToast === 'function') {

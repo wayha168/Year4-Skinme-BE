@@ -6,6 +6,8 @@ import com.project.skin_me.dto.ProductDto;
 import com.project.skin_me.model.Product;
 import com.project.skin_me.request.AddProductRequest;
 import com.project.skin_me.request.ProductUpdateRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface IProductService {
     
@@ -21,9 +23,14 @@ public interface IProductService {
 
     List<Product> getAllProducts();
 
+    /** Paginated: only fetches the requested page from DB (e.g. 25 per page). */
+    Page<Product> getAllProducts(Pageable pageable);
+
     List<Product> getAllProductsByCategory(String category);
 
     List<Product> getProductsByCategoryId(Long categoryId);
+
+    List<Product> getProductsByBrandId(Long brandId);
 
     List<Product> getProductsByBrand(String brand);
 

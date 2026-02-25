@@ -2,19 +2,20 @@
    TABLE STYLES - MODERN CONCEPT STYLE
    ============================================ */
 
-/* Base Table Styles */
+/* Base Table Styles - clean bg and text like alert-box */
 .data-table,
 .users-table,
 .order-table,
 .payment-table,
 .audit-table,
 .delivery-table {
+    font-family: sans-serif;
     background: var(--white);
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     overflow: hidden;
     margin-bottom: 2rem;
-    border: 1px solid #e9ecef;
+    border: 1px solid #e5e7eb;
 }
 
 .data-table thead,
@@ -23,8 +24,8 @@
 .payment-table thead,
 .audit-table thead,
 .delivery-table thead {
-    background: #f8f9fa;
-    color: #6b7280;
+    background: #f8fafc;
+    color: #475569;
 }
 
 .data-table thead th,
@@ -33,14 +34,15 @@
 .payment-table thead th,
 .audit-table thead th,
 .delivery-table thead th {
-    padding: 12px 6px;
+    padding: 12px 1rem;
     font-weight: 600;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border: none;
+    border-bottom: 1px solid #e2e8f0;
     text-align: left;
-    color: #6b7280;
+    color: #475569;
 }
 
 .data-table tbody tr,
@@ -49,8 +51,8 @@
 .payment-table tbody tr,
 .audit-table tbody tr,
 .delivery-table tbody tr {
-    border-bottom: 1px solid #e9ecef;
-    transition: all 0.15s ease;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
     background: var(--white);
 }
 
@@ -60,7 +62,7 @@
 .payment-table tbody tr:hover,
 .audit-table tbody tr:hover,
 .delivery-table tbody tr:hover {
-    background-color: #f8f9fa;
+    background: #f8fafc;
 }
 
 .data-table tbody tr:last-child,
@@ -80,8 +82,8 @@
 .delivery-table tbody td {
     padding: 1rem 1.25rem;
     vertical-align: middle;
-    font-size: 0.9rem;
-    color: #111827;
+    font-size: 0.875rem;
+    color: #334155;
 }
 
 .data-table tbody tr:last-child {
@@ -90,16 +92,17 @@
 
 /* Specific Table Types */
 .product-table {
+    font-family: sans-serif;
     background: var(--white);
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     overflow: hidden;
-    border: 1px solid #e9ecef;
+    border: 1px solid #e5e7eb;
 }
 
 .product-table thead {
-    background: #f8f9fa;
-    color: #6b7280;
+    background: #f8fafc;
+    color: #475569;
 }
 
 .product-table thead th {
@@ -109,17 +112,18 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border: none;
-    color: #6b7280;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
 }
 
 .product-table tbody tr {
-    border-bottom: 1px solid #e9ecef;
-    transition: all 0.15s ease;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
     background: var(--white);
 }
 
 .product-table tbody tr:hover {
-    background-color: #f8f9fa;
+    background: #f8fafc;
 }
 
 .product-table tbody tr:last-child {
@@ -129,11 +133,11 @@
 .product-table tbody td {
     padding: 1rem 1.25rem;
     vertical-align: middle;
-    font-size: 0.9rem;
-    color: #111827;
+    font-size: 0.875rem;
+    color: #334155;
 }
 
-/* Table Actions - Image Style (Small Rounded Squares) */
+/* Table Actions - clean, alert-box style (soft bg, clear text) */
 .table-actions {
     display: flex;
     gap: 0.5rem;
@@ -145,64 +149,52 @@
 .btn-action,
 .table-actions button,
 .table-actions a {
+    font-family: sans-serif;
     width: 32px;
     height: 32px;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    border: 1px solid #e5e7eb;
-    background: #f8f9fa;
-    color: #6b7280;
-    transition: all 0.2s ease;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
     font-size: 0.875rem;
     text-decoration: none;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .table-actions .btn:hover,
 .btn-action:hover,
 .table-actions button:hover,
 .table-actions a:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-    color: #111827;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
 }
 
-/* Remove colored variants - all buttons use neutral grey */
 .table-actions .btn-primary,
 .btn-action.btn-primary,
-.table-actions .btn-outline-primary {
-    border-color: #e5e7eb;
-    color: #6b7280;
-    background: #f8f9fa;
+.table-actions .btn-outline-primary,
+.table-actions .btn-outline-danger,
+.btn-action.btn-danger,
+.table-actions .btn-danger {
+    border-color: #e2e8f0;
+    color: #475569;
+    background: #f8fafc;
 }
 
 .table-actions .btn-primary:hover,
 .btn-action.btn-primary:hover,
-.table-actions .btn-outline-primary:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-    color: #111827;
-}
-
-.table-actions .btn-outline-danger,
-.btn-action.btn-danger,
-.table-actions .btn-danger {
-    border-color: #e5e7eb;
-    color: #6b7280;
-    background: #f8f9fa;
-}
-
+.table-actions .btn-outline-primary:hover,
 .table-actions .btn-outline-danger:hover,
 .btn-action.btn-danger:hover,
 .table-actions .btn-danger:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-    color: #111827;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
 }
 
 .table-actions .btn-sm {
@@ -211,32 +203,36 @@
     font-size: 0.8rem;
 }
 
-/* Status Badge - Green Active Style with Checkmark */
+/* Status Badge - alert-box style (soft bg + text) */
 .status-badge-active {
+    font-family: sans-serif;
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.75rem;
-    background: #d1fae5;
-    color: #065f46;
-    border-radius: 12px;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
     font-size: 0.75rem;
     font-weight: 600;
 }
 
 .status-badge-active i {
     font-size: 0.7rem;
-    color: #10b981;
+    color: #166534;
 }
 
 .status-badge-inactive {
+    font-family: sans-serif;
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.75rem;
-    background: #f3f4f6;
-    color: #6b7280;
-    border-radius: 12px;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     font-size: 0.75rem;
     font-weight: 500;
 }
@@ -255,7 +251,6 @@
     color: #1e40af;
 }
 
-/* Override btn-group in tables to use new style */
 .table-actions .btn-group,
 table .btn-group {
     display: flex;
@@ -265,64 +260,68 @@ table .btn-group {
 
 .table-actions .btn-group .btn,
 table .btn-group .btn {
+    font-family: sans-serif;
     width: 32px;
     height: 32px;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    border: 1px solid #e5e7eb;
-    background: #f8f9fa;
-    color: #6b7280;
-    transition: all 0.2s ease;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
     font-size: 0.875rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .table-actions .btn-group .btn:hover,
 table .btn-group .btn:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-    color: #111827;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
 }
 
-/* Ensure all table buttons use neutral style */
 table .btn-primary,
 table .btn-outline-primary,
 table .btn-outline-danger,
 table .btn-danger {
-    border-color: #e5e7eb !important;
-    color: #6b7280 !important;
-    background: #f8f9fa !important;
+    border-color: #e2e8f0 !important;
+    color: #475569 !important;
+    background: #f8fafc !important;
 }
 
 table .btn-primary:hover,
 table .btn-outline-primary:hover,
 table .btn-outline-danger:hover,
 table .btn-danger:hover {
-    background: #f3f4f6 !important;
-    border-color: #d1d5db !important;
-    color: #111827 !important;
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
 }
 
-/* Price Badge in Tables */
+/* Price / amount badges - soft style like alert-box */
 .price-badge {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+    font-family: sans-serif;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
     padding: 0.25rem 0.75rem;
-    border-radius: 0.4rem;
+    border-radius: 8px;
     font-weight: 600;
+    font-size: 0.875rem;
     display: inline-block;
 }
 
 .amount-badge {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+    font-family: sans-serif;
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #e2e8f0;
     padding: 0.5rem 1rem;
-    border-radius: 0.4rem;
+    border-radius: 8px;
     font-weight: 600;
+    font-size: 0.875rem;
     display: inline-block;
 }
 

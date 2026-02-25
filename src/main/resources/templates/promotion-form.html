@@ -7,72 +7,36 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/forms.css" />
       <style>
-        .promotion-form {
-          background: #f8f9fa;
-          padding: 20px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-        }
         .discount-preview {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 15px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 1rem 1.25rem;
           border-radius: 8px;
-          margin-top: 15px;
+          margin-top: 0.75rem;
+          font-family: sans-serif;
         }
-        .discount-preview h6 {
-          margin: 0;
-          color: white;
-        }
-        .discount-preview .price-comparison {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 10px;
-        }
-        .price-original {
-          text-decoration: line-through;
-          opacity: 0.8;
-        }
-        .price-discounted {
-          font-size: 1.3rem;
-          font-weight: bold;
-        }
+        .discount-preview h6 { margin: 0 0 0.5rem 0; font-weight: 600; color: #334155; }
+        .discount-preview .price-comparison { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .price-original { text-decoration: line-through; color: #64748b; }
+        .price-discounted { font-weight: 700; color: #166534; }
         .image-preview-item {
           position: relative;
           width: 120px;
           height: 120px;
-          border: 2px solid #ddd;
+          border: 2px solid #e2e8f0;
           border-radius: 8px;
           overflow: hidden;
           display: inline-block;
-          margin-right: 10px;
-          margin-bottom: 10px;
         }
-        .image-preview-item img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+        .image-preview-item img { width: 100%; height: 100%; object-fit: cover; }
         .image-preview-item .remove-image {
-          position: absolute;
-          top: 5px;
-          right: 5px;
-          background: rgba(220, 53, 69, 0.8);
-          color: white;
-          border: none;
-          border-radius: 50%;
-          width: 24px;
-          height: 24px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-        }
-        .image-preview-item .remove-image:hover {
-          background: rgba(220, 53, 69, 1);
+          position: absolute; top: 4px; right: 4px;
+          background: rgba(220, 53, 69, 0.9); color: white; border: none; border-radius: 50%;
+          width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;
         }
       </style>
     </th:block>
@@ -85,118 +49,113 @@
       <div class="main-content">
         <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag', pageTitle=${pageTitle ?: 'Create Promotion'}"></div>
 
-        <div class="container-fluid px-4">
-          <!-- Create/Edit Promotion Form -->
-          <div class="card mb-4">
-            <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white;">
+        <div class=" px-4 mb-2">
+          <a th:href="@{/views/promotions}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
+        </div>
+        <div class="container-fluid px-4 detail-page-content">
+          <div class="card detail-card">
+            <div class="card-header detail-header">
               <h5 class="mb-0">
-                <i class="bi" th:classappend="${editingId != null} ? 'bi-pencil' : 'bi-plus-circle'"></i> 
+                <i class="bi" th:classappend="${editingId != null} ? 'bi-pencil' : 'bi-plus-circle'"></i>
                 <span id="form-title" th:text="${editingId != null} ? 'Edit Promotion' : 'Create New Promotion'">Create New Promotion</span>
               </h5>
             </div>
-            <div class="card-body">
-              <form id="promotion-form" class="promotion-form">
+            <div class="card-body form-body">
+              <form id="promotion-form">
                 <input type="hidden" id="promotion-id" th:value="${editingId}" />
-                
-                <div class="row">
-                  <div class="col-md-6 mb-3">
-                    <label for="title" class="form-label">Title *</label>
-                    <input type="text" class="form-control" id="title" required maxlength="200" placeholder="Promotion title" 
-                           th:value="${promotion?.title}" />
+                <div class="form-row">
+                  <label for="title" class="form-label"><i class="bi bi-tag"></i> Title *</label>
+                  <div class="form-control-wrap">
+                    <input type="text" class="form-control" id="title" required maxlength="200" placeholder="Promotion title" th:value="${promotion?.title}" />
                   </div>
-                  <div class="col-md-6 mb-3">
-                    <label for="product-select" class="form-label">Product *</label>
+                </div>
+                <div class="form-row">
+                  <label for="product-select" class="form-label"><i class="bi bi-box"></i> Product *</label>
+                  <div class="form-control-wrap">
                     <select class="form-select" id="product-select" required>
                       <option value="">Select a product</option>
-                      <option th:each="product : ${products}" 
-                              th:value="${product.id}" 
+                      <option th:each="product : ${products}" th:value="${product.id}"
                               th:text="${product.name + ' - $' + #numbers.formatDecimal(product.price, 1, 2)}"
                               th:selected="${promotion != null and promotion.productId == product.id}"></option>
                     </select>
                   </div>
                 </div>
-
-                <div class="mb-3">
-                  <label for="description" class="form-label">Description</label>
-                  <textarea class="form-control" id="description" rows="3" placeholder="Promotion description" 
-                            th:text="${promotion?.description}"></textarea>
-                </div>
-
-                <div class="row">
-                  <div class="col-md-3 mb-3">
-                    <label for="discount-percentage" class="form-label">Discount Percentage (%) *</label>
-                    <input type="number" class="form-control" id="discount-percentage" required 
-                           min="0.01" max="100" step="0.01" placeholder="0.00"
-                           th:value="${promotion?.discountPercentage}" />
+                <div class="form-row form-row--full">
+                  <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description</label>
+                  <div class="form-control-wrap">
+                    <textarea class="form-control" id="description" rows="3" placeholder="Promotion description" th:text="${promotion?.description}"></textarea>
                   </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="start-date" class="form-label">Start Date (Use Date) *</label>
+                </div>
+                <div class="form-row">
+                  <label for="discount-percentage" class="form-label"><i class="bi bi-percent"></i> Discount (%) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="discount-percentage" required min="0.01" max="100" step="0.01" placeholder="0.00" th:value="${promotion?.discountPercentage}" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="start-date" class="form-label"><i class="bi bi-calendar-check"></i> Start Date *</label>
+                  <div class="form-control-wrap">
                     <input type="datetime-local" class="form-control" id="start-date" required />
                     <small class="form-text text-muted">Auto-set to now when creating</small>
                   </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="duration-days" class="form-label">Duration (Days) *</label>
-                    <input type="number" class="form-control" id="duration-days" 
-                           min="1" max="365" step="1" placeholder="7" value="7" />
+                </div>
+                <div class="form-row">
+                  <label for="duration-days" class="form-label"><i class="bi bi-clock"></i> Duration (Days) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="duration-days" min="1" max="365" step="1" placeholder="7" value="7" />
                     <small class="form-text text-muted">Auto-calculates deadline</small>
                   </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="deadline" class="form-label">Deadline Date *</label>
+                </div>
+                <div class="form-row">
+                  <label for="deadline" class="form-label"><i class="bi bi-calendar-x"></i> Deadline *</label>
+                  <div class="form-control-wrap">
                     <input type="datetime-local" class="form-control" id="deadline" required />
                     <small class="form-text text-muted">Auto-calculated from duration</small>
                   </div>
                 </div>
-
-                <div class="mb-3">
-                  <label for="link" class="form-label">Link</label>
-                  <input type="url" class="form-control" id="link" placeholder="https://example.com/promotion"
-                         th:value="${promotion?.link}" />
-                </div>
-
-                <div class="mb-3">
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="active" 
-                           th:checked="${promotion == null or promotion.active}" />
-                    <label class="form-check-label" for="active">Active</label>
+                <div class="form-row">
+                  <label for="link" class="form-label"><i class="bi bi-link-45deg"></i> Link</label>
+                  <div class="form-control-wrap">
+                    <input type="url" class="form-control" id="link" placeholder="https://example.com/promotion" th:value="${promotion?.link}" />
                   </div>
                 </div>
-
-                <!-- Image Upload -->
-                <div class="mb-3">
-                  <label for="promotion-images" class="form-label">Promotion Images</label>
-                  <input type="file" class="form-control" id="promotion-images" multiple accept="image/*" />
-                  <small class="form-text text-muted">You can select one or multiple images for this promotion</small>
-                  <div id="image-preview-container" class="mt-3" style="display: none;">
-                    <div class="d-flex flex-wrap gap-2" id="image-preview-list"></div>
-                  </div>
-                </div>
-
-                <!-- Discount Preview -->
-                <div id="discount-preview" class="discount-preview" style="display: none;">
-                  <h6><i class="bi bi-calculator"></i> Price Preview</h6>
-                  <div class="price-comparison">
-                    <div>
-                      <small>Original Price:</small>
-                      <div class="price-original" id="original-price">$0.00</div>
-                    </div>
-                    <div>
-                      <small>Discounted Price:</small>
-                      <div class="price-discounted" id="discounted-price">$0.00</div>
-                    </div>
-                    <div>
-                      <small>You Save:</small>
-                      <div class="price-discounted" id="savings">$0.00</div>
+                <div class="form-row">
+                  <span class="form-label"><i class="bi bi-toggle-on"></i> Active</span>
+                  <div class="form-control-wrap">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="active" th:checked="${promotion == null or promotion.active}" />
+                      <label class="form-check-label" for="active">Promotion is active</label>
                     </div>
                   </div>
                 </div>
-
-                <div class="d-flex gap-2">
+                <div class="form-row form-row--full">
+                  <label for="promotion-images" class="form-label"><i class="bi bi-image"></i> Promotion Images</label>
+                  <div class="form-control-wrap">
+                    <input type="file" class="form-control" id="promotion-images" multiple accept="image/*" />
+                    <small class="form-text text-muted">You can select one or multiple images</small>
+                    <div id="image-preview-container" class="mt-3" style="display: none;">
+                      <div class="d-flex flex-wrap gap-2" id="image-preview-list"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row form-row--full">
+                  <span class="form-label"><i class="bi bi-calculator"></i> Price Preview</span>
+                  <div class="form-control-wrap">
+                    <div id="discount-preview" class="discount-preview" style="display: none;">
+                      <h6>Price Preview</h6>
+                      <div class="price-comparison">
+                        <div><small>Original:</small> <span class="price-original" id="original-price">$0.00</span></div>
+                        <div><small>Discounted:</small> <span class="price-discounted" id="discounted-price">$0.00</span></div>
+                        <div><small>You Save:</small> <span class="price-discounted" id="savings">$0.00</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <a href="/views/promotions" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Cancel</a>
                   <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save"></i> <span id="submit-text" th:text="${editingId != null} ? 'Update Promotion' : 'Create Promotion'">Create Promotion</span>
                   </button>
-                  <a href="/views/promotions" class="btn btn-secondary">
-                    <i class="bi bi-x-circle"></i> Cancel
-                  </a>
                 </div>
               </form>
             </div>
@@ -208,7 +167,7 @@
     <th:block th:fragment="script">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script th:inline="javascript">
-        const API_PREFIX = /*[[${api.prefix}]]*/ '/api/v1';
+        const API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
         let productsData = /*[[${products}]]*/ [];
         let editingPromotionId = /*[[${editingId}]]*/ null;
         let selectedImages = [];

@@ -8,6 +8,7 @@
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
       <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/badges.css" />
     </th:block>
     <meta charset="UTF-8" />
@@ -35,8 +36,7 @@
               <div class="info-row">
                 <span class="info-label"><i class="bi bi-currency-dollar"></i> Amount</span>
                 <span
-                  class="info-value"
-                  style="font-size: 1.2rem; color: #667eea"
+                  class="info-value badge-gradient"
                   th:text="'$' + ${#numbers.formatDecimal(payment.amount, 1, 2)}"
                   >$0.00</span
                 >
@@ -74,15 +74,9 @@
         </div>
 
         <div class="col-lg-4">
-          <div class="card detail-card">
-            <div
-              class="card-header"
-              style="
-                background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-                color: white;
-              "
-            >
-              <h5 class="mb-0"><i class="bi bi-info-circle"></i> Payment Info</h5>
+          <div class="card detail-card summary-card summary-card--payment">
+            <div class="card-header detail-header">
+              <h5 class="mb-0 text-white"><i class="bi bi-info-circle"></i> Payment Info</h5>
             </div>
             <div class="card-body">
               <button class="btn btn-primary w-100 mb-2">
@@ -98,8 +92,7 @@
     </div>
 
     <div class="container-fluid px-4 mb-5" th:unless="${payment}">
-      <div class="alert alert-danger">
-        <i class="bi bi-exclamation-circle"></i>
+      <div class="alert alert-box alert-danger">
         <i class="bi bi-exclamation-circle"></i> <span th:text="${error ?: 'Payment not found'}"></span>
       </div>
     </div>

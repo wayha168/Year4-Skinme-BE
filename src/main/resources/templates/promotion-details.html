@@ -8,6 +8,7 @@
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
       <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/badges.css" />
     </th:block>
     <meta charset="UTF-8" />
@@ -38,7 +39,7 @@
                 </div>
                 <div class="info-row">
                   <span class="info-label"><i class="bi bi-percent"></i> Discount</span>
-                  <span class="info-value table-tag table-tag-green" th:text="${promotion.discountPercentage != null ? #numbers.formatDecimal(promotion.discountPercentage, 1, 2) + '%' : 'N/A'}">0%</span>
+                  <span class="info-value text-end" th:text="${promotion.discountPercentage != null ? #numbers.formatDecimal(promotion.discountPercentage, 1, 2) + '%' : 'N/A'}">0%</span>
                 </div>
                 <div class="info-row">
                   <span class="info-label"><i class="bi bi-currency-dollar"></i> Original Price</span>
@@ -59,9 +60,19 @@
                   <span th:if="${promotion.currentlyActive}" class="ms-2 table-tag table-tag-active">Active Now</span>
                 </div>
                 <div class="info-row">
-                  <span class="info-label"><i class="bi bi-toggles"></i> Status</span>
-                  <span th:if="${promotion.active}" class="info-value status-badge-active"><i class="bi bi-check-circle-fill"></i> Active</span>
-                  <span th:unless="${promotion.active}" class="info-value status-badge-inactive">Inactive</span>
+                  <span class="info-label">
+                      <i class="bi bi-toggles"></i> Status
+                  </span>
+                  <span class="info-value flex-grow-0 d-inline-flex">
+                    <span th:if="${promotion.active}"
+                          class="status-badge-active d-inline-flex align-items-center">
+                      <i class="bi bi-check-circle-fill me-1"></i> Active
+                    </span>
+                    <span th:unless="${promotion.active}"
+                          class="status-badge-inactive d-inline-flex align-items-center">
+                      Inactive
+                    </span>
+                  </span>
                 </div>
                 <div class="info-row" th:if="${promotion.link}">
                   <span class="info-label"><i class="bi bi-link"></i> Link</span>
@@ -81,8 +92,8 @@
 
           <div class="col-lg-4" th:if="${promotion.images != null and !promotion.images.isEmpty()}">
             <div class="card detail-card">
-              <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white;">
-                <h5 class="mb-0"><i class="bi bi-image"></i> Images</h5>
+              <div class="card-header detail-header">
+                <h5 class="mb-0 text-white"><i class="bi bi-image"></i> Im  ages</h5>
               </div>
               <div class="card-body">
                 <div class="d-flex flex-wrap gap-2">
@@ -100,7 +111,7 @@
       </div>
 
       <div class="container-fluid px-4 mb-5" th:unless="${promotion}">
-        <div class="alert alert-danger">
+        <div class="alert alert-box alert-danger">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${error != null ? error : 'Promotion not found'}">Promotion not found</span>
         </div>
       </div>

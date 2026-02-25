@@ -9,6 +9,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // /uploads/** is served by UploadedImageController (file + DB fallback)
+
         // Ensure static resources are served with correct MIME types
         registry.addResourceHandler("/css/**")
                 .addResourceLocations("classpath:/static/css/")

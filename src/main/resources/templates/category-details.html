@@ -8,6 +8,7 @@
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
       <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/cards.css" />
     </th:block>
     <meta charset="UTF-8" />
@@ -46,14 +47,14 @@
               </div>
             </div>
           </div>
-          <div th:if="${category.products == null or #lists.isEmpty(category.products)}" class="alert alert-info">
+          <div th:if="${category.products == null or #lists.isEmpty(category.products)}" class="alert alert-box alert-info">
             <i class="bi bi-info-circle"></i> No products in this category
           </div>
         </div>
       </div>
 
       <div class="container-fluid px-4 mb-5" th:unless="${category}">
-        <div class="alert alert-danger">
+        <div class="alert alert-box alert-danger">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${error ?: 'Category not found'}"></span>
         </div>
       </div>

@@ -7,6 +7,7 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/tables.css" />
       <style>
         /* Clean Product Table Styles */
@@ -104,21 +105,19 @@
           </button>
         </div>
         <a th:href="@{/views/products/create}" class="btn btn-primary">
-          <i class="bi bi-plus-circle"></i> Create New Product
+          <i class="bi bi-plus-circle"></i> Add New Product
         </a>
       </div>
 
-      <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+      <div th:if="${param.success}" class="alert alert-box alert-success alert-dismissible fade show" role="alert">
         <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
-      
-      <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <div th:if="${param.error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
-
-      <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <div th:if="${error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
@@ -162,6 +161,9 @@
                 <th><i class="bi bi-image"></i> Image</th>
                 <th><i class="bi bi-bag"></i> Product Name</th>
                 <th><i class="bi bi-tag"></i> Brand</th>
+                <th style="width: 100px;"><i class="bi bi-droplet"></i> Skin Type</th>
+                <th style="max-width: 140px;"><i class="bi bi-stars"></i> Benefit</th>
+                <th style="max-width: 140px;"><i class="bi bi-info-circle"></i> Using For</th>
                 <th style="width: 120px;"><i class="bi bi-currency-dollar"></i> Price</th>
                 <th style="width: 120px;"><i class="bi bi-box"></i> Inventory</th>
                 <th style="width: 100px;"><i class="bi bi-toggles"></i> Status</th>
@@ -170,7 +172,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr th:each="product : ${products}">
+              <tr th:each="product : ${products}" th:data-category-id="${product.category != null ? product.category.id : ''}" th:data-status="${product.status != null ? product.status : ''}">
                 <td class="text-muted fw-semibold" th:text="${product.id}">1</td>
                 <td>
                   <div th:if="${product.images != null and !product.images.isEmpty()}">
@@ -190,7 +192,18 @@
                   <small class="text-muted" th:if="${product.productType}" th:text="${product.productType}">Type</small>
                 </td>
                 <td>
-                  <span class="text-dark" th:text="${product.brand}">Brand</span>
+                  <span class="text-dark" th:text="${product.brand != null ? product.brand.name : 'N/A'}">Brand</span>
+                </td>
+                <td>
+                  <span class="text-dark" th:text="${product.skinType != null and !product.skinType.isEmpty() ? product.skinType : '-'}">-</span>
+                </td>
+                <td>
+                  <div class="text-muted" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" th:title="${product.benefit}"
+                       th:text="${product.benefit != null and !product.benefit.isEmpty() ? #strings.abbreviate(product.benefit, 35) : '-'}">-</div>
+                </td>
+                <td>
+                  <div class="text-muted" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" th:title="${product.howToUse}"
+                       th:text="${product.howToUse != null and !product.howToUse.isEmpty() ? #strings.abbreviate(product.howToUse, 35) : '-'}">-</div>
                 </td>
                 <td>
                   <span class="fw-bold price-badge text-success" th:text="'$' + ${#numbers.formatDecimal(product.price, 1, 2)}">$0.00</span>
@@ -280,31 +293,34 @@
         }
       }
 
+      function applyProductFilters() {
+        const searchTerm = (document.getElementById("searchInput") && document.getElementById("searchInput").value) ? document.getElementById("searchInput").value.toLowerCase() : "";
+        const categoryVal = document.getElementById("categoryFilter") ? document.getElementById("categoryFilter").value : "";
+        const statusVal = document.getElementById("statusFilter") ? document.getElementById("statusFilter").value : "";
+        const rows = document.querySelectorAll(".product-table tbody tr");
+        rows.forEach((row) => {
+          const text = row.textContent.toLowerCase();
+          const matchSearch = !searchTerm || text.includes(searchTerm);
+          const rowCategoryId = row.getAttribute("data-category-id") || "";
+          const matchCategory = !categoryVal || rowCategoryId === categoryVal;
+          const rowStatus = (row.getAttribute("data-status") || "").toUpperCase();
+          const matchStatus = !statusVal || rowStatus === statusVal;
+          row.style.display = (matchSearch && matchCategory && matchStatus) ? "" : "none";
+        });
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById("searchInput");
         if (searchInput) {
-          searchInput.addEventListener("keyup", function (e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll(".product-table tbody tr");
-            rows.forEach((row) => {
-              const text = row.textContent.toLowerCase();
-              row.style.display = text.includes(searchTerm) ? "" : "none";
-            });
-          });
+          searchInput.addEventListener("keyup", applyProductFilters);
         }
-
         const categoryFilter = document.getElementById("categoryFilter");
         if (categoryFilter) {
-          categoryFilter.addEventListener("change", function (e) {
-            // Filter applied
-          });
+          categoryFilter.addEventListener("change", applyProductFilters);
         }
-
         const statusFilter = document.getElementById("statusFilter");
         if (statusFilter) {
-          statusFilter.addEventListener("change", function (e) {
-            // Filter applied
-          });
+          statusFilter.addEventListener("change", applyProductFilters);
         }
 
         var btnPrint = document.getElementById("btnPrintProducts");

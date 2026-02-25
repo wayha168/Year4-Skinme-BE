@@ -7,8 +7,38 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
       <link rel="stylesheet" href="/css/tables.css" />
       <link rel="stylesheet" href="/css/badges.css" />
+      <style>
+        .orders-summary .stat-card::before { background: var(--chart-color, #6b7280); }
+        .orders-summary .stat-card:nth-child(1)::before { background: #10b981; }
+        .orders-summary .stat-card:nth-child(2)::before { background: #3b82f6; }
+        .orders-summary .stat-card:nth-child(3)::before { background: #10b981; }
+        .orders-summary .stat-card:nth-child(4)::before { background: #f59e0b; }
+        .orders-page .chart-card {
+          background: var(--white);
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          padding: 1.25rem;
+          height: 100%;
+        }
+        .orders-page .chart-card h6 {
+          font-size: 0.9375rem;
+          font-weight: 600;
+          color: #334155;
+          margin: 0 0 1rem 0;
+        }
+        .orders-page .chart-wrap { position: relative; height: 280px; }
+        .orders-page .orders-table-card {
+          background: var(--white);
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          overflow: hidden;
+        }
+      </style>
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,23 +46,28 @@
   </head>
   <body>
     <th:block th:fragment="main">
-    <div class="main-content">
+    <div class="main-content orders-page">
       <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-bag-check'"></div>
 
-      <div class="container-fluid px-4">
-        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <div class="container-fluid px-4 pb-5">
+        <div th:if="${error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert">
           <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
 
-        <div class="stats-row">
+        <!-- Summary -->
+        <div class="stats-row orders-summary mb-4">
+          <div class="stat-card">
+            <div class="stat-value text-success" th:text="'$' + ${#numbers.formatDecimal(totalRevenue != null ? totalRevenue : 0, 1, 2)}">$0.00</div>
+            <div class="stat-label">Total Revenue</div>
+          </div>
           <div class="stat-card">
             <div class="stat-value" th:text="${totalOrders ?: 0}">0</div>
             <div class="stat-label">Total Orders</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" th:text="${completedOrders ?: 0}">0</div>
-            <div class="stat-label">Completed</div>
+            <div class="stat-label">Delivered</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" th:text="${pendingPaymentOrders ?: 0}">0</div>
@@ -40,22 +75,44 @@
           </div>
         </div>
 
-        <div th:if="${#lists.isEmpty(orders)}" class="card mt-4">
-          <div class="empty-state">
-            <i class="bi bi-inbox"></i>
-            <h5>No Orders Found</h5>
-            <p>There are no orders at the moment.</p>
+        <!-- Charts -->
+        <div class="row g-4 mb-4">
+          <div class="col-lg-5">
+            <div class="chart-card">
+              <h6><i class="bi bi-pie-chart me-2"></i>Orders by Status</h6>
+              <div class="chart-wrap">
+                <canvas id="chartOrdersByStatus"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="chart-card">
+              <h6><i class="bi bi-bar-chart me-2"></i>Revenue (Last 12 Months)</h6>
+              <div class="chart-wrap">
+                <canvas id="chartRevenueByMonth"></canvas>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div th:unless="${#lists.isEmpty(orders)}" class="order-table">
-          <div class="table-responsive">
+        <!-- Orders table -->
+        <div class="orders-table-card">
+          <div class="card-header detail-header">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Order Records</h5>
+          </div>
+          <div th:if="${#lists.isEmpty(orders)}" class="p-5 text-center text-muted">
+            <i class="bi bi-inbox" style="font-size: 2.5rem;"></i>
+            <h5 class="mt-2">No Orders Found</h5>
+            <p class="mb-0">There are no orders at the moment.</p>
+          </div>
+
+          <div th:unless="${#lists.isEmpty(orders)}" class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
               <thead>
                 <tr>
                   <th style="width: 100px;">#</th>
                   <th><i class="bi bi-calendar"></i> Order Date</th>
-                  <th style="width: 140px;"><i class="bi bi-currency-dollar"></i> Total Amount</th>
+                  <th style="width: 140px;"><i class="bi bi-currency-dollar"></i> Total</th>
                   <th style="width: 120px;"><i class="bi bi-tags"></i> Status</th>
                   <th><i class="bi bi-truck"></i> Tracking</th>
                   <th style="width: 100px;"><i class="bi bi-gear"></i> Actions</th>
@@ -78,22 +135,22 @@
                   </td>
                   <td>
                     <span th:if="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="text-dark" th:text="${order.trackingNumber}">TRK-123</span>
-                    <span th:unless="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="text-muted">N/A</span>
+                    <span th:unless="${order.trackingNumber != null and !order.trackingNumber.isEmpty()}" class="text-muted">—</span>
                   </td>
                   <td>
                     <div class="table-actions">
                       <a th:href="'/view/orders/' + ${order.orderId}" class="btn-action" title="View">
                         <i class="bi bi-eye"></i>
                       </a>
-                      <button 
-                        class="btn-action" 
+                      <button
+                        class="btn-action"
                         th:attr="onclick='editOrder(' + ${order.orderId} + ')'"
                         title="Edit"
                       >
                         <i class="bi bi-pencil"></i>
                       </button>
-                      <button 
-                        class="btn-action" 
+                      <button
+                        class="btn-action"
                         th:attr="onclick='deleteOrder(' + ${order.orderId} + ')'"
                         title="Delete"
                       >
@@ -105,49 +162,93 @@
               </tbody>
             </table>
           </div>
-        </div>
-        
-        <!-- Pagination -->
-        <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/orders', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
 
-        <div class="mt-4 text-center mb-5">
-          <p class="text-muted" th:text="'Total Orders: ' + ${totalOrders ?: 0}">Total: 0</p>
+          <div th:if="${totalPages > 1}" class="p-3 border-top">
+            <div th:replace="~{components/pagination :: pagination('/views/orders', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
+          </div>
         </div>
       </div>
     </div>
     </th:block>
     <th:block th:fragment="scripts">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+      <script th:inline="javascript">
+        (function() {
+          var orderStatusCounts = JSON.parse(/*[[${orderStatusCountsJson}]]*/ '[]');
+          var salesByMonth = JSON.parse(/*[[${salesByMonthJson}]]*/ '[]');
+
+          if (typeof Chart !== 'undefined') {
+            var statusLabels = orderStatusCounts.map(function(s) { return s.status; });
+            var statusCounts = orderStatusCounts.map(function(s) { return s.count; });
+            var statusColors = orderStatusCounts.map(function(s) { return s.color; });
+            var ctxStatus = document.getElementById('chartOrdersByStatus');
+            if (ctxStatus && (statusLabels.length > 0 || statusCounts.length > 0)) {
+              new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                  labels: statusLabels,
+                  datasets: [{ data: statusCounts, backgroundColor: statusColors, borderWidth: 2, borderColor: '#fff' }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: 'bottom' } }
+                }
+              });
+            }
+
+            var monthLabels = salesByMonth.map(function(m) { return m.label; });
+            var monthRevenues = salesByMonth.map(function(m) { return m.revenue != null ? Number(m.revenue) : 0; });
+            var ctxRevenue = document.getElementById('chartRevenueByMonth');
+            if (ctxRevenue) {
+              new Chart(ctxRevenue, {
+                type: 'bar',
+                data: {
+                  labels: monthLabels,
+                  datasets: [{
+                    label: 'Revenue ($)',
+                    data: monthRevenues,
+                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                    borderColor: '#10b981',
+                    borderWidth: 1
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: { beginAtZero: true, ticks: { callback: function(v) { return '$' + v; } } }
+                  },
+                  plugins: { legend: { display: false } }
+                }
+              });
+            }
+          }
+        })();
+      </script>
       <script>
         function editOrder(orderId) {
-          if (typeof showToast === 'function') {
-            showToast('Redirecting to edit order...', 'info');
-          }
+          if (typeof showToast === 'function') showToast('Redirecting...', 'info');
           window.location.href = '/view/orders/' + orderId;
         }
-        
         function deleteOrder(orderId) {
-          if (confirm('Are you sure you want to delete order #' + orderId + '? This action cannot be undone.')) {
-            if (typeof showToast === 'function') {
-              showToast('Deleting order...', 'info');
-            }
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/views/orders/' + orderId + '/delete';
-            
-            const csrfToken = document.querySelector('meta[name="_csrf"]');
-            const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
-            if (csrfToken) {
-              const csrfInput = document.createElement('input');
-              csrfInput.type = 'hidden';
-              csrfInput.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
-              csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
-              form.appendChild(csrfInput);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
+          if (!confirm('Delete order #' + orderId + '? This cannot be undone.')) return;
+          if (typeof showToast === 'function') showToast('Deleting...', 'info');
+          var form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/views/orders/' + orderId + '/delete';
+          var csrfToken = document.querySelector('meta[name="_csrf"]');
+          var csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+          if (csrfToken) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
+            input.value = csrfToken.getAttribute('content') || csrfToken.content;
+            form.appendChild(input);
           }
+          document.body.appendChild(form);
+          form.submit();
         }
       </script>
     </th:block>

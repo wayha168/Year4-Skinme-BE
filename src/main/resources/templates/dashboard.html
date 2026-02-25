@@ -510,7 +510,7 @@
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title th:text="${pageTitle != null} ? ${pageTitle} : 'Admin Dashboard'">Admin Dashboard</title>
+    <title th:text="${pageTitle != null} ? ${pageTitle} : 'Dashboard'">Dashboard</title>
   </head>
   <body>
     <th:block th:fragment="main">
@@ -614,7 +614,7 @@
             <h2 class="section-title" style="margin-bottom: 0.5rem;">
               <i class="bi bi-heart-fill" style="color: #ef4444;"></i> Recent User Favorites
             </h2>
-            <p class="section-subtitle" >Latest 5 products favorited by users.</p>
+            <p class="section-subtitle" >Latest 5 products favorite by users.</p>
           </div>
           <a href="/views/products" class="view-all-link" >View All →</a>
         </div>
@@ -644,12 +644,12 @@
               
               <div class="favorite-product-info">
                 <div class="favorite-product-name" th:text="${favorite.product.name}">Product Name</div>
-                <div class="favorite-product-brand" th:text="${favorite.product.brand}">Brand</div>
+                <div class="favorite-product-brand" th:text="${favorite.product.brand != null ? favorite.product.brand.name : 'N/A'}">Brand</div>
               </div>
               
               <div class="favorite-meta">
                 <span class="favorite-badge">
-                  <i class="bi bi-heart-fill"></i> Favorited
+                  <i class="bi bi-heart-fill"></i> Favorite
                 </span>
                 <span class="favorite-time" >Recently</span>
               </div>
@@ -691,7 +691,7 @@
               
               <div class="popular-product-info">
                 <div class="popular-product-name" th:text="${popular.product.name}">Product Name</div>
-                <div class="popular-product-brand" th:text="${popular.product.brand}">Brand</div>
+                <div class="popular-product-brand" th:text="${popular.product.brand != null ? popular.product.brand.name : 'N/A'}">Brand</div>
                 <div class="popular-product-price" th:text="'$' + ${#numbers.formatDecimal(popular.product.price, 1, 2)}">$0.00</div>
               </div>
               

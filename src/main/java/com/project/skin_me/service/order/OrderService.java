@@ -16,6 +16,9 @@ import com.project.skin_me.service.cart.ICartService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.popularProduct.IPopularProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -154,6 +157,20 @@ public class OrderService implements IOrderService {
     public List<OrderDto> getAllUserOrders() {
         List<Order> orders = orderRepository.findAll();
         return orders.stream().map(this::convertToDto).toList();
+    }
+
+    @Override
+    public Page<OrderDto> getAllUserOrders(Pageable pageable) {
+        Page<Order> page = orderRepository.findAllWithOrderItems(pageable);
+        List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
+    public Page<OrderDto> getUserOrders(Long userId, Pageable pageable) {
+        Page<Order> page = orderRepository.findByUserIdWithOrderItems(userId, pageable);
+        List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
 
     @Override

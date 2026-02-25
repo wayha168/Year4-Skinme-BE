@@ -1,87 +1,251 @@
 /* ============================================
-   DETAIL PAGE STYLES
+   DETAIL PAGE STYLES - Clean alert-box style
+   (Soft bg, border, clear text - sans-serif)
    ============================================ */
 
 .detail-card {
-    border: none;
-    border-radius: var(--border-radius-md);
-    box-shadow: var(--box-shadow-sm);
+    font-family: sans-serif;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     background: var(--white);
     overflow: hidden;
     margin-bottom: 2rem;
-    transition: all 0.3s ease;
+    transition: box-shadow 0.2s ease;
 }
 
 .detail-card:hover {
-    box-shadow: var(--box-shadow-md);
-    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.detail-card .card-body {
+    padding: 1.5rem 1.75rem;
+}
+
+/* Info rows - soft stripe like alert-box */
 .info-row {
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--gray-200);
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #fafafa;
+    margin: 0 -1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
+.info-row:nth-child(even) {
+    background: #ffffff;
+}
+
+.info-row.border-0,
 .info-row:last-child {
     border-bottom: none;
 }
 
 .info-label {
-    color: #999;
-    font-size: 0.9rem;
+    font-family: sans-serif;
+    color: #475569;
+    font-size: 0.875rem;
     font-weight: 500;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.info-label i {
+    color: #64748b;
 }
 
 .info-value {
+    font-family: sans-serif;
     font-weight: 600;
-    color: var(--text-dark);
+    font-size: 0.875rem;
+    color: #334155;
     text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1;
+    margin-left: 0.75rem;
 }
 
-.badge-gradient {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius-lg);
+/* Value as soft green badge (price/amount) - alert-box success style */
+.info-value.badge-gradient,
+.detail-card .badge-gradient {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
     display: inline-block;
+}
+
+/* Active = green (in detail cards and everywhere) */
+.detail-card .badge.bg-success,
+.detail-card .status-active,
+.badge.bg-success.status-active,
+.status-badge-active,
+.badge-active,
+.table-tag-active {
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #bbf7d0;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
     font-weight: 600;
 }
 
-/* Detail Header */
-.detail-header {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
-    padding: 1.5rem;
+.detail-card .badge.bg-danger,
+.detail-card .status-inactive,
+.badge.bg-danger {
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fecaca;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.detail-card .badge.bg-secondary {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+}
+
+/* Role pills in user details - clean badge with optional remove */
+.detail-card .info-value-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.detail-card .role-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.65rem;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.detail-card .role-pill-text {
+    line-height: 1.2;
+}
+
+.detail-card .role-pill-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+.detail-card .btn-remove-role {
+    background: none;
+    border: none;
+    padding: 0 0.15rem;
+    margin: 0;
+    font-size: 0.9em;
+    color: #64748b;
+    opacity: 0.9;
+    cursor: pointer;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+.detail-card .btn-remove-role:hover {
+    color: #dc2626;
+    opacity: 1;
+}
+
+/* User details sidebar - actions block */
+.user-actions-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.user-actions-primary {
+    margin-bottom: 1rem;
+}
+
+.user-actions-assign-role {
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.user-actions-subtitle {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 0.75rem 0;
+}
+
+.user-actions-subtitle i {
+    color: #64748b;
+    margin-right: 0.35rem;
+}
+
+/* Detail header - softer */
+.detail-header,
+.detail-card .card-header {
+    background: #f8fafc;
+    color: #334155;
+    padding: 1rem 1.5rem;
     margin: 0;
     border: none;
+    border-bottom: 1px solid #e2e8f0;
     font-weight: 700;
+    font-family: sans-serif;
 }
 
-/* Summary Box */
+.detail-card .card-header h5,
+.detail-card .card-header h4 {
+    margin: 0;
+    font-weight: 600;
+    color: #334155;
+}
+
+/* Summary block - alert-box style */
 .detail-summary {
-    background: var(--light-bg);
-    padding: 1.5rem;
-    border-radius: var(--border-radius-md);
-    margin-top: 2rem;
+    font-family: sans-serif;
+    background: #f8fafc;
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px;
+    margin-top: 1.5rem;
+    border: 1px solid #e2e8f0;
 }
 
 .detail-summary h5 {
     margin-top: 0;
     margin-bottom: 1rem;
-    font-weight: 700;
+    font-weight: 600;
+    color: #334155;
+    font-size: 1rem;
 }
 
 .summary-line {
     display: flex;
     justify-content: space-between;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid var(--gray-200);
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.875rem;
 }
 
 .summary-line:last-child {
@@ -89,29 +253,100 @@
 }
 
 .summary-label {
-    color: #999;
-    font-size: 0.9rem;
+    color: #475569;
 }
 
 .summary-value {
     font-weight: 600;
+    color: #334155;
 }
 
-/* ============================================
-   RESPONSIVE
-   ============================================ */
+/* Description / text blocks inside detail card */
+.detail-card h5 {
+    font-family: sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.detail-card .text-muted,
+.detail-card p.text-muted {
+    font-family: sans-serif;
+    font-size: 0.875rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Summary cards with colored top border (like dashboard) - base in common.css */
+.summary-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.summary-card--order::before { background: #f59e0b; }
+.summary-card--payment::before { background: #3b82f6; }
+.summary-card--delivery::before { background: #10b981; }
+
+/* Tables inside detail cards - same soft header as detail-header */
+.detail-card .table thead {
+    background: #f8fafc;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.detail-card .table thead th {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    font-family: sans-serif;
+}
+
+.detail-card .table tbody td {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    font-size: 0.875rem;
+    color: #334155;
+    font-family: sans-serif;
+}
+
+.detail-card .table tbody tr:hover {
+    background: #f8fafc;
+}
+
+/* Detail page: tight spacing between Back, alerts, and content (no big gap) */
+.main-content .detail-page-top {
+    margin-bottom: 0.5rem;
+}
+
+.main-content .detail-page-top .alert {
+    margin-bottom: 0.5rem;
+}
+
+.main-content .detail-page-top .alert:last-child {
+    margin-bottom: 0;
+}
+
+.main-content .detail-page-content {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
     .info-row {
         flex-direction: column;
         align-items: flex-start;
+        gap: 0.35rem;
     }
 
     .info-value {
         text-align: left;
-        margin-top: 0.5rem;
     }
 
     .summary-line {
         flex-direction: column;
+        gap: 0.25rem;
     }
 }

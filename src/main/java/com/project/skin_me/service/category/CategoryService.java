@@ -9,6 +9,8 @@ import com.project.skin_me.model.Category;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.repository.CategoryRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import lombok.RequiredArgsConstructor;
 
@@ -37,6 +39,11 @@ public class CategoryService implements ICategoryService {
     public List<Category> getAllCategories() {
         // Use optimized query only when product count is needed
         return categoryRepository.findAll();
+    }
+
+    @Override
+    public Page<Category> getAllCategories(Pageable pageable) {
+        return categoryRepository.findAllWithBrands(pageable);
     }
 
     public List<Category> getAllCategoriesWithBrands() {

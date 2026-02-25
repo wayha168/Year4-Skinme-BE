@@ -27,5 +27,6 @@ public class PromotionDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean currentlyActive;
+    private boolean expired;
     private List<ImageDto> images;
 }

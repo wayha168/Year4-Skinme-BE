@@ -1,5 +1,22 @@
 package com.project.skin_me.controller.api;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.project.skin_me.dto.RealTimeUpdateDto;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.enums.PaymentMethod;
@@ -18,16 +35,8 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import com.stripe.param.PaymentIntentCreateParams;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
@@ -73,25 +82,23 @@ public class PaymentController {
             // Send WebSocket notification for payment pending
             try {
                 notificationService.notifyUser(
-                    order.getUser().getId().toString(),
-                    "Payment Pending",
-                    "Your payment for order #" + order.getId() + " is pending. Please complete the payment.",
-                    "PAYMENT"
-                );
-                
+                        order.getUser().getId().toString(),
+                        "Payment Pending",
+                        "Your payment for order #" + order.getId() + " is pending. Please complete the payment.",
+                        "PAYMENT");
+
                 RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                    .entityType("PAYMENT")
-                    .entityId(payment.getId().toString())
-                    .action("CREATE")
-                    .timestamp(LocalDateTime.now())
-                    .affectedUsers(order.getUser().getId().toString())
-                    .data(Map.of(
-                        "orderId", order.getId(),
-                        "paymentId", payment.getId(),
-                        "status", "PENDING",
-                        "checkoutUrl", session.getUrl()
-                    ))
-                    .build();
+                        .entityType("PAYMENT")
+                        .entityId(payment.getId().toString())
+                        .action("CREATE")
+                        .timestamp(LocalDateTime.now())
+                        .affectedUsers(order.getUser().getId().toString())
+                        .data(Map.of(
+                                "orderId", order.getId(),
+                                "paymentId", payment.getId(),
+                                "status", "PENDING",
+                                "checkoutUrl", session.getUrl()))
+                        .build();
                 messagingTemplate.convertAndSend("/topic/orders", update);
             } catch (Exception e) {
                 System.err.println("Failed to send payment pending notification: " + e.getMessage());
@@ -100,8 +107,7 @@ public class PaymentController {
             Map<String, Object> data = Map.of(
                     "checkoutUrl", session.getUrl(),
                     "orderId", order.getId(),
-                    "sessionId", session.getId()
-            );
+                    "sessionId", session.getId());
             return ResponseEntity.ok(new ApiResponse("Stripe checkout session created", data));
         } catch (StripeException e) {
             return ResponseEntity.status(500)
@@ -178,25 +184,23 @@ public class PaymentController {
                 // Send WebSocket notification for payment success
                 try {
                     notificationService.notifyUser(
-                        order.getUser().getId().toString(),
-                        "Payment Successful",
-                        "Your payment for order #" + order.getId() + " has been confirmed successfully!",
-                        "PAYMENT"
-                    );
-                    
+                            order.getUser().getId().toString(),
+                            "Payment Successful",
+                            "Your payment for order #" + order.getId() + " has been confirmed successfully!",
+                            "PAYMENT");
+
                     RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                        .entityType("PAYMENT")
-                        .entityId(payment.getId().toString())
-                        .action("UPDATE")
-                        .timestamp(LocalDateTime.now())
-                        .affectedUsers(order.getUser().getId().toString())
-                        .data(Map.of(
-                            "orderId", order.getId(),
-                            "paymentId", payment.getId(),
-                            "status", "SUCCESS",
-                            "message", "Payment confirmed successfully"
-                        ))
-                        .build();
+                            .entityType("PAYMENT")
+                            .entityId(payment.getId().toString())
+                            .action("UPDATE")
+                            .timestamp(LocalDateTime.now())
+                            .affectedUsers(order.getUser().getId().toString())
+                            .data(Map.of(
+                                    "orderId", order.getId(),
+                                    "paymentId", payment.getId(),
+                                    "status", "SUCCESS",
+                                    "message", "Payment confirmed successfully"))
+                            .build();
                     messagingTemplate.convertAndSend("/topic/orders", update);
                 } catch (Exception e) {
                     System.err.println("Failed to send payment success notification: " + e.getMessage());
@@ -222,14 +226,17 @@ public class PaymentController {
     }
 
     /**
-     * Record or update a payment via API (e.g. from external gateway webhook or manual input).
-     * Accepts: orderId (or transactionRef), amount, status; optional: method, transactionRef, cardHolderName, cardLast4, cardBrand, message.
+     * Record or update a payment via API (e.g. from external gateway webhook or
+     * manual input).
+     * Accepts: orderId (or transactionRef), amount, status; optional: method,
+     * transactionRef, cardHolderName, cardLast4, cardBrand, message.
      */
     @PostMapping("/record")
     public ResponseEntity<ApiResponse> recordPayment(@RequestBody Map<String, Object> body) {
         try {
             Long orderId = body.get("orderId") != null ? Long.parseLong(body.get("orderId").toString()) : null;
-            String transactionRef = body.get("transactionRef") != null ? body.get("transactionRef").toString().trim() : null;
+            String transactionRef = body.get("transactionRef") != null ? body.get("transactionRef").toString().trim()
+                    : null;
             if (orderId == null && (transactionRef == null || transactionRef.isEmpty())) {
                 return ResponseEntity.badRequest()
                         .body(new ApiResponse("Either orderId or transactionRef is required", null));
@@ -248,7 +255,8 @@ public class PaymentController {
                         .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
                 payment = paymentRepository.findByOrder(order).orElse(null);
                 if (payment == null) {
-                    String methodStr = body.get("method") != null ? body.get("method").toString().toUpperCase() : "CREDIT_CARD";
+                    String methodStr = body.get("method") != null ? body.get("method").toString().toUpperCase()
+                            : "CREDIT_CARD";
                     PaymentMethod method = PaymentMethod.valueOf(methodStr.replace("-", "_").replace(" ", "_"));
                     payment = Payment.builder()
                             .order(order)
@@ -261,20 +269,28 @@ public class PaymentController {
                 }
             }
             if (payment == null) {
-                return ResponseEntity.badRequest().body(new ApiResponse("Payment not found and cannot create without orderId", null));
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse("Payment not found and cannot create without orderId", null));
             }
 
-            if (amount != null) payment.setAmount(amount);
+            if (amount != null)
+                payment.setAmount(amount);
             payment.setStatus(status);
-            if (transactionRef != null && !transactionRef.isEmpty()) payment.setTransactionRef(transactionRef);
-            if (body.get("cardHolderName") != null) payment.setCardHolderName(body.get("cardHolderName").toString().trim());
+            if (transactionRef != null && !transactionRef.isEmpty())
+                payment.setTransactionRef(transactionRef);
+            if (body.get("cardHolderName") != null)
+                payment.setCardHolderName(body.get("cardHolderName").toString().trim());
             if (body.get("cardLast4") != null) {
                 String digits = body.get("cardLast4").toString().replaceAll("\\D", "");
-                if (!digits.isEmpty()) payment.setCardLast4(digits.length() >= 4 ? digits.substring(digits.length() - 4) : digits);
+                if (!digits.isEmpty())
+                    payment.setCardLast4(digits.length() >= 4 ? digits.substring(digits.length() - 4) : digits);
             }
-            if (body.get("cardBrand") != null) payment.setCardBrand(body.get("cardBrand").toString().trim());
-            if (body.get("message") != null) payment.setMessage(body.get("message").toString());
-            if (status == OrderStatus.SUCCESS) payment.setTransactionTime(LocalDateTime.now());
+            if (body.get("cardBrand") != null)
+                payment.setCardBrand(body.get("cardBrand").toString().trim());
+            if (body.get("message") != null)
+                payment.setMessage(body.get("message").toString());
+            if (status == OrderStatus.SUCCESS)
+                payment.setTransactionTime(LocalDateTime.now());
 
             paymentRepository.save(payment);
 
@@ -295,11 +311,12 @@ public class PaymentController {
     }
 
     @PostMapping("/webhook")
-    public ResponseEntity<ApiResponse> handleWebhook(@RequestBody String payload, @RequestHeader("Stripe-Signature") String sigHeader) {
+    public ResponseEntity<ApiResponse> handleWebhook(@RequestBody String payload,
+            @RequestHeader("Stripe-Signature") String sigHeader) {
         try {
             Event event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
             Map<String, Object> processedEvents = new HashMap<>();
-            
+
             // Handle checkout session completed
             if ("checkout.session.completed".equals(event.getType())) {
                 Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
@@ -307,26 +324,29 @@ public class PaymentController {
                     orderService.getOrderByStripeSessionId(session.getId())
                             .ifPresent(order -> {
                                 Payment payment = paymentRepository.findByTransactionRef(session.getId())
-                                        .orElseThrow(() -> new IllegalArgumentException("Payment not found for sessionId: " + session.getId()));
+                                        .orElseThrow(() -> new IllegalArgumentException(
+                                                "Payment not found for sessionId: " + session.getId()));
                                 payment.setStatus(OrderStatus.SUCCESS);
                                 payment.setTransactionTime(LocalDateTime.now());
                                 paymentRepository.save(payment);
                                 orderService.confirmOrderPayment(order);
-                                
+
                                 // Send WebSocket notification via orderService.confirmOrderPayment
                                 // which already handles notifications
-                                
+
                                 processedEvents.put("checkout_session", session.getId());
                             });
                 }
             }
-            
+
             // Handle payment intent succeeded
             if ("payment_intent.succeeded".equals(event.getType())) {
-                PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject().orElse(null);
+                PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject()
+                        .orElse(null);
                 if (paymentIntent != null) {
                     Payment payment = paymentRepository.findByTransactionRef(paymentIntent.getId())
-                            .orElseThrow(() -> new IllegalArgumentException("Payment not found for paymentIntentId: " + paymentIntent.getId()));
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Payment not found for paymentIntentId: " + paymentIntent.getId()));
                     Order order = payment.getOrder();
                     payment.setStatus(OrderStatus.SUCCESS);
                     payment.setTransactionTime(LocalDateTime.now());
@@ -335,10 +355,10 @@ public class PaymentController {
                     processedEvents.put("payment_intent", paymentIntent.getId());
                 }
             }
-            
+
             processedEvents.put("event_type", event.getType());
             processedEvents.put("processed", true);
-            
+
             return ResponseEntity.ok(new ApiResponse("Webhook processed successfully", processedEvents));
         } catch (Exception e) {
             return ResponseEntity.status(400)
@@ -406,7 +426,8 @@ public class PaymentController {
                         .body(new ApiResponse("Payment method is not KHQR", null));
             }
 
-            // In a real implementation, you would verify the payment with the bank/merchant API
+            // In a real implementation, you would verify the payment with the bank/merchant
+            // API
             // For now, we'll mark it as pending and require manual verification
             // payment.setStatus(OrderStatus.SUCCESS);
             // payment.setTransactionTime(LocalDateTime.now());
@@ -416,7 +437,8 @@ public class PaymentController {
             Map<String, Object> data = new HashMap<>();
             data.put("orderId", orderId);
             data.put("status", "pending_verification");
-            data.put("message", "Payment verification pending. Please contact support with your transaction reference.");
+            data.put("message",
+                    "Payment verification pending. Please contact support with your transaction reference.");
 
             return ResponseEntity.ok(new ApiResponse("KHQR payment verification initiated", data));
         } catch (Exception e) {
