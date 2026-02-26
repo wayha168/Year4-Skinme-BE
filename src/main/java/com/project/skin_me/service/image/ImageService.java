@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 import com.project.skin_me.dto.ImageDto;
 import com.project.skin_me.exception.ResourceNotFoundException;
+import com.project.skin_me.model.Category;
 import com.project.skin_me.model.Image;
 import com.project.skin_me.model.Product;
 import com.project.skin_me.repository.ImageRepository;
@@ -86,6 +87,41 @@ public class ImageService implements IImageService {
             }
         }
         return saveImageDto;
+    }
+
+    @Override
+    public String saveCategoryImage(MultipartFile file, Category category) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(basePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not create upload directory: " + e.getMessage());
+        }
+        try {
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null || originalFilename.isBlank()) {
+                originalFilename = "image_" + System.currentTimeMillis() + ".dat";
+            }
+            if (originalFilename.contains("..")) {
+                originalFilename = originalFilename.replace("..", "");
+            }
+            Path targetFile = basePath.resolve(originalFilename);
+            Files.write(targetFile, file.getBytes());
+
+            Image image = new Image();
+            image.setFileName(originalFilename);
+            image.setFileType(file.getContentType());
+            image.setCategory(category);
+            image.setDownloadUrl("/uploads/" + originalFilename);
+            image.setImage(file.getBytes());
+            imageRepository.save(image);
+            return "/uploads/" + originalFilename;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save category image: " + e.getMessage());
+        }
     }
 
     @Override

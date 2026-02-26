@@ -1,14 +1,24 @@
 <div th:fragment="sidebar" class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <div class="d-flex justify-content-center align-items-center">
-      <h2 class="sidebar-title"><i class="bi bi-flower1"></i> <span class="sidebar-title-text">SkinMe</span></h2>
+  <div class="sidebar-top-col">
+    <div class="sidebar-toggle-row">
+      <button type="button" class="btn-sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+        <i class="bi bi-layout-sidebar sidebar-toggle-icon text-black" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="sidebar-header">
+      <div class="sidebar-header-inner">
+        <h2 class="sidebar-title">
+          <img th:src="@{/assets/skin_me_logo.gif}" alt="SkinMe" class="sidebar-logo" />
+          <span class="sidebar-brand-letter" aria-hidden="true">S</span>
+        </h2>
+      </div>
     </div>
   </div>
 
   <ul class="nav sidebar-nav" id="sidebar-nav">
     <li class="nav-item">
-      <a th:href="@{/dashboard}" class="nav-link" data-tooltip="Dashboard"> 
-        <i class="bi bi-house-door"></i> 
+      <a th:href="@{/dashboard}" class="nav-link" data-tooltip="Dashboard">
+        <i class="bi bi-house-door"></i>
         <span class="nav-link-text">Dashboard</span>
       </a>
     </li>
@@ -16,35 +26,29 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a
-        class="nav-link dropdown-toggle"
-        data-bs-toggle="collapse"
-        href="#stockMenu"
-        role="button"
-        aria-expanded="false"
-        aria-controls="stockMenu"
-        data-tooltip="Stock Management"
-      >
-        <i class="bi bi-grid-3x3-gap"></i> 
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#stockMenu" role="button"
+        aria-expanded="false" aria-controls="stockMenu" data-tooltip="Stock Management">
+        <i class="bi bi-grid-3x3-gap"></i>
         <span class="nav-link-text">Stock Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="stockMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/categories}" class="nav-link sub-nav-link" data-tooltip="Categories"> 
+        <a th:href="@{/views/categories}" class="nav-link sub-nav-link" data-tooltip="Categories">
           <i class="bi bi-card-checklist"></i>
-          <span class="nav-link-text">Categories</span> 
+          <span class="nav-link-text">Categories</span>
         </a>
-        <a th:href="@{/views/brands}" class="nav-link sub-nav-link" data-tooltip="Brands"> 
-          <i class="bi bi-award"></i> 
-          <span class="nav-link-text">Brands</span> 
+        <a th:href="@{/views/brands}" class="nav-link sub-nav-link" data-tooltip="Brands">
+          <i class="bi bi-award"></i>
+          <span class="nav-link-text">Brands</span>
         </a>
-        <a th:href="@{/views/products}" class="nav-link sub-nav-link" data-tooltip="Products"> 
-          <i class="bi bi-box-seam"></i> 
-          <span class="nav-link-text">Products</span> 
+        <a th:href="@{/views/products}" class="nav-link sub-nav-link" data-tooltip="Products">
+          <i class="bi bi-box-seam"></i>
+          <span class="nav-link-text">Products</span>
         </a>
-        <a th:href="@{/views/promotions}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="Promotions"> 
-          <i class="bi bi-percent"></i> 
-          <span class="nav-link-text">Promotions</span> 
+        <a th:href="@{/views/promotions}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+          data-tooltip="Promotions">
+          <i class="bi bi-percent"></i>
+          <span class="nav-link-text">Promotions</span>
         </a>
       </div>
     </li>
@@ -52,31 +56,24 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a
-        class="nav-link dropdown-toggle"
-        data-bs-toggle="collapse"
-        href="#saleMenu"
-        role="button"
-        aria-expanded="false"
-        aria-controls="saleMenu"
-        data-tooltip="Sales Management"
-      >
-        <i class="bi bi-cart-check"></i> 
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#saleMenu" role="button" aria-expanded="false"
+        aria-controls="saleMenu" data-tooltip="Sales Management">
+        <i class="bi bi-cart-check"></i>
         <span class="nav-link-text">Sales Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="saleMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record"> 
-          <i class="bi bi-bag-check"></i> 
-          <span class="nav-link-text">Orders Record</span> 
+        <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record">
+          <i class="bi bi-bag-check"></i>
+          <span class="nav-link-text">Orders Record</span>
         </a>
-        <a th:href="@{/views/payments}" class="nav-link sub-nav-link" data-tooltip="Payment Record"> 
-          <i class="bi bi-receipt-cutoff"></i> 
-          <span class="nav-link-text">Payment Record</span> 
+        <a th:href="@{/views/payments}" class="nav-link sub-nav-link" data-tooltip="Payment Record">
+          <i class="bi bi-receipt-cutoff"></i>
+          <span class="nav-link-text">Payment Record</span>
         </a>
-        <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record"> 
-          <i class="bi bi-truck"></i> 
-          <span class="nav-link-text">Delivery Record</span> 
+        <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record">
+          <i class="bi bi-truck"></i>
+          <span class="nav-link-text">Delivery Record</span>
         </a>
       </div>
     </li>
@@ -84,8 +81,8 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a th:href="@{/views/chat}" class="nav-link" data-tooltip="Chat"> 
-        <i class="bi bi-chat-square-text"></i> 
+      <a th:href="@{/views/chat}" class="nav-link" data-tooltip="Chat">
+        <i class="bi bi-chat-square-text"></i>
         <span class="nav-link-text">Chat</span>
       </a>
     </li>
@@ -93,47 +90,37 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a
-        class="nav-link dropdown-toggle"
-        data-bs-toggle="collapse"
-        href="#userMenu"
-        role="button"
-        aria-expanded="false"
-        aria-controls="userMenu"
-        data-tooltip="User Menu"
-      >
-        <i class="bi bi-person-badge"></i> 
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#userMenu" role="button" aria-expanded="false"
+        aria-controls="userMenu" data-tooltip="User Menu">
+        <i class="bi bi-person-badge"></i>
         <span class="nav-link-text">User Menu</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="userMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/my-orders}" class="nav-link sub-nav-link" data-tooltip="My Orders"> 
-          <i class="bi bi-bag"></i> 
-          <span class="nav-link-text">My Orders</span> 
+        <a th:href="@{/views/my-orders}" class="nav-link sub-nav-link" data-tooltip="My Orders">
+          <i class="bi bi-bag"></i>
+          <span class="nav-link-text">My Orders</span>
         </a>
-        <a th:href="@{/views/my-payments}" class="nav-link sub-nav-link" data-tooltip="My Payments"> 
-          <i class="bi bi-wallet2"></i> 
-          <span class="nav-link-text">My Payments</span> 
+        <a th:href="@{/views/my-payments}" class="nav-link sub-nav-link" data-tooltip="My Payments">
+          <i class="bi bi-wallet2"></i>
+          <span class="nav-link-text">My Payments</span>
         </a>
-        <a th:href="@{/views/users}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="User Management"> 
-          <i class="bi bi-people"></i> 
-          <span class="nav-link-text">User Management</span> 
+        <a th:href="@{/views/users}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+          data-tooltip="User Management">
+          <i class="bi bi-people"></i>
+          <span class="nav-link-text">User Management</span>
         </a>
-        <a th:href="@{/views/audit-logs}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="Audit Log"> 
-          <i class="bi bi-journal-text"></i> 
-          <span class="nav-link-text">Audit Log</span> 
+        <a th:href="@{/views/audit-logs}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+          data-tooltip="Audit Log">
+          <i class="bi bi-journal-text"></i>
+          <span class="nav-link-text">Audit Log</span>
         </a>
       </div>
     </li>
   </ul>
 
   <div class="sidebar-footer">
-    <a
-      href="#"
-      class="nav-link"
-      data-tooltip="Logout"
-      onclick="handleLogout(event);"
-    >
+    <a href="#" class="nav-link" data-tooltip="Logout" onclick="handleLogout(event);">
       <i class="bi bi-box-arrow-right"></i> <span class="nav-link-text">Logout</span>
     </a>
   </div>
@@ -142,7 +129,7 @@
 
 <script>
   // Ensure only one dropdown menu is open at a time
-  (function() {
+  (function () {
     function initSidebarDropdowns() {
       const sidebarNav = document.getElementById('sidebar-nav');
       if (!sidebarNav) return;
@@ -152,7 +139,7 @@
 
       // Function to close all collapses except the target
       function closeOtherCollapses(targetCollapse) {
-        collapseElements.forEach(function(collapse) {
+        collapseElements.forEach(function (collapse) {
           if (collapse !== targetCollapse && collapse.classList.contains('show')) {
             // Try to use Bootstrap Collapse API if available
             if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
@@ -172,16 +159,16 @@
         });
       }
 
-      toggleLinks.forEach(function(toggleLink) {
-        toggleLink.addEventListener('click', function(e) {
+      toggleLinks.forEach(function (toggleLink) {
+        toggleLink.addEventListener('click', function (e) {
           const targetId = this.getAttribute('href');
           const targetCollapse = document.querySelector(targetId);
-          
+
           if (!targetCollapse) return;
 
           // If clicking on an already open menu, close it
           const isExpanded = this.getAttribute('aria-expanded') === 'true';
-          
+
           if (!isExpanded) {
             // Close all other collapses before opening this one
             closeOtherCollapses(targetCollapse);
@@ -191,15 +178,15 @@
 
       // Update aria-expanded when collapse events fire (if Bootstrap is available)
       if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
-        collapseElements.forEach(function(collapse) {
-          collapse.addEventListener('show.bs.collapse', function() {
+        collapseElements.forEach(function (collapse) {
+          collapse.addEventListener('show.bs.collapse', function () {
             const toggle = sidebarNav.querySelector('[href="#' + this.id + '"]');
             if (toggle) {
               toggle.setAttribute('aria-expanded', 'true');
             }
           });
 
-          collapse.addEventListener('hide.bs.collapse', function() {
+          collapse.addEventListener('hide.bs.collapse', function () {
             const toggle = sidebarNav.querySelector('[href="#' + this.id + '"]');
             if (toggle) {
               toggle.setAttribute('aria-expanded', 'false');
@@ -214,6 +201,128 @@
       document.addEventListener('DOMContentLoaded', initSidebarDropdowns);
     } else {
       initSidebarDropdowns();
+    }
+  })();
+
+  // Sidebar collapse toggle (icon-only mode) + responsive mobile overlay
+  (function () {
+    var STORAGE_KEY = 'skinme-sidebar-collapsed';
+    var SIDEBAR_COLLAPSED_CLASS = 'sidebar-collapsed';
+    var CONTAINER_COLLAPSED_CLASS = 'sidebar-container-collapsed';
+    var MOBILE_OPEN_CLASS = 'sidebar-mobile-open';
+
+    function getSidebar() { return document.getElementById('sidebar'); }
+    function getAppSidebar() { return document.getElementById('appSidebar'); }
+    function getToggleBtn() { return document.getElementById('sidebarToggle'); }
+    function getMobileBtn() { return document.getElementById('btnMobileMenu'); }
+    function getOverlay() { return document.getElementById('sidebarOverlay'); }
+    function getAppShell() { return document.getElementById('appShell'); }
+
+    function isCollapsed() {
+      var sidebar = getSidebar();
+      return sidebar && sidebar.classList.contains(SIDEBAR_COLLAPSED_CLASS);
+    }
+
+    function setCollapsed(collapsed) {
+      var sidebar = getSidebar();
+      var container = getAppSidebar();
+      var btn = getToggleBtn();
+      if (!sidebar || !container) return;
+      if (collapsed) {
+        sidebar.classList.add(SIDEBAR_COLLAPSED_CLASS);
+        container.classList.add(CONTAINER_COLLAPSED_CLASS);
+        if (btn) {
+          btn.setAttribute('aria-label', 'Expand sidebar');
+          btn.setAttribute('title', 'Expand sidebar');
+          btn.querySelector('.sidebar-toggle-icon')?.classList.add('sidebar-toggle-icon-rotated');
+        }
+        try { localStorage.setItem(STORAGE_KEY, '1'); } catch (e) { }
+      } else {
+        sidebar.classList.remove(SIDEBAR_COLLAPSED_CLASS);
+        container.classList.remove(CONTAINER_COLLAPSED_CLASS);
+        if (btn) {
+          btn.setAttribute('aria-label', 'Collapse sidebar');
+          btn.setAttribute('title', 'Collapse sidebar');
+          btn.querySelector('.sidebar-toggle-icon')?.classList.remove('sidebar-toggle-icon-rotated');
+        }
+        try { localStorage.setItem(STORAGE_KEY, '0'); } catch (e) { }
+      }
+    }
+
+    function toggleCollapsed() {
+      setCollapsed(!isCollapsed());
+    }
+
+    function initToggle() {
+      var btn = getToggleBtn();
+      if (btn) {
+        btn.addEventListener('click', function () { toggleCollapsed(); });
+      }
+    }
+
+    function initPersistedState() {
+      try {
+        var stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === '1') setCollapsed(true);
+      } catch (e) { }
+    }
+
+    function isMobile() {
+      return window.matchMedia('(max-width: 991.98px)').matches;
+    }
+
+    function updateMobileUI() {
+      var mobileBtn = getMobileBtn();
+      var overlay = getOverlay();
+      var shell = getAppShell();
+      if (!mobileBtn || !overlay || !shell) return;
+      if (isMobile()) {
+        mobileBtn.style.display = 'flex';
+        overlay.addEventListener('click', closeMobileSidebar);
+        mobileBtn.addEventListener('click', openMobileSidebar);
+      } else {
+        mobileBtn.style.display = 'none';
+        shell.classList.remove(MOBILE_OPEN_CLASS);
+        overlay.removeEventListener('click', closeMobileSidebar);
+        mobileBtn.removeEventListener('click', openMobileSidebar);
+      }
+    }
+
+    function openMobileSidebar() {
+      var shell = getAppShell();
+      if (shell) shell.classList.add(MOBILE_OPEN_CLASS);
+    }
+
+    function closeMobileSidebar() {
+      var shell = getAppShell();
+      if (shell) shell.classList.remove(MOBILE_OPEN_CLASS);
+    }
+
+    function initMobileCloseOnNavClick() {
+      var sidebar = getSidebar();
+      if (!sidebar) return;
+      sidebar.addEventListener('click', function (e) {
+        if (!isMobile()) return;
+        var link = e.target.closest('a.nav-link');
+        var href = link && link.getAttribute('href');
+        if (href && href !== '#' && href.indexOf('#') !== 0) {
+          closeMobileSidebar();
+        }
+      });
+    }
+
+    function init() {
+      initPersistedState();
+      initToggle();
+      updateMobileUI();
+      initMobileCloseOnNavClick();
+      window.addEventListener('resize', updateMobileUI);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
     }
   })();
 </script>

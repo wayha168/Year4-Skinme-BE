@@ -209,27 +209,8 @@
           previewImg.src = '';
         }
 
-        // Handle form submission - convert image to data URL if file is selected
-        document.querySelectorAll('form').forEach(form => {
-          form.addEventListener('submit', function(e) {
-            const imageUrlInput = document.getElementById('image');
-            const fileInput = document.getElementById('category-image-upload');
-            
-            // If file is selected but no URL, convert file to data URL
-            if (selectedImageFile && !imageUrlInput.value) {
-              const reader = new FileReader();
-              reader.onload = function(event) {
-                imageUrlInput.value = event.target.result;
-                // Submit form after setting the data URL
-                form.submit();
-              };
-              reader.readAsDataURL(selectedImageFile);
-              e.preventDefault(); // Prevent default submission
-            }
-            // If URL is provided, submit normally
-            // If neither file nor URL, submit normally (image is optional)
-          });
-        });
+        // Form submits as multipart/form-data; backend receives file from category-image-upload
+        // and optional URL from image. No base64 conversion - upload works like product images.
       </script>
     </th:block>
   </body>

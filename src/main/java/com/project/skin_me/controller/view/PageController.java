@@ -315,6 +315,7 @@ public class PageController {
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String image,
             @RequestParam(required = false) String link,
+            @RequestParam(value = "category-image-upload", required = false) MultipartFile categoryImageUpload,
             Model model) {
         try {
             if (name == null || name.trim().isEmpty()) {
@@ -326,9 +327,20 @@ public class PageController {
             Category category = new Category(name.trim());
             category.setTitle(title != null ? title.trim() : null);
             category.setDescription(description != null ? description.trim() : null);
-            category.setImage(image != null ? image.trim() : null);
             category.setLink(link != null ? link.trim() : null);
+            if (categoryImageUpload != null && !categoryImageUpload.isEmpty()) {
+                category.setImage(null);
+            } else {
+                category.setImage(image != null && !image.isBlank() ? image.trim() : null);
+            }
             Category savedCategory = categoryService.addCategory(category);
+            if (categoryImageUpload != null && !categoryImageUpload.isEmpty()) {
+                String imageUrl = imageService.saveCategoryImage(categoryImageUpload, savedCategory);
+                if (imageUrl != null) {
+                    savedCategory.setImage(imageUrl);
+                    categoryService.updateCategory(savedCategory, savedCategory.getId());
+                }
+            }
 
             // Send WebSocket notification for category creation (broadcast to admins)
             try {
@@ -372,6 +384,7 @@ public class PageController {
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String image,
             @RequestParam(required = false) String link,
+            @RequestParam(value = "category-image-upload", required = false) MultipartFile categoryImageUpload,
             Model model) {
         try {
             Category existingCategory = categoryService.getCategoryById(categoryId);
@@ -379,8 +392,15 @@ public class PageController {
             existingCategory.setTitle(title != null ? title.trim() : existingCategory.getTitle());
             existingCategory
                     .setDescription(description != null ? description.trim() : existingCategory.getDescription());
-            existingCategory.setImage(image != null ? image.trim() : existingCategory.getImage());
             existingCategory.setLink(link != null ? link.trim() : existingCategory.getLink());
+            if (categoryImageUpload != null && !categoryImageUpload.isEmpty()) {
+                String imageUrl = imageService.saveCategoryImage(categoryImageUpload, existingCategory);
+                if (imageUrl != null) {
+                    existingCategory.setImage(imageUrl);
+                }
+            } else if (image != null && !image.isBlank()) {
+                existingCategory.setImage(image.trim());
+            }
             categoryService.updateCategory(existingCategory, categoryId);
             return "redirect:/views/categories?success=Category updated successfully";
         } catch (Exception e) {

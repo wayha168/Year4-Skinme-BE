@@ -31,7 +31,9 @@ public class Category {
     
     @Column(columnDefinition = "TEXT")
     private String description;
-    
+
+    /** Image URL (e.g. /uploads/filename or external URL). Use VARCHAR(2048) to support long URLs. */
+    @Column(name = "image", length = 2048)
     private String image;
     private String link;
 

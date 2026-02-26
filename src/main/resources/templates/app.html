@@ -21,8 +21,12 @@
   </head>
   <body>
     <span id="msgLoggingOut" style="display:none" aria-hidden="true">Logging out...</span>
-    <div class="app-shell">
-      <div class="app-sidebar">
+    <div class="app-shell" id="appShell">
+      <button type="button" class="btn-mobile-menu" id="btnMobileMenu" aria-label="Open menu" title="Open menu" style="display: none;">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+      <div class="app-sidebar" id="appSidebar">
         <div th:replace="~{components/sidebar :: sidebar}"></div>
       </div>
       <div class="app-content">
@@ -73,6 +77,102 @@
     <form id="logoutForm" th:action="@{/logout}" method="POST" style="display: none">
       <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     </form>
+
+    <!-- Sidebar collapse toggle: click to close/open sidebar (runs on every page) -->
+    <script>
+      (function() {
+        var STORAGE_KEY = 'skinme-sidebar-collapsed';
+        var SIDEBAR_COLLAPSED_CLASS = 'sidebar-collapsed';
+        var CONTAINER_COLLAPSED_CLASS = 'sidebar-container-collapsed';
+        var MOBILE_OPEN_CLASS = 'sidebar-mobile-open';
+
+        function getSidebar() { return document.getElementById('sidebar'); }
+        function getAppSidebar() { return document.getElementById('appSidebar'); }
+        function getToggleBtn() { return document.getElementById('sidebarToggle'); }
+        function getMobileBtn() { return document.getElementById('btnMobileMenu'); }
+        function getOverlay() { return document.getElementById('sidebarOverlay'); }
+        function getAppShell() { return document.getElementById('appShell'); }
+
+        function isCollapsed() {
+          var sidebar = getSidebar();
+          return sidebar && sidebar.classList.contains(SIDEBAR_COLLAPSED_CLASS);
+        }
+
+        function setCollapsed(collapsed) {
+          var sidebar = getSidebar();
+          var container = getAppSidebar();
+          var btn = getToggleBtn();
+          if (!sidebar || !container) return;
+          if (collapsed) {
+            sidebar.classList.add(SIDEBAR_COLLAPSED_CLASS);
+            container.classList.add(CONTAINER_COLLAPSED_CLASS);
+            if (btn) {
+              btn.setAttribute('aria-label', 'Expand sidebar');
+              btn.setAttribute('title', 'Expand sidebar');
+              var icon = btn.querySelector('.sidebar-toggle-icon');
+              if (icon) icon.classList.add('sidebar-toggle-icon-rotated');
+            }
+            try { localStorage.setItem(STORAGE_KEY, '1'); } catch (e) {}
+          } else {
+            sidebar.classList.remove(SIDEBAR_COLLAPSED_CLASS);
+            container.classList.remove(CONTAINER_COLLAPSED_CLASS);
+            if (btn) {
+              btn.setAttribute('aria-label', 'Collapse sidebar');
+              btn.setAttribute('title', 'Collapse sidebar');
+              var icon = btn.querySelector('.sidebar-toggle-icon');
+              if (icon) icon.classList.remove('sidebar-toggle-icon-rotated');
+            }
+            try { localStorage.setItem(STORAGE_KEY, '0'); } catch (e) {}
+          }
+        }
+
+        function toggleCollapsed(e) {
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          setCollapsed(!isCollapsed());
+        }
+
+        function initSidebarToggle() {
+          var btn = getToggleBtn();
+          if (btn) {
+            btn.addEventListener('click', toggleCollapsed);
+          }
+          try {
+            if (localStorage.getItem(STORAGE_KEY) === '1') setCollapsed(true);
+          } catch (e) {}
+        }
+
+        function isMobile() { return window.matchMedia('(max-width: 991.98px)').matches; }
+        function openMobileSidebar() { var s = getAppShell(); if (s) s.classList.add(MOBILE_OPEN_CLASS); }
+        function closeMobileSidebar() { var s = getAppShell(); if (s) s.classList.remove(MOBILE_OPEN_CLASS); }
+
+        function updateMobileUI() {
+          var mobileBtn = getMobileBtn(), overlay = getOverlay(), shell = getAppShell();
+          if (!mobileBtn || !overlay || !shell) return;
+          if (isMobile()) {
+            mobileBtn.style.display = 'flex';
+            overlay.onclick = closeMobileSidebar;
+            mobileBtn.onclick = openMobileSidebar;
+          } else {
+            mobileBtn.style.display = 'none';
+            shell.classList.remove(MOBILE_OPEN_CLASS);
+            overlay.onclick = null;
+            mobileBtn.onclick = null;
+          }
+        }
+
+        function init() {
+          initSidebarToggle();
+          updateMobileUI();
+          window.addEventListener('resize', updateMobileUI);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init);
+        } else {
+          init();
+        }
+      })();
+    </script>
     
     <th:block th:replace="${scripts}"></th:block>
     

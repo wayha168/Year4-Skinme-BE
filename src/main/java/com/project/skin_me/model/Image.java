@@ -46,4 +46,13 @@ public class Image {
     @JoinColumn(name = "promotion_id")
     @JsonIgnore
     private Promotion promotion;
+
+    @ManyToOne
+    @JoinColumn(name = "category_id")
+    @JsonIgnore
+    private Category category;
+
+    /** Read-only copy of category_id for grouping without lazy-loading Category. */
+    @Column(name = "category_id", insertable = false, updatable = false)
+    private Long categoryId;
 }

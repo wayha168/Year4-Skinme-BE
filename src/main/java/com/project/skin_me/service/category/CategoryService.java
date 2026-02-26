@@ -52,15 +52,40 @@ public class CategoryService implements ICategoryService {
 
     @Override
     public Category addCategory(Category category) {
+        if (category.getImage() != null && category.getImage().length() > IMAGE_MAX_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Image URL must be at most " + IMAGE_MAX_LENGTH + " characters. Create the category first, then use POST /categories/category/{id}/image to upload a file.");
+        }
         return Optional.of(category).filter(c -> !categoryRepository.existsByName(c.getName()))
                 .map(categoryRepository::save)
                 .orElseThrow(() -> new AlreadyExistsException(category.getName() + "already exists"));
     }
 
+    /** Max length for category image field (URL or path). */
+    public static final int IMAGE_MAX_LENGTH = 2048;
+
     @Override
     public Category updateCategory(Category category, Long id) {
         return Optional.ofNullable(getCategoryById(id)).map(oldCategory -> {
-            oldCategory.setName(category.getName());
+            if (category.getName() != null) {
+                oldCategory.setName(category.getName());
+            }
+            if (category.getTitle() != null) {
+                oldCategory.setTitle(category.getTitle());
+            }
+            if (category.getDescription() != null) {
+                oldCategory.setDescription(category.getDescription());
+            }
+            if (category.getLink() != null) {
+                oldCategory.setLink(category.getLink());
+            }
+            if (category.getImage() != null) {
+                if (category.getImage().length() > IMAGE_MAX_LENGTH) {
+                    throw new IllegalArgumentException(
+                            "Image URL must be at most " + IMAGE_MAX_LENGTH + " characters. Use POST /categories/category/{id}/image to upload a file.");
+                }
+                oldCategory.setImage(category.getImage());
+            }
             return categoryRepository.save(oldCategory);
         }).orElseThrow(() -> new ResourceNotFoundException("Category not Success!"));
     }
