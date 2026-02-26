@@ -4,6 +4,7 @@ import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
 import com.project.skin_me.repository.OrderRepository;
+import com.project.skin_me.service.telegram.TelegramNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ public class DeliveryService implements IDeliveryService {
 
     private static final Logger logger = LoggerFactory.getLogger(DeliveryService.class);
     private final OrderRepository orderRepository;
+    private final TelegramNotificationService telegramNotificationService;
 
     @Override
     @Transactional
@@ -40,8 +42,15 @@ public class DeliveryService implements IDeliveryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
+        Order savedOrder = orderRepository.save(order);
         logger.info("Order marked as delivered: {}", orderId);
-        return orderRepository.save(order);
+        try {
+            String userInfo = order.getUser() != null ? order.getUser().getEmail() : "N/A";
+            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber());
+        } catch (Exception e) {
+            logger.warn("Failed to send Telegram delivery alert: {}", e.getMessage());
+        }
+        return savedOrder;
     }
 
     @Override

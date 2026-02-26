@@ -16,6 +16,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByUserId(Long userId);
 
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.user")
+    List<Order> findAllWithUser();
+
     Page<Order> findByUserId(Long userId, Pageable pageable);
 
     long countByOrderStatus(OrderStatus status);
@@ -32,6 +35,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query(value = "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.orderItems oi LEFT JOIN FETCH oi.product p LEFT JOIN FETCH p.brand",
            countQuery = "SELECT COUNT(o) FROM Order o")
     Page<Order> findAllWithOrderItems(Pageable pageable);
+
+    @Query(value = "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.user LEFT JOIN FETCH o.orderItems oi LEFT JOIN FETCH oi.product p LEFT JOIN FETCH p.brand",
+           countQuery = "SELECT COUNT(DISTINCT o) FROM Order o")
+    Page<Order> findAllWithOrderItemsAndUser(Pageable pageable);
 
     @Query(value = "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.orderItems oi LEFT JOIN FETCH oi.product p LEFT JOIN FETCH p.brand WHERE o.user.id = :userId",
            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId")

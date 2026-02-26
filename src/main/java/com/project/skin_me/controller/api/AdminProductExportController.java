@@ -22,12 +22,13 @@ public class AdminProductExportController {
     private final IProductService productService;
 
     private static final Path EXPORT_DIR = Paths.get("exported-catalog");
-    private static final String FILE_NAME   = "product-catalog.md";
+    private static final String FILE_NAME = "product-catalog.md";
 
     static {
         try {
             Files.createDirectories(EXPORT_DIR);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     @PreAuthorize("hasRole('ROLE_ADMIN')")

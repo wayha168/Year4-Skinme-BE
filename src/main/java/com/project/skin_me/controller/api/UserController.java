@@ -23,6 +23,17 @@ public class UserController {
 
     private final IUserService userService;
 
+    @GetMapping("/user-profile")
+    public ResponseEntity<ApiResponse> getUserProfile() {
+        try {
+            User user = userService.getAuthenticatedUser();
+            UserDto userDto = userService.convertUserToDto(user);
+            return ResponseEntity.ok(new ApiResponse("Success!", userDto));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
     @GetMapping("/{userId}/user")
     public ResponseEntity<ApiResponse> getUserById(@PathVariable Long userId) {
         try {
@@ -46,7 +57,7 @@ public class UserController {
     }
 
     @PostMapping("/add")
-    @PreAuthorize("hasRole('ROLE_ADMIN')") // Only admin can create users
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> createUser(@RequestBody CreateUserRequest request) {
         try {
             User user = userService.createUser(request);

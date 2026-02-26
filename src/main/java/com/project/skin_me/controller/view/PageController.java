@@ -208,6 +208,8 @@ public class PageController {
                     .limit(5)
                     .collect(java.util.stream.Collectors.toList());
             model.addAttribute("popularProducts", top5Popular);
+            model.addAttribute("userOrders", orders);
+            model.addAttribute("userPayments", paymentRepository.findAllWithOrderAndUser());
 
         } catch (Exception e) {
             model.addAttribute("totalProducts", 0);
@@ -219,6 +221,8 @@ public class PageController {
             model.addAttribute("newUsersThisMonth", 0);
             model.addAttribute("recentFavorites", List.<FavoriteItem>of());
             model.addAttribute("popularProducts", List.<PopularProduct>of());
+            model.addAttribute("userOrders", List.<OrderDto>of());
+            model.addAttribute("userPayments", List.<Payment>of());
             model.addAttribute("error", "Failed to load stats: " + e.getMessage());
         }
         model.addAttribute("pageTitle", "Admin Dashboard");
@@ -954,15 +958,14 @@ public class PageController {
 
     @GetMapping("/views/my-orders")
     @PreAuthorize("isAuthenticated()")
-    public String myOrdersListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication,
+    public String myOrdersListPage(@RequestParam(defaultValue = "0") int page,
             Model model) {
         try {
-            User user = userService.getAuthenticatedUser();
             Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
-            var orderPage = orderService.getUserOrders(user.getId(), pageable);
+            var orderPage = orderService.getAllUserOrders(pageable);
             List<OrderDto> orders = orderPage.getContent();
             long totalOrders = orderPage.getTotalElements();
-            long deliveredOrders = orderRepository.countByUser_IdAndOrderStatus(user.getId(), OrderStatus.DELIVERED);
+            long deliveredOrders = orderRepository.countByOrderStatus(OrderStatus.DELIVERED);
             int totalPages = orderPage.getTotalPages();
             model.addAttribute("orders", orders);
             model.addAttribute("totalOrders", totalOrders);
@@ -971,9 +974,9 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
-            model.addAttribute("pageTitle", "My Orders");
+            model.addAttribute("pageTitle", "User Orders");
         } catch (Exception e) {
-            model.addAttribute("error", "Failed to load your orders: " + e.getMessage());
+            model.addAttribute("error", "Failed to load user orders: " + e.getMessage());
             model.addAttribute("orders", List.<OrderDto>of());
             model.addAttribute("totalOrders", 0);
             model.addAttribute("deliveredOrders", 0);
@@ -981,7 +984,7 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
-            model.addAttribute("pageTitle", "My Orders");
+            model.addAttribute("pageTitle", "User Orders");
         }
         return "my-orders";
     }
@@ -1096,15 +1099,14 @@ public class PageController {
 
     @GetMapping("/views/my-payments")
     @PreAuthorize("isAuthenticated()")
-    public String myPaymentsListPage(@RequestParam(defaultValue = "0") int page, Authentication authentication,
+    public String myPaymentsListPage(@RequestParam(defaultValue = "0") int page,
             Model model) {
         try {
-            User user = userService.getAuthenticatedUser();
             Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id").descending());
-            var paymentPage = paymentRepository.findByOrderUserId(user.getId(), pageable);
+            var paymentPage = paymentRepository.findAllWithOrderAndUser(pageable);
             List<Payment> payments = paymentPage.getContent();
             long totalPayments = paymentPage.getTotalElements();
-            java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
+            java.math.BigDecimal sum = paymentRepository.sumAllAmounts();
             double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
             int totalPages = paymentPage.getTotalPages();
             model.addAttribute("payments", payments);
@@ -1114,8 +1116,9 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("pageTitle", "User Payments");
         } catch (Exception e) {
-            model.addAttribute("error", "Failed to load your payments: " + e.getMessage());
+            model.addAttribute("error", "Failed to load user payments: " + e.getMessage());
             model.addAttribute("payments", List.<Payment>of());
             model.addAttribute("totalPayments", 0);
             model.addAttribute("totalPaymentAmount", 0.0);
@@ -1123,8 +1126,8 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
+            model.addAttribute("pageTitle", "User Payments");
         }
-        model.addAttribute("pageTitle", "My Payments");
         return "my-payments";
     }
 

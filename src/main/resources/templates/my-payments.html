@@ -12,7 +12,7 @@
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title th:text="${pageTitle ?: 'My Payments'}">My Payments</title>
+    <title th:text="${pageTitle ?: 'User Payments'}">User Payments</title>
   </head>
   <body>
     <th:block th:fragment="main">
@@ -39,9 +39,9 @@
         <div th:if="${#lists.isEmpty(payments)}" class="card mt-4">
           <div class="empty-state">
             <i class="bi bi-wallet2"></i>
-            <h5>No Payments Yet</h5>
-            <p>You don't have any payment history.</p>
-            <a href="/" class="btn btn-gradient mt-3"> <i class="bi bi-shop"></i> Start Shopping </a>
+            <h5>No User Payments Yet</h5>
+            <p>There are no user payment records.</p>
+            <a href="/" class="btn btn-gradient mt-3"> <i class="bi bi-shop"></i> Go to Shop </a>
           </div>
         </div>
 
@@ -51,6 +51,7 @@
               <thead>
                 <tr>
                   <th style="width: 100px;">#</th>
+                  <th><i class="bi bi-person"></i> User</th>
                   <th><i class="bi bi-bag"></i> Order ID</th>
                   <th style="width: 140px;"><i class="bi bi-currency-dollar"></i> Amount</th>
                   <th style="width: 120px;"><i class="bi bi-credit-card"></i> Method</th>
@@ -62,6 +63,13 @@
               <tbody>
                 <tr th:each="payment : ${payments}">
                   <td class="text-muted fw-semibold" th:text="'#' + ${payment.id}">#1</td>
+                  <td>
+                    <span th:if="${payment.order != null && payment.order.user != null}">
+                      <span class="text-dark" th:text="${payment.order.user.firstName != null ? payment.order.user.firstName + ' ' + (payment.order.user.lastName != null ? payment.order.user.lastName : '') : payment.order.user.email}">User</span>
+                      <br><small class="text-muted" th:text="${payment.order.user.email}">email</small>
+                    </span>
+                    <span th:unless="${payment.order != null && payment.order.user != null}" class="text-muted">—</span>
+                  </td>
                   <td>
                     <span class="text-dark" th:text="${payment.order != null ? ('#' + payment.order.orderId) : 'N/A'}">Order ID</span>
                   </td>
@@ -79,8 +87,8 @@
                     </span>
                     <span th:if="${payment.status == null or (payment.status.toString() != 'COMPLETED' and payment.status.toString() != 'SUCCESS')}" class="status-badge-inactive" th:text="${payment.status != null ? payment.status : 'PENDING'}">PENDING</span>
                   </td>
-                  <td>
-                    <code class="text-muted" th:text="${payment.transactionRef != null and !payment.transactionRef.isEmpty() ? payment.transactionRef : 'N/A'}" style="font-size: 0.8rem; background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 6px;">N/A</code>
+                  <td th:with="displayRef=${payment.transactionRef != null and !payment.transactionRef.isEmpty() ? (#strings.length(payment.transactionRef) > 7 ? (#strings.substring(payment.transactionRef, 0, 5) + '...' + #strings.substring(payment.transactionRef, #strings.length(payment.transactionRef) - 2, #strings.length(payment.transactionRef))) : payment.transactionRef) : 'N/A'}">
+                    <code class="text-muted" th:text="${displayRef}" style="font-size: 0.8rem; background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 6px;">N/A</code>
                   </td>
                   <td>
                     <div class="table-actions">
@@ -99,7 +107,7 @@
         <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/my-payments', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
 
         <div class="mt-4 text-center mb-5">
-          <p class="text-muted" th:text="'Total Payments: ' + ${totalPayments ?: 0}">Total: 0</p>
+          <p class="text-muted" th:text="'Total User Payments: ' + ${totalPayments ?: 0}">Total: 0</p>
         </div>
       </div>
     </div>

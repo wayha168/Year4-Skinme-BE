@@ -23,7 +23,7 @@ public class FavoriteController {
 
     @PostMapping("/add")
     public ResponseEntity<ApiResponse> addFavorite(@RequestParam Long userId,
-                                                   @RequestParam Long productId) {
+            @RequestParam Long productId) {
         try {
             FavoriteProductDto dto = favoriteService.addFavorite(userId, productId);
             return ResponseEntity.ok(new ApiResponse("Product added to favorites", dto));
@@ -67,7 +67,7 @@ public class FavoriteController {
 
     @DeleteMapping("/remove")
     public ResponseEntity<ApiResponse> removeFavorite(@RequestParam Long userId,
-                                                      @RequestParam Long productId) {
+            @RequestParam Long productId) {
         try {
             favoriteService.removeFavorite(userId, productId);
             return ResponseEntity.ok(new ApiResponse("Favorite removed", null));
@@ -79,9 +79,10 @@ public class FavoriteController {
                     .body(new ApiResponse("Error removing favorite", e.getMessage()));
         }
     }
+
     @DeleteMapping("/remove/by-product")
     public ResponseEntity<ApiResponse> removeFavoriteByProductId(@RequestParam Long userId,
-                                                                 @RequestParam Long productId) {
+            @RequestParam Long productId) {
         try {
             favoriteService.removeFavoriteById(userId, productId);
             return ResponseEntity.ok(new ApiResponse("Favorite product removed successfully", null));

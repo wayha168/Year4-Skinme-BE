@@ -15,6 +15,7 @@ import com.project.skin_me.repository.ActivityRepository;
 import com.project.skin_me.service.cart.ICartService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.popularProduct.IPopularProductService;
+import com.project.skin_me.service.telegram.TelegramNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -45,6 +46,7 @@ public class OrderService implements IOrderService {
     private final ICartService cartService;
     private final IPopularProductService popularProductService;
     private final NotificationService notificationService;
+    private final TelegramNotificationService telegramNotificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ActivityRepository activityRepository;
 
@@ -85,6 +87,15 @@ public class OrderService implements IOrderService {
         } catch (Exception e) {
             // Log but don't fail the order creation
             System.err.println("Failed to send order notification: " + e.getMessage());
+        }
+
+        // Telegram alert: new order
+        try {
+            String userInfo = savedOrder.getUser() != null ? savedOrder.getUser().getEmail() : "N/A";
+            String total = savedOrder.getOrderTotalAmount() != null ? "$" + savedOrder.getOrderTotalAmount() : "N/A";
+            telegramNotificationService.notifyNewOrder(savedOrder.getId(), userInfo, total);
+        } catch (Exception e) {
+            System.err.println("Failed to send Telegram new-order alert: " + e.getMessage());
         }
 
         // Record order placed in audit log
@@ -155,13 +166,13 @@ public class OrderService implements IOrderService {
 
     @Override
     public List<OrderDto> getAllUserOrders() {
-        List<Order> orders = orderRepository.findAll();
+        List<Order> orders = orderRepository.findAllWithUser();
         return orders.stream().map(this::convertToDto).toList();
     }
 
     @Override
     public Page<OrderDto> getAllUserOrders(Pageable pageable) {
-        Page<Order> page = orderRepository.findAllWithOrderItems(pageable);
+        Page<Order> page = orderRepository.findAllWithOrderItemsAndUser(pageable);
         List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
@@ -177,11 +188,25 @@ public class OrderService implements IOrderService {
     public OrderDto convertToDto(Order order) {
         OrderDto dto = new OrderDto();
         dto.setOrderId(order.getOrderId());
-        dto.setUserId(order.getUser() != null ? order.getUser().getId() : null);
+        if (order.getUser() != null) {
+            dto.setUserId(order.getUser().getId());
+            dto.setUserEmail(order.getUser().getEmail());
+            dto.setUserName(
+                (order.getUser().getFirstName() != null ? order.getUser().getFirstName() : "")
+                + (order.getUser().getLastName() != null ? " " + order.getUser().getLastName() : "")
+            );
+        }
         dto.setOrderDate(order.getOrderDate());
         dto.setTotalAmount(order.getOrderTotalAmount());
         dto.setOrderStatus(order.getOrderStatus() != null ? order.getOrderStatus().toString() : null);
         dto.setTrackingNumber(order.getTrackingNumber());
+        dto.setDeliveryStreet(order.getDeliveryStreet());
+        dto.setDeliveryCity(order.getDeliveryCity());
+        dto.setDeliveryProvince(order.getDeliveryProvince());
+        dto.setDeliveryPostalCode(order.getDeliveryPostalCode());
+        dto.setDeliveryAddressFull(order.getDeliveryAddressFull());
+        dto.setDeliveryLatitude(order.getDeliveryLatitude());
+        dto.setDeliveryLongitude(order.getDeliveryLongitude());
 
         List<OrderItemDto> itemDtos = new ArrayList<>();
         if (order.getOrderItems() != null) {
@@ -247,12 +272,14 @@ public class OrderService implements IOrderService {
     @Override
     @Transactional
     public void confirmOrderPayment(Order order) {
-        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
+        Order managedOrder = orderRepository.findById(order.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + order.getId()));
+        if (managedOrder.getOrderStatus() != OrderStatus.PENDING && managedOrder.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
             return;
         }
 
         // Deduct inventory
-        for (OrderItem item : order.getOrderItems()) {
+        for (OrderItem item : managedOrder.getOrderItems()) {
             Product product = item.getProduct();
             if (product.getInventory() < item.getQuantity()) {
                 throw new IllegalArgumentException("Insufficient stock for " + product.getName() + " during confirmation");
@@ -261,37 +288,37 @@ public class OrderService implements IOrderService {
             productRepository.save(product);
         }
         // Update popular products
-        popularProductService.saveFromOrder(order);
+        popularProductService.saveFromOrder(managedOrder);
         // Remove cart
-        Cart cart = cartService.getCartByUserId(order.getUser().getId());
+        Cart cart = cartService.getCartByUserId(managedOrder.getUser().getId());
         if (cart != null) {
             cartService.removeCart(cart.getId());
         }
         // Update payment record
-        Payment payment = paymentRepository.findByTransactionRef(order.getStripeSessionId())
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for sessionId: " + order.getStripeSessionId()));
+        Payment payment = paymentRepository.findByTransactionRef(managedOrder.getStripeSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found for sessionId: " + managedOrder.getStripeSessionId()));
         payment.setStatus(OrderStatus.SUCCESS);
         payment.setTransactionTime(LocalDateTime.now());
         paymentRepository.save(payment);
 
         // Update order status
-        order.setOrderStatus(OrderStatus.PAID);
-        updateOrder(order);
+        managedOrder.setOrderStatus(OrderStatus.PAID);
+        updateOrder(managedOrder);
         
         // Record payment success and purchase in audit log
         try {
             Activity paymentSuccessActivity = new Activity();
-            paymentSuccessActivity.setUser(order.getUser());
+            paymentSuccessActivity.setUser(managedOrder.getUser());
             paymentSuccessActivity.setActivityType(ActivityType.PAYMENT_SUCCESS);
             paymentSuccessActivity.setTimestamp(LocalDateTime.now());
-            paymentSuccessActivity.setDetails("Payment success - Order #" + order.getId() + " - Total: $" + order.getOrderTotalAmount());
+            paymentSuccessActivity.setDetails("Payment success - Order #" + managedOrder.getId() + " - Total: $" + managedOrder.getOrderTotalAmount());
             activityRepository.save(paymentSuccessActivity);
 
             Activity purchaseActivity = new Activity();
-            purchaseActivity.setUser(order.getUser());
+            purchaseActivity.setUser(managedOrder.getUser());
             purchaseActivity.setActivityType(ActivityType.PURCHASE);
             purchaseActivity.setTimestamp(LocalDateTime.now());
-            purchaseActivity.setDetails("Purchase completed - Order #" + order.getId() + " - Total: $" + order.getOrderTotalAmount());
+            purchaseActivity.setDetails("Purchase completed - Order #" + managedOrder.getId() + " - Total: $" + managedOrder.getOrderTotalAmount());
             activityRepository.save(purchaseActivity);
         } catch (Exception e) {
             System.err.println("Failed to record payment/purchase activity: " + e.getMessage());
@@ -300,20 +327,20 @@ public class OrderService implements IOrderService {
         // Send WebSocket notification for payment confirmation
         try {
             notificationService.notifyOrderStatusChange(
-                order.getUser().getId().toString(),
-                order.getId().toString(),
+                managedOrder.getUser().getId().toString(),
+                managedOrder.getId().toString(),
                 "PAID"
             );
             
             // Send real-time update
             RealTimeUpdateDto update = RealTimeUpdateDto.builder()
                 .entityType("ORDER")
-                .entityId(order.getId().toString())
+                .entityId(managedOrder.getId().toString())
                 .action("UPDATE")
                 .timestamp(LocalDateTime.now())
-                .affectedUsers(order.getUser().getId().toString())
+                .affectedUsers(managedOrder.getUser().getId().toString())
                 .data(Map.of(
-                    "orderId", order.getId(),
+                    "orderId", managedOrder.getId(),
                     "status", "PAID",
                     "message", "Payment confirmed successfully"
                 ))
@@ -321,6 +348,15 @@ public class OrderService implements IOrderService {
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
             System.err.println("Failed to send payment confirmation notification: " + e.getMessage());
+        }
+
+        // Telegram alert: payment completed
+        try {
+            String userInfo = managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : "N/A";
+            String total = managedOrder.getOrderTotalAmount() != null ? "$" + managedOrder.getOrderTotalAmount() : "N/A";
+            telegramNotificationService.notifyPaymentCompleted(managedOrder.getId(), userInfo, total);
+        } catch (Exception e) {
+            System.err.println("Failed to send Telegram payment alert: " + e.getMessage());
         }
     }
     @Override
@@ -401,6 +437,14 @@ public class OrderService implements IOrderService {
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
             System.err.println("Failed to send delivery notification: " + e.getMessage());
+        }
+
+        // Telegram alert: delivery done
+        try {
+            String userInfo = order.getUser() != null ? order.getUser().getEmail() : "N/A";
+            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber());
+        } catch (Exception e) {
+            System.err.println("Failed to send Telegram delivery alert: " + e.getMessage());
         }
         
         return savedOrder;

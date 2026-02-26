@@ -26,7 +26,6 @@ public class CartController {
     private final ICartService cartService;
     private final IUserService userService;
 
-
     @GetMapping("/my-cart")
     public ResponseEntity<ApiResponse> getCart() {
         try {
@@ -62,7 +61,7 @@ public class CartController {
             BigDecimal totalPrice = cartService.getTotalPrice(cartId);
             return ResponseEntity.ok(new ApiResponse("total-price", totalPrice));
         } catch (ResourceNotFoundException e) {
-            return  ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         }
     }
 
@@ -90,6 +89,7 @@ public class CartController {
                     .body(new ApiResponse(e.getMessage(), null));
         }
     }
+
     @GetMapping("/all")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> getAllCarts() {

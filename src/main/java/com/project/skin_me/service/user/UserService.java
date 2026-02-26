@@ -216,7 +216,12 @@ public class UserService implements IUserService {
 
     @Override
     public UserDto convertUserToDto(User user) {
-        return modelMapper.map(user, UserDto.class);
+        UserDto dto = modelMapper.map(user, UserDto.class);
+        // Role names from relationship (e.g. ROLE_ADMIN, ROLE_USER) for profile display
+        if (user.getRoles() != null) {
+            dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()));
+        }
+        return dto;
     }
 
     @Override

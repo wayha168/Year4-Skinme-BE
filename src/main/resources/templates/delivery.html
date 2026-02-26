@@ -60,6 +60,7 @@
                   <th style="width: 100px;">#</th>
                   <th><i class="bi bi-person"></i> Customer</th>
                   <th><i class="bi bi-calendar"></i> Order Date</th>
+                  <th><i class="bi bi-geo-alt"></i> Delivery Address</th>
                   <th><i class="bi bi-truck"></i> Tracking Number</th>
                   <th style="width: 120px;"><i class="bi bi-tags"></i> Status</th>
                   <th><i class="bi bi-calendar-check"></i> Shipped Date</th>
@@ -75,6 +76,10 @@
                   </td>
                   <td>
                     <span class="text-dark" th:text="${#temporals.format(delivery.orderDate, 'MMM dd, yyyy')}">Date</span>
+                  </td>
+                  <td>
+                    <span th:if="${delivery.deliveryAddressFull != null and !delivery.deliveryAddressFull.isEmpty()}" class="text-dark" th:text="${delivery.deliveryAddressFull}">Address</span>
+                    <span th:if="${delivery.deliveryAddressFull == null || delivery.deliveryAddressFull.isEmpty()}" class="text-muted">—</span>
                   </td>
                   <td>
                     <span th:if="${delivery.trackingNumber != null and !delivery.trackingNumber.isEmpty()}" class="text-dark" th:text="${delivery.trackingNumber}">TRK-123</span>

@@ -14,7 +14,17 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
+
+    @Query("SELECT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.user")
+    List<Payment> findAllWithOrderAndUser();
+
+    @Query(value = "SELECT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.user",
+           countQuery = "SELECT COUNT(p) FROM Payment p")
+    Page<Payment> findAllWithOrderAndUser(Pageable pageable);
+
     Optional<Payment> findByTransactionRef(String transactionRef);
+
+    Optional<Payment> findByPaymentIntentId(String paymentIntentId);
 
     @Query("SELECT p FROM Payment p WHERE p.order.user.id = :userId")
     List<Payment> findByOrderUserId(@Param("userId") Long userId);

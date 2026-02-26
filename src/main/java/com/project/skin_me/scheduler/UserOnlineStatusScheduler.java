@@ -41,7 +41,7 @@ public class UserOnlineStatusScheduler {
                     // If no last activity or last activity is older than threshold, mark as offline
                     if (lastActivity == null || lastActivity.isBefore(thresholdTime)) {
                         user.setIsOnline(false);
-                        user.setLastIpAddress(null); // Clear IP when marking offline
+                        user.setLastIpAddress(null); 
                         userRepository.save(user);
                         logger.info("Marked user {} as offline due to inactivity (last activity: {})", 
                                 user.getEmail(), lastActivity);

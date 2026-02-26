@@ -15,10 +15,20 @@ public class OrderDto {
 
     private Long orderId;
     private Long userId;
+    private String userEmail;
+    private String userName;
     private LocalDate orderDate;
     private BigDecimal totalAmount;
     private String orderStatus;
     private String trackingNumber;
     private List<OrderItemDto> orderItems;
 
+    // Delivery address
+    private String deliveryStreet;
+    private String deliveryCity;
+    private String deliveryProvince;
+    private String deliveryPostalCode;
+    private String deliveryAddressFull;
+    private Double deliveryLatitude;
+    private Double deliveryLongitude;
 }

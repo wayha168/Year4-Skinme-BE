@@ -5,6 +5,10 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -17,9 +21,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.dto.RealTimeUpdateDto;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.enums.PaymentMethod;
+import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
 import com.project.skin_me.model.Payment;
 import com.project.skin_me.repository.OrderRepository;
@@ -54,10 +60,19 @@ public class PaymentController {
     @Value("${stripe.webhook.secret}")
     private String webhookSecret;
 
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     @PostMapping("/create-checkout-session/{userId}")
-    public ResponseEntity<ApiResponse> createCheckoutSession(@PathVariable Long userId) {
+    public ResponseEntity<ApiResponse> createCheckoutSession(
+            @PathVariable Long userId,
+            @RequestBody(required = false) Map<String, Object> body) {
         try {
             Order order = orderService.placeOrderItem(userId);
+            if (body != null) {
+                applyDeliveryToOrder(order, body);
+                orderService.updateOrder(order);
+            }
             long amountInCents = order.getOrderTotalAmount()
                     .multiply(BigDecimal.valueOf(100))
                     .longValue();
@@ -79,7 +94,6 @@ public class PaymentController {
                     .build();
             paymentRepository.save(payment);
 
-            // Send WebSocket notification for payment pending
             try {
                 notificationService.notifyUser(
                         order.getUser().getId().toString(),
@@ -115,6 +129,80 @@ public class PaymentController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error: " + e.getMessage(), null));
+        }
+    }
+
+    private void applyDeliveryToOrder(Order order, Map<String, Object> body) {
+        if (body.get("deliveryStreet") != null) order.setDeliveryStreet(String.valueOf(body.get("deliveryStreet")));
+        if (body.get("deliveryCity") != null) order.setDeliveryCity(String.valueOf(body.get("deliveryCity")));
+        if (body.get("deliveryProvince") != null) order.setDeliveryProvince(String.valueOf(body.get("deliveryProvince")));
+        if (body.get("deliveryPostalCode") != null) order.setDeliveryPostalCode(String.valueOf(body.get("deliveryPostalCode")));
+        if (body.get("deliveryAddressFull") != null) order.setDeliveryAddressFull(String.valueOf(body.get("deliveryAddressFull")));
+        if (body.get("deliveryLatitude") != null) {
+            Object v = body.get("deliveryLatitude");
+            if (v instanceof Number) order.setDeliveryLatitude(((Number) v).doubleValue());
+        }
+        if (body.get("deliveryLongitude") != null) {
+            Object v = body.get("deliveryLongitude");
+            if (v instanceof Number) order.setDeliveryLongitude(((Number) v).doubleValue());
+        }
+    }
+
+    /**
+     * Call this when the user lands on /payment-success?orderId=... after Stripe
+     * redirect.
+     * Verifies payment with Stripe and, if paid, confirms the order (inventory,
+     * Telegram alert, etc.).
+     * Safe to call multiple times; if order is already PAID, returns success
+     * without changing anything.
+     */
+    @GetMapping("/verify-success")
+    public ResponseEntity<ApiResponse> verifyPaymentSuccess(@RequestParam Long orderId) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+
+            OrderDto orderDto = orderService.convertToDto(order);
+
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("order", orderDto);
+                data.put("alreadyConfirmed", true);
+                return ResponseEntity.ok(new ApiResponse("Payment already confirmed", data));
+            }
+
+            String sessionId = order.getStripeSessionId();
+            if (sessionId == null || sessionId.isBlank()) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("order", orderDto);
+                data.put("alreadyConfirmed", false);
+                return ResponseEntity.ok(new ApiResponse("No Stripe session for this order", data));
+            }
+
+            Session session = Session.retrieve(sessionId);
+            String paymentStatus = session.getPaymentStatus();
+            if (!"paid".equalsIgnoreCase(paymentStatus)) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("order", orderDto);
+                data.put("paymentStatus", paymentStatus);
+                return ResponseEntity.ok(new ApiResponse("Payment not completed yet", data));
+            }
+
+            orderService.confirmOrderPayment(order);
+
+            orderDto = orderService.convertToDto(order);
+            Map<String, Object> data = new HashMap<>();
+            data.put("order", orderDto);
+            data.put("confirmed", true);
+            return ResponseEntity.ok(new ApiResponse("Payment verified and order confirmed", data));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(new ApiResponse(e.getMessage(), null));
+        } catch (StripeException e) {
+            return ResponseEntity.status(502)
+                    .body(new ApiResponse("Stripe error: " + e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse("Error verifying payment: " + e.getMessage(), null));
         }
     }
 
@@ -312,58 +400,105 @@ public class PaymentController {
 
     @PostMapping("/webhook")
     public ResponseEntity<ApiResponse> handleWebhook(@RequestBody String payload,
-            @RequestHeader("Stripe-Signature") String sigHeader) {
+            @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader) {
+        Event event;
         try {
-            Event event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
-            Map<String, Object> processedEvents = new HashMap<>();
+            if (sigHeader == null || sigHeader.isEmpty()) {
+                log.warn("Stripe webhook received without Stripe-Signature header");
+                return ResponseEntity.status(400).body(new ApiResponse("Missing Stripe-Signature header", null));
+            }
+            event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
+        } catch (Exception e) {
+            log.warn("Stripe webhook signature verification failed: {}", e.getMessage());
+            return ResponseEntity.status(400).body(new ApiResponse("Webhook signature verification failed", null));
+        }
 
-            // Handle checkout session completed
+        Map<String, Object> processedEvents = new HashMap<>();
+        processedEvents.put("event_type", event.getType());
+        processedEvents.put("event_id", event.getId());
+
+        try {
+            // Parse payload from raw JSON so we don't depend on Stripe SDK deserialization
+            // (avoids 500 with API version 2025+)
+            JsonNode root = objectMapper.readTree(payload);
+            JsonNode data = root.path("data").path("object");
+
             if ("checkout.session.completed".equals(event.getType())) {
-                Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
-                if (session != null) {
-                    orderService.getOrderByStripeSessionId(session.getId())
-                            .ifPresent(order -> {
-                                Payment payment = paymentRepository.findByTransactionRef(session.getId())
-                                        .orElseThrow(() -> new IllegalArgumentException(
-                                                "Payment not found for sessionId: " + session.getId()));
+                String sessionId = data.path("id").asText("");
+                if (sessionId.isEmpty()) {
+                    log.warn("checkout.session.completed: missing session id in event {}", event.getId());
+                    return ResponseEntity.ok(new ApiResponse("Event received, no session id", processedEvents));
+                }
+                String paymentIntentId = null;
+                if (data.has("payment_intent")) {
+                    JsonNode pi = data.get("payment_intent");
+                    paymentIntentId = pi.isTextual() ? pi.asText() : pi.path("id").asText("");
+                    if (paymentIntentId.isEmpty())
+                        paymentIntentId = null;
+                }
+                processCheckoutSessionCompleted(sessionId, paymentIntentId, processedEvents);
+            } else if ("payment_intent.succeeded".equals(event.getType())) {
+                String paymentIntentId = data.path("id").asText("");
+                if (paymentIntentId.isEmpty()) {
+                    log.warn("payment_intent.succeeded: missing id in event {}", event.getId());
+                    return ResponseEntity.ok(new ApiResponse("Event received, no payment_intent id", processedEvents));
+                }
+                processPaymentIntentSucceeded(paymentIntentId, processedEvents);
+            }
+
+            processedEvents.put("processed", true);
+            return ResponseEntity.ok(new ApiResponse("Webhook processed successfully", processedEvents));
+        } catch (Exception e) {
+            log.error("Stripe webhook processing failed for event {}: {}", event.getId(), e.getMessage(), e);
+            processedEvents.put("processed", false);
+            processedEvents.put("error", e.getMessage());
+            return ResponseEntity
+                    .ok(new ApiResponse("Webhook received but processing failed: " + e.getMessage(), processedEvents));
+        }
+    }
+
+    private void processCheckoutSessionCompleted(String sessionId, String paymentIntentId,
+            Map<String, Object> processedEvents) {
+        orderService.getOrderByStripeSessionId(sessionId).ifPresentOrElse(
+                order -> {
+                    paymentRepository.findByTransactionRef(sessionId).ifPresentOrElse(
+                            payment -> {
+                                if (paymentIntentId != null && !paymentIntentId.isEmpty()) {
+                                    payment.setPaymentIntentId(paymentIntentId);
+                                }
                                 payment.setStatus(OrderStatus.SUCCESS);
                                 payment.setTransactionTime(LocalDateTime.now());
                                 paymentRepository.save(payment);
                                 orderService.confirmOrderPayment(order);
+                                processedEvents.put("checkout_session", sessionId);
+                                processedEvents.put("order_id", order.getId());
+                                log.info("Webhook: checkout.session.completed processed for session {} order {}",
+                                        sessionId, order.getId());
+                            },
+                            () -> log.warn("Webhook: payment not found for sessionId {}", sessionId));
+                },
+                () -> log.warn("Webhook: order not found for stripe sessionId {}", sessionId));
+    }
 
-                                // Send WebSocket notification via orderService.confirmOrderPayment
-                                // which already handles notifications
-
-                                processedEvents.put("checkout_session", session.getId());
-                            });
-                }
-            }
-
-            // Handle payment intent succeeded
-            if ("payment_intent.succeeded".equals(event.getType())) {
-                PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject()
-                        .orElse(null);
-                if (paymentIntent != null) {
-                    Payment payment = paymentRepository.findByTransactionRef(paymentIntent.getId())
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "Payment not found for paymentIntentId: " + paymentIntent.getId()));
-                    Order order = payment.getOrder();
-                    payment.setStatus(OrderStatus.SUCCESS);
-                    payment.setTransactionTime(LocalDateTime.now());
-                    paymentRepository.save(payment);
-                    orderService.confirmOrderPayment(order);
-                    processedEvents.put("payment_intent", paymentIntent.getId());
-                }
-            }
-
-            processedEvents.put("event_type", event.getType());
-            processedEvents.put("processed", true);
-
-            return ResponseEntity.ok(new ApiResponse("Webhook processed successfully", processedEvents));
-        } catch (Exception e) {
-            return ResponseEntity.status(400)
-                    .body(new ApiResponse("Webhook error: " + e.getMessage(), null));
-        }
+    private void processPaymentIntentSucceeded(String paymentIntentId, Map<String, Object> processedEvents) {
+        paymentRepository.findByPaymentIntentId(paymentIntentId)
+                .or(() -> paymentRepository.findByTransactionRef(paymentIntentId))
+                .ifPresentOrElse(
+                        payment -> {
+                            Order order = payment.getOrder();
+                            if (order.getOrderStatus() != OrderStatus.PAID) {
+                                payment.setPaymentIntentId(paymentIntentId);
+                                payment.setStatus(OrderStatus.SUCCESS);
+                                payment.setTransactionTime(LocalDateTime.now());
+                                paymentRepository.save(payment);
+                                orderService.confirmOrderPayment(order);
+                                log.info("Webhook: payment_intent.succeeded processed for pi {} order {}",
+                                        paymentIntentId, order.getId());
+                            }
+                            processedEvents.put("payment_intent", paymentIntentId);
+                            processedEvents.put("order_id", order.getId());
+                        },
+                        () -> log.warn("Webhook: payment not found for paymentIntentId {}", paymentIntentId));
     }
 
     @GetMapping("/generate-khqr")

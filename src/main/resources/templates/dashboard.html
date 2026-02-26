@@ -605,6 +605,81 @@
       </div>
     </div>
 
+    <!-- User Orders & User Payments Tables -->
+    <div class="content-section">
+      <h2 class="section-title"><i class="bi bi-bag-check"></i> User Orders</h2>
+      <p class="section-subtitle" style="margin-top: -0.5rem; margin-bottom: 1rem;">All user orders with delivery and user data.</p>
+      <div class="table-responsive mb-4" style="background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden;">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th><i class="bi bi-person"></i> User</th>
+              <th><i class="bi bi-calendar"></i> Date</th>
+              <th><i class="bi bi-currency-dollar"></i> Amount</th>
+              <th><i class="bi bi-tags"></i> Status</th>
+              <th><i class="bi bi-geo-alt"></i> Delivery Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:if="${#lists.isEmpty(userOrders)}">
+              <td colspan="6" class="text-muted text-center py-4">No orders yet.</td>
+            </tr>
+            <tr th:each="ord : ${userOrders}">
+              <td class="fw-semibold" th:text="${'#' + ord.orderId}">#1</td>
+              <td>
+                <span th:text="${ord.userName != null && !ord.userName.isBlank() ? ord.userName : ord.userEmail}">User</span>
+                <br><small class="text-muted" th:text="${ord.userEmail}">email</small>
+              </td>
+              <td th:text="${ord.orderDate != null ? #temporals.format(ord.orderDate, 'MMM dd, yyyy') : '-'}">-</td>
+              <td th:text="${ord.totalAmount != null ? '$' + #numbers.formatDecimal(ord.totalAmount, 1, 2) : '-'}">-</td>
+              <td><span class="badge bg-secondary" th:text="${ord.orderStatus}">Status</span></td>
+              <td>
+                <span th:if="${ord.deliveryAddressFull != null && !ord.deliveryAddressFull.isEmpty()}" th:text="${ord.deliveryAddressFull}">Address</span>
+                <span th:if="${ord.deliveryAddressFull == null || ord.deliveryAddressFull.isEmpty()}" class="text-muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title"><i class="bi bi-receipt"></i> User Payments</h2>
+      <p class="section-subtitle" style="margin-top: -0.5rem; margin-bottom: 1rem;">Payment records with user and order info.</p>
+      <div class="table-responsive" style="background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden;">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th><i class="bi bi-person"></i> User</th>
+              <th><i class="bi bi-bag"></i> Order</th>
+              <th><i class="bi bi-currency-dollar"></i> Amount</th>
+              <th><i class="bi bi-tags"></i> Status</th>
+              <th><i class="bi bi-clock"></i> Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:if="${#lists.isEmpty(userPayments)}">
+              <td colspan="6" class="text-muted text-center py-4">No payments yet.</td>
+            </tr>
+            <tr th:each="pay : ${userPayments}">
+              <td class="fw-semibold" th:text="${'#' + pay.id}">#1</td>
+              <td>
+                <span th:if="${pay.order != null && pay.order.user != null}">
+                  <span th:text="${pay.order.user.firstName != null ? pay.order.user.firstName + ' ' + (pay.order.user.lastName != null ? pay.order.user.lastName : '') : pay.order.user.email}">User</span>
+                  <br><small class="text-muted" th:text="${pay.order.user.email}">email</small>
+                </span>
+                <span th:unless="${pay.order != null && pay.order.user != null}" class="text-muted">—</span>
+              </td>
+              <td th:text="${pay.order != null ? '#' + pay.order.getId() : '—'}">—</td>
+              <td th:text="${pay.amount != null ? '$' + #numbers.formatDecimal(pay.amount, 1, 2) : '—'}">—</td>
+              <td><span class="badge bg-secondary" th:text="${pay.status}">Status</span></td>
+              <td th:text="${pay.transactionTime != null ? #temporals.format(pay.transactionTime, 'MMM dd, HH:mm') : '—'}">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Recent Favorites and Popular Products Section -->
     <div class="dashboard-two-column">
       <!-- Recent User Favorites -->

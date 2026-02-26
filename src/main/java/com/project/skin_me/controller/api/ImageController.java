@@ -60,7 +60,8 @@ public class ImageController {
         ByteArrayResource resource = new ByteArrayResource(data);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(image.getFileType() != null ? image.getFileType() : "application/octet-stream"))
+                .contentType(MediaType
+                        .parseMediaType(image.getFileType() != null ? image.getFileType() : "application/octet-stream"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + image.getFileName() + "\"")
                 .body(resource);
     }

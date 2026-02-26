@@ -103,8 +103,10 @@ public class CategoryController {
     }
 
     /**
-     * Upload image for a category (same as product images). Sets category.image to the served URL (e.g. /uploads/filename).
-     * Use when creating/editing via API: create category first, then POST image here.
+     * Upload image for a category (same as product images). Sets category.image to
+     * the served URL (e.g. /uploads/filename).
+     * Use when creating/editing via API: create category first, then POST image
+     * here.
      */
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @PostMapping("/category/{id}/image")
@@ -122,7 +124,8 @@ public class CategoryController {
             }
             category.setImage(imageUrl);
             Category updated = categoryService.updateCategory(category, id);
-            return ResponseEntity.ok(new ApiResponse("Image uploaded", Map.of("category", updated, "imageUrl", imageUrl)));
+            return ResponseEntity
+                    .ok(new ApiResponse("Image uploaded", Map.of("category", updated, "imageUrl", imageUrl)));
         } catch (Exception e) {
             if (e instanceof ResourceNotFoundException) {
                 return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));

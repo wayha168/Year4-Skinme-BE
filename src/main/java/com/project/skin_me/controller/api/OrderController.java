@@ -4,9 +4,11 @@ import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
+import com.project.skin_me.model.User;
 import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.service.delivery.IDeliveryService;
 import com.project.skin_me.service.order.IOrderService;
+import com.project.skin_me.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +26,7 @@ public class OrderController {
 
     private final IOrderService orderService;
     private final IDeliveryService deliveryService;
+    private final IUserService userService;
 
     @PostMapping("/order")
     public ResponseEntity<ApiResponse> createOrder(@RequestParam Long userId) {
@@ -34,6 +37,19 @@ public class OrderController {
         } catch (AlreadyExistsException e) {
             return ResponseEntity.status(CONFLICT)
                     .body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/my-orders")
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public ResponseEntity<ApiResponse> getMyOrders() {
+        try {
+            User user = userService.getAuthenticatedUser();
+            List<OrderDto> orders = orderService.getUserOrders(user.getId());
+            return ResponseEntity.ok(new ApiResponse("User orders fetched!", orders));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND)
+                    .body(new ApiResponse("User orders not found", e.getMessage()));
         }
     }
 
@@ -73,7 +89,7 @@ public class OrderController {
 
     @PutMapping("/{orderId}/ship")
     public ResponseEntity<ApiResponse> markAsShipped(@PathVariable Long orderId,
-                                                     @RequestParam(required = false) String trackingNumber) {
+            @RequestParam(required = false) String trackingNumber) {
         try {
             Order order = orderService.markAsShipped(orderId, trackingNumber);
             OrderDto orderDto = orderService.convertToDto(order);
@@ -107,12 +123,11 @@ public class OrderController {
     public ResponseEntity<ApiResponse> updateDeliveryAddress(
             @PathVariable Long orderId,
             @RequestBody Map<String, Object> addressData) {
-        // This endpoint is deprecated. Please use /api/v1/delivery/address/{orderId} instead
-        // Keeping for backward compatibility, but delegates to delivery service
         try {
             Order order = deliveryService.updateDeliveryAddress(orderId, addressData);
             OrderDto orderDto = orderService.convertToDto(order);
-            return ResponseEntity.ok(new ApiResponse("Delivery address updated successfully (via delivery service)", orderDto));
+            return ResponseEntity
+                    .ok(new ApiResponse("Delivery address updated successfully (via delivery service)", orderDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
                     .body(new ApiResponse("Order not found", null));

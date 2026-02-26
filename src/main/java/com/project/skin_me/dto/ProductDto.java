@@ -22,9 +22,13 @@ public class ProductDto {
     private int inventory;
     private String description;
     private String howToUse;
-    /** Brand (category is brand.getCategory()). */
+    /** Brand (category is brand.getCategory()). Omit in API responses to avoid Hibernate proxy serialization. */
     private Brand brand;
-    /** Convenience: category from brand, for backward compatibility. */
+    /** Convenience: category from brand, for backward compatibility. Omit in API responses to avoid proxy issues. */
     private Category category;
+    /** Brand name for API responses (use instead of brand entity to avoid proxy serialization). */
+    private String brandName;
+    /** Category name for API responses (use instead of category entity to avoid proxy serialization). */
+    private String categoryName;
     private List<ImageDto> images;
 }

@@ -12,7 +12,7 @@
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title th:text="${pageTitle ?: 'My Orders'}">My Orders</title>
+    <title th:text="${pageTitle ?: 'User Orders'}">User Orders</title>
   </head>
   <body>
     <th:block th:fragment="main">
@@ -39,9 +39,9 @@
         <div th:if="${#lists.isEmpty(orders)}" class="card mt-4">
           <div class="empty-state">
             <i class="bi bi-inbox"></i>
-            <h5>No Orders Yet</h5>
-            <p>You haven't placed any orders yet. Start shopping!</p>
-            <a href="/" class="btn btn-gradient mt-3"> <i class="bi bi-shop"></i> Continue Shopping </a>
+            <h5>No User Orders Yet</h5>
+            <p>There are no user orders recorded.</p>
+            <a href="/" class="btn btn-gradient mt-3"> <i class="bi bi-shop"></i> Go to Shop </a>
           </div>
         </div>
 
@@ -51,15 +51,21 @@
               <thead>
                 <tr>
                   <th style="width: 100px;">#</th>
+                  <th><i class="bi bi-person"></i> User</th>
                   <th><i class="bi bi-calendar"></i> Order Date</th>
                   <th style="width: 140px;"><i class="bi bi-currency-dollar"></i> Total Amount</th>
                   <th style="width: 120px;"><i class="bi bi-tags"></i> Status</th>
+                  <th><i class="bi bi-geo-alt"></i> Delivery Address</th>
                   <th style="width: 120px;"><i class="bi bi-gear"></i> Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr th:each="order : ${orders}">
                   <td class="text-muted fw-semibold" th:text="'#' + ${order.orderId}">#1</td>
+                  <td>
+                    <span class="text-dark" th:text="${order.userName != null && !order.userName.isBlank() ? order.userName : order.userEmail}">User</span>
+                    <br><small class="text-muted" th:text="${order.userEmail}">email</small>
+                  </td>
                   <td>
                     <span class="text-dark" th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MMM dd, yyyy') : 'N/A'}">Date</span>
                   </td>
@@ -71,6 +77,10 @@
                       <i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span>
                     </span>
                     <span th:if="${order.orderStatus == null or (order.orderStatus.toString() != 'COMPLETED' and order.orderStatus.toString() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
+                  </td>
+                  <td>
+                    <span th:if="${order.deliveryAddressFull != null && !order.deliveryAddressFull.isEmpty()}" th:text="${order.deliveryAddressFull}">Address</span>
+                    <span th:if="${order.deliveryAddressFull == null || order.deliveryAddressFull.isEmpty()}" class="text-muted">—</span>
                   </td>
                   <td>
                     <div class="table-actions">
@@ -89,7 +99,7 @@
         <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/my-orders', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
 
         <div class="mt-4 text-center mb-5">
-          <p class="text-muted" th:text="'Total Orders: ' + ${totalOrders ?: 0}">Total: 0</p>
+          <p class="text-muted" th:text="'Total User Orders: ' + ${totalOrders ?: 0}">Total: 0</p>
         </div>
       </div>
     </div>

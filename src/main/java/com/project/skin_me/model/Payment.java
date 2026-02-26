@@ -40,6 +40,10 @@ public class Payment {
     @Column(name = "transaction_ref", unique = true)
     private String transactionRef;
 
+    /** Stripe PaymentIntent id (pi_xxx) when using Checkout; used so payment_intent.succeeded webhook can find this record. */
+    @Column(name = "payment_intent_id", length = 255)
+    private String paymentIntentId;
+
     @Column(name = "payer_account")
     private String payerAccount;
 
