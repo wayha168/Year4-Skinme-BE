@@ -1,0 +1,114 @@
+<div th:fragment="pagination(baseUrl, currentPage, totalPages, hasNext, hasPrev)" class="pagination-container mt-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="pagination-info text-muted">
+      <span th:if="${totalPages > 0}">
+        Page <span th:text="${currentPage + 1}">1</span> of <span th:text="${totalPages}">1</span>
+      </span>
+      <span th:unless="${totalPages > 0}">No pages</span>
+    </div>
+    <nav th:if="${totalPages > 1}">
+      <ul class="pagination mb-0">
+        <li class="page-item" th:classappend="${!hasPrev} ? 'disabled'">
+          <a class="page-link" 
+             th:href="${hasPrev} ? (${baseUrl} + '?page=' + (${currentPage} - 1)) : '#'"
+             th:attr="onclick=${hasPrev} ? null : 'return false;'">
+            <i class="bi bi-chevron-left"></i> Previous
+          </a>
+        </li>
+        
+        <th:block th:if="${totalPages <= 7}">
+          <!-- Show all pages if 7 or fewer -->
+          <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+        </th:block>
+        
+        <th:block th:if="${totalPages > 7}">
+          <!-- Show first page -->
+          <li class="page-item" th:classappend="${currentPage == 0} ? 'active'">
+            <a class="page-link" th:href="${baseUrl} + '?page=0'" th:text="1">1</a>
+          </li>
+          
+          <!-- Show ellipsis and pages around current -->
+          <th:block th:if="${currentPage > 2}">
+            <li class="page-item disabled">
+              <span class="page-link">...</span>
+            </li>
+          </th:block>
+          
+          <th:block th:each="i : ${#numbers.sequence(
+            (currentPage > 1 ? currentPage - 1 : 1), 
+            (currentPage < totalPages - 2 ? currentPage + 1 : totalPages - 2)
+          )}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+          
+          <th:block th:if="${currentPage < totalPages - 3}">
+            <li class="page-item disabled">
+              <span class="page-link">...</span>
+            </li>
+          </th:block>
+          
+          <!-- Show last page -->
+          <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'active'">
+            <a class="page-link" th:href="${baseUrl} + '?page=' + (${totalPages} - 1)" th:text="${totalPages}">1</a>
+          </li>
+        </th:block>
+        
+        <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+          <a class="page-link" 
+             th:href="${hasNext} ? (${baseUrl} + '?page=' + (${currentPage} + 1)) : '#'"
+             th:attr="onclick=${hasNext} ? null : 'return false;'">
+            Next <i class="bi bi-chevron-right"></i>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
+<style>
+  .pagination-container {
+    padding: 16px 0;
+  }
+  
+  .pagination {
+    gap: 4px;
+  }
+  
+  .page-link {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    color: var(--primary);
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .page-link:hover:not(.disabled) {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    transform: translateY(-1px);
+  }
+  
+  .page-item.active .page-link {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-color: var(--primary);
+  }
+  
+  .page-item.disabled .page-link {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  .pagination-info {
+    font-size: 0.9rem;
+  }
+</style>

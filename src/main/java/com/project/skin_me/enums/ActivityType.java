@@ -5,5 +5,7 @@ public enum ActivityType {
     LOGOUT,
     REGISTER,
     PURCHASE,
-    PASSWORD_RESET
+    PASSWORD_RESET,
+    ORDER_PLACED,
+    PAYMENT_SUCCESS
 }

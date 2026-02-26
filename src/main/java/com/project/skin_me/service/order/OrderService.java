@@ -1,24 +1,37 @@
 package com.project.skin_me.service.order;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.OrderItemDto;
+import com.project.skin_me.dto.RealTimeUpdateDto;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.*;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.PaymentRepository;
 import com.project.skin_me.repository.ProductRepository;
+import com.project.skin_me.enums.ActivityType;
+import com.project.skin_me.model.Activity;
+import com.project.skin_me.repository.ActivityRepository;
 import com.project.skin_me.service.cart.ICartService;
+import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.popularProduct.IPopularProductService;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.EntityNotFoundException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,9 +42,11 @@ public class OrderService implements IOrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final PaymentRepository paymentRepository;
-    private final ModelMapper modelMapper;
     private final ICartService cartService;
     private final IPopularProductService popularProductService;
+    private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ActivityRepository activityRepository;
 
     @Override
     @Transactional
@@ -43,6 +58,47 @@ public class OrderService implements IOrderService {
         order.setOrderItems(new HashSet<>(orderItemList));
         order.setOrderTotalAmount(calculateTotalAmount(orderItemList));
         Order savedOrder = orderRepository.save(order);
+        
+        // Send WebSocket notification for order creation
+        try {
+            notificationService.notifyUser(
+                userId.toString(),
+                "Order Created",
+                "Your order #" + savedOrder.getId() + " has been created successfully. Please proceed to payment.",
+                "ORDER"
+            );
+            
+            // Send real-time update
+            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                .entityType("ORDER")
+                .entityId(savedOrder.getId().toString())
+                .action("CREATE")
+                .timestamp(LocalDateTime.now())
+                .affectedUsers(userId.toString())
+                .data(Map.of(
+                    "orderId", savedOrder.getId(),
+                    "status", savedOrder.getOrderStatus().toString(),
+                    "totalAmount", savedOrder.getOrderTotalAmount()
+                ))
+                .build();
+            messagingTemplate.convertAndSend("/topic/orders", update);
+        } catch (Exception e) {
+            // Log but don't fail the order creation
+            System.err.println("Failed to send order notification: " + e.getMessage());
+        }
+
+        // Record order placed in audit log
+        try {
+            Activity orderPlacedActivity = new Activity();
+            orderPlacedActivity.setUser(savedOrder.getUser());
+            orderPlacedActivity.setActivityType(ActivityType.ORDER_PLACED);
+            orderPlacedActivity.setTimestamp(LocalDateTime.now());
+            orderPlacedActivity.setDetails("Order placed - Order #" + savedOrder.getId() + " - Total: $" + savedOrder.getOrderTotalAmount());
+            activityRepository.save(orderPlacedActivity);
+        } catch (Exception e) {
+            System.err.println("Failed to record order placed activity: " + e.getMessage());
+        }
+
 //        cartService.removeCart(cart.getId());
         return  savedOrder;
     }
@@ -86,6 +142,12 @@ public class OrderService implements IOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     }
 
+    @Override
+    public Order getOrderById(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    }
+
     public List<OrderDto> getUserOrders(Long userId){
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream().map(this::convertToDto).toList();
@@ -98,8 +160,61 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    public Page<OrderDto> getAllUserOrders(Pageable pageable) {
+        Page<Order> page = orderRepository.findAllWithOrderItems(pageable);
+        List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
+    public Page<OrderDto> getUserOrders(Long userId, Pageable pageable) {
+        Page<Order> page = orderRepository.findByUserIdWithOrderItems(userId, pageable);
+        List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
     public OrderDto convertToDto(Order order) {
-        return modelMapper.map(order, OrderDto.class);
+        OrderDto dto = new OrderDto();
+        dto.setOrderId(order.getOrderId());
+        dto.setUserId(order.getUser() != null ? order.getUser().getId() : null);
+        dto.setOrderDate(order.getOrderDate());
+        dto.setTotalAmount(order.getOrderTotalAmount());
+        dto.setOrderStatus(order.getOrderStatus() != null ? order.getOrderStatus().toString() : null);
+        dto.setTrackingNumber(order.getTrackingNumber());
+
+        List<OrderItemDto> itemDtos = new ArrayList<>();
+        if (order.getOrderItems() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                OrderItemDto itemDto = new OrderItemDto();
+                Product product = item.getProduct();
+                if (product != null) {
+                    itemDto.setProductId(product.getId());
+                    itemDto.setProductName(product.getName());
+                    itemDto.setProductBrand(safeBrandName(product));
+                    itemDto.setProductType(product.getProductType());
+                }
+                itemDto.setQuantity(item.getQuantity());
+                itemDto.setPrice(item.getPrice());
+                itemDto.setDiscount(0);
+                itemDtos.add(itemDto);
+            }
+        }
+        dto.setOrderItems(itemDtos);
+        return dto;
+    }
+
+    /**
+     * Get brand name from product without triggering lazy load on missing Brand (e.g. id 0).
+     */
+    private String safeBrandName(Product product) {
+        if (product == null) return "";
+        try {
+            if (product.getBrand() == null) return "";
+            return product.getBrand().getName() != null ? product.getBrand().getName() : "";
+        } catch (EntityNotFoundException e) {
+            return "";
+        }
     }
 
 //    public void updatePopularProducts(List<OrderItem> items) {
@@ -162,6 +277,51 @@ public class OrderService implements IOrderService {
         // Update order status
         order.setOrderStatus(OrderStatus.PAID);
         updateOrder(order);
+        
+        // Record payment success and purchase in audit log
+        try {
+            Activity paymentSuccessActivity = new Activity();
+            paymentSuccessActivity.setUser(order.getUser());
+            paymentSuccessActivity.setActivityType(ActivityType.PAYMENT_SUCCESS);
+            paymentSuccessActivity.setTimestamp(LocalDateTime.now());
+            paymentSuccessActivity.setDetails("Payment success - Order #" + order.getId() + " - Total: $" + order.getOrderTotalAmount());
+            activityRepository.save(paymentSuccessActivity);
+
+            Activity purchaseActivity = new Activity();
+            purchaseActivity.setUser(order.getUser());
+            purchaseActivity.setActivityType(ActivityType.PURCHASE);
+            purchaseActivity.setTimestamp(LocalDateTime.now());
+            purchaseActivity.setDetails("Purchase completed - Order #" + order.getId() + " - Total: $" + order.getOrderTotalAmount());
+            activityRepository.save(purchaseActivity);
+        } catch (Exception e) {
+            System.err.println("Failed to record payment/purchase activity: " + e.getMessage());
+        }
+        
+        // Send WebSocket notification for payment confirmation
+        try {
+            notificationService.notifyOrderStatusChange(
+                order.getUser().getId().toString(),
+                order.getId().toString(),
+                "PAID"
+            );
+            
+            // Send real-time update
+            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                .entityType("ORDER")
+                .entityId(order.getId().toString())
+                .action("UPDATE")
+                .timestamp(LocalDateTime.now())
+                .affectedUsers(order.getUser().getId().toString())
+                .data(Map.of(
+                    "orderId", order.getId(),
+                    "status", "PAID",
+                    "message", "Payment confirmed successfully"
+                ))
+                .build();
+            messagingTemplate.convertAndSend("/topic/orders", update);
+        } catch (Exception e) {
+            System.err.println("Failed to send payment confirmation notification: " + e.getMessage());
+        }
     }
     @Override
     @Transactional
@@ -176,7 +336,35 @@ public class OrderService implements IOrderService {
         order.setTrackingNumber(trackingNumber);
         order.setOrderStatus(OrderStatus.SHIPPED);
         order.setShippedAt(LocalDateTime.now());
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        
+        // Send WebSocket notification for shipping
+        try {
+            notificationService.notifyDeliveryUpdate(
+                order.getUser().getId().toString(),
+                order.getId().toString(),
+                "SHIPPED - Tracking: " + trackingNumber
+            );
+            
+            // Send real-time update
+            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                .entityType("ORDER")
+                .entityId(order.getId().toString())
+                .action("UPDATE")
+                .timestamp(LocalDateTime.now())
+                .affectedUsers(order.getUser().getId().toString())
+                .data(Map.of(
+                    "orderId", order.getId(),
+                    "status", "SHIPPED",
+                    "trackingNumber", trackingNumber
+                ))
+                .build();
+            messagingTemplate.convertAndSend("/topic/orders", update);
+        } catch (Exception e) {
+            System.err.println("Failed to send shipping notification: " + e.getMessage());
+        }
+        
+        return savedOrder;
     }
 
     @Override
@@ -187,6 +375,34 @@ public class OrderService implements IOrderService {
 
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        
+        // Send WebSocket notification for delivery
+        try {
+            notificationService.notifyDeliveryUpdate(
+                order.getUser().getId().toString(),
+                order.getId().toString(),
+                "DELIVERED"
+            );
+            
+            // Send real-time update
+            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                .entityType("ORDER")
+                .entityId(order.getId().toString())
+                .action("UPDATE")
+                .timestamp(LocalDateTime.now())
+                .affectedUsers(order.getUser().getId().toString())
+                .data(Map.of(
+                    "orderId", order.getId(),
+                    "status", "DELIVERED",
+                    "message", "Your order has been delivered"
+                ))
+                .build();
+            messagingTemplate.convertAndSend("/topic/orders", update);
+        } catch (Exception e) {
+            System.err.println("Failed to send delivery notification: " + e.getMessage());
+        }
+        
+        return savedOrder;
     }
 }

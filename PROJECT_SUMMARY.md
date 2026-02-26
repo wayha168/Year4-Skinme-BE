@@ -209,9 +209,11 @@ mvn spring-boot:run
 
 ## 📚 Documentation Files
 
-1. **THYMELEAF_PAGES.md** - Complete page documentation
-2. **ROUTES.md** - All available routes and API endpoints
-3. **WEBSOCKET_GUIDE.md** (Can be created) - WebSocket integration guide
+1. **API_ENDPOINTS_DOCUMENTATION.md** - All API endpoints and usage examples
+2. **PASSWORD_RESET_DOCUMENTATION.md** - Password reset feature documentation
+3. **PROMOTION_SYSTEM_DOCUMENTATION.md** - Promotion system implementation guide
+4. **SECURITY.md** - Security configuration and best practices
+5. **HOT_RELOAD_GUIDE.md** - Hot reload setup for local development
 
 ---
 

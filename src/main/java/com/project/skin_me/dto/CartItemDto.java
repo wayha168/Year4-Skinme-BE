@@ -21,21 +21,27 @@ public class CartItemDto {
 
         var p = item.getProduct();
         if (p != null) {
+            var images = p.getImages() != null
+                    ? p.getImages().stream()
+                    .map(img -> {
+                        String url = (img.getFileName() != null && !img.getFileName().isBlank())
+                                ? "/uploads/" + img.getFileName()
+                                : (img.getDownloadUrl() != null ? img.getDownloadUrl() : "");
+                        return new ImageDto(img.getId(), img.getFileName(), url);
+                    })
+                    .collect(Collectors.toList())
+                    : List.<ImageDto>of();
             this.product = new ProductDto(
                     p.getId(),
                     p.getName(),
-                    p.getBrand(),
                     p.getPrice(),
                     p.getProductType(),
                     p.getInventory(),
                     p.getDescription(),
                     p.getHowToUse(),
+                    p.getBrand(),
                     p.getCategory(),
-                    p.getImages() != null
-                            ? p.getImages().stream()
-                            .map(img -> new ImageDto(img.getId(), img.getFileName(), img.getDownloadUrl()))
-                            .collect(Collectors.toList())
-                            : List.of()
+                    images
             );
         }
     }

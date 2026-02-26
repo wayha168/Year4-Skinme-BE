@@ -2,11 +2,13 @@
 <html
   xmlns:th="http://www.thymeleaf.org"
   lang="en"
-  th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
       <link rel="stylesheet" href="/css/forms.css" />
     </th:block>
     <meta charset="UTF-8" />
@@ -16,152 +18,94 @@
   <body>
     <th:block th:fragment="main">
     <main class="main-content">
-      <div th:replace="components/page-header :: page-header" th:with="pageIcon='bi-person-plus'"></div>
-      <div class="container-fluid px-4 mb-2">
-        <a th:href="@{/views/users}" class="btn btn-light btn-sm">
-          <i class="bi bi-arrow-left"></i> Back to Users
-        </a>
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-person-plus'"></div>
+      <div class=" px-4 mb-2">
+        <a th:href="@{/views/users}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
       </div>
 
-      <div class="container-fluid px-4 mb-5">
+      <div class="container-fluid px-4 detail-page-content">
         <div class="row justify-content-center">
-          <div class="col-lg-8">
+          <div class="col-lg-12">
             <div class="card detail-card">
-              <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white;">
+              <div class="card-header detail-header">
                 <h5 class="mb-0">
                   <i class="bi" th:classappend="${user != null ? 'bi-pencil' : 'bi-person-plus'}"></i>
                   <span th:text="${user != null ? 'Edit User' : 'Create New User'}">User Form</span>
                 </h5>
               </div>
-              <div class="card-body p-4">
-                <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+              <div class="card-body form-body">
+                <div th:if="${error}" class="alert alert-box alert-danger alert-dismissible fade show" role="alert" style="margin: 1rem 1.75rem;">
                   <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
                   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
 
                 <form th:action="${user != null ? '/views/users/' + user.id + '/edit' : '/views/users/create'}" 
                       method="POST">
-                  
-                  <div class="row mb-3">
-                    <div class="col-md-6">
-                      <label for="firstName" class="form-label">
-                        <i class="bi bi-person"></i> First Name
-                      </label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
-                        id="firstName" 
-                        name="firstName"
-                        th:value="${user != null ? user.firstName : ''}"
-                        required
-                      />
-                    </div>
-                    <div class="col-md-6">
-                      <label for="lastName" class="form-label">
-                        <i class="bi bi-person"></i> Last Name
-                      </label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
-                        id="lastName" 
-                        name="lastName"
-                        th:value="${user != null ? user.lastName : ''}"
-                        required
-                      />
+                  <div class="form-row">
+                    <label for="firstName" class="form-label"><i class="bi bi-person"></i> First Name</label>
+                    <div class="form-control-wrap">
+                      <input type="text" class="form-control" id="firstName" name="firstName"
+                             th:value="${user != null ? user.firstName : ''}" required />
                     </div>
                   </div>
-
-                  <div class="mb-3">
-                    <label for="email" class="form-label">
-                      <i class="bi bi-envelope"></i> Email
-                    </label>
-                    <input 
-                      type="email" 
-                      class="form-control" 
-                      id="email" 
-                      name="email"
-                      th:value="${user != null ? user.email : ''}"
-                      required
-                    />
-                  </div>
-
-                  <div class="mb-3" th:if="${user == null}">
-                    <label for="password" class="form-label">
-                      <i class="bi bi-lock"></i> Password
-                    </label>
-                    <input 
-                      type="password" 
-                      class="form-control" 
-                      id="password" 
-                      name="password"
-                      required
-                      minlength="6"
-                    />
-                  </div>
-
-                  <div class="mb-3" th:if="${user == null}">
-                    <label for="confirmPassword" class="form-label">
-                      <i class="bi bi-lock-fill"></i> Confirm Password
-                    </label>
-                    <input 
-                      type="password" 
-                      class="form-control" 
-                      id="confirmPassword" 
-                      name="confirmPassword"
-                      required
-                      minlength="6"
-                    />
-                  </div>
-
-                  <div class="mb-3" th:if="${user != null}">
-                    <label for="password" class="form-label">
-                      <i class="bi bi-lock"></i> New Password <small class="text-muted">(Leave blank to keep current password)</small>
-                    </label>
-                    <input 
-                      type="password" 
-                      class="form-control" 
-                      id="password" 
-                      name="password"
-                      minlength="6"
-                    />
-                  </div>
-
-                  <div class="mb-3" th:if="${user != null}">
-                    <div class="form-check">
-                      <input 
-                        class="form-check-input" 
-                        type="checkbox" 
-                        id="enabled" 
-                        name="enabled"
-                        th:checked="${user != null and user.enabled}"
-                        value="true"
-                      />
-                      <input type="hidden" name="_enabled" value="on"/>
-                      <label class="form-check-label" for="enabled">
-                        Account Enabled
-                      </label>
+                  <div class="form-row">
+                    <label for="lastName" class="form-label"><i class="bi bi-person"></i> Last Name</label>
+                    <div class="form-control-wrap">
+                      <input type="text" class="form-control" id="lastName" name="lastName"
+                             th:value="${user != null ? user.lastName : ''}" required />
                     </div>
                   </div>
-
-                  <div class="mb-3" th:if="${user == null}">
-                    <label for="roleName" class="form-label">
-                      <i class="bi bi-shield-check"></i> Role
-                    </label>
-                    <select class="form-select" id="roleName" name="roleName" required>
-                      <option value="">Select a role...</option>
-                      <option th:each="role : ${allRoles}" 
-                              th:value="${role.name}" 
-                              th:text="${role.name}">
-                        Role
-                      </option>
-                    </select>
+                  <div class="form-row">
+                    <label for="email" class="form-label"><i class="bi bi-envelope"></i> Email</label>
+                    <div class="form-control-wrap">
+                      <input type="email" class="form-control" id="email" name="email"
+                             th:value="${user != null ? user.email : ''}" required />
+                    </div>
                   </div>
-
-                  <div class="d-flex justify-content-between">
-                    <a th:href="@{/views/users}" class="btn btn-secondary">
+                  <div class="form-row" th:if="${user == null}">
+                    <label for="password" class="form-label"><i class="bi bi-lock"></i> Password</label>
+                    <div class="form-control-wrap">
+                      <input type="password" class="form-control" id="password" name="password" required minlength="6" />
+                    </div>
+                  </div>
+                  <div class="form-row" th:if="${user == null}">
+                    <label for="confirmPassword" class="form-label"><i class="bi bi-lock-fill"></i> Confirm Password</label>
+                    <div class="form-control-wrap">
+                      <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required minlength="6" />
+                    </div>
+                  </div>
+                  <div class="form-row" th:if="${user != null}">
+                    <label for="newPassword" class="form-label"><i class="bi bi-lock"></i> New Password</label>
+                    <div class="form-control-wrap">
+                      <input type="password" class="form-control" id="newPassword" name="password" minlength="6"
+                             placeholder="Leave blank to keep current" />
+                    </div>
+                  </div>
+                  <div class="form-row" th:if="${user != null}">
+                    <span class="form-label"><i class="bi bi-toggle-on"></i> Account</span>
+                    <div class="form-control-wrap">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enabled" name="enabled"
+                               th:checked="${user != null and user.enabled}" value="true" />
+                        <input type="hidden" name="_enabled" value="on"/>
+                        <label class="form-check-label" for="enabled">Account Enabled</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-row" th:if="${user == null}">
+                    <label for="roleName" class="form-label"><i class="bi bi-shield-check"></i> Role</label>
+                    <div class="form-control-wrap">
+                      <select class="form-select" id="roleName" name="roleName" required>
+                        <option value="">Select a role...</option>
+                        <option th:each="role : ${allRoles}" th:value="${role.name}" th:text="${role.name}">Role</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-actions">
+                    <a th:href="@{/views/users}" class="btn btn-outline-secondary">
                       <i class="bi bi-x-circle"></i> Cancel
                     </a>
-                    <button type="submit" class="btn btn-primary btn-gradient">
+                    <button type="submit" class="btn btn-primary">
                       <i class="bi" th:classappend="${user != null ? 'bi-check-circle' : 'bi-person-plus'}"></i>
                       <span th:text="${user != null ? 'Update User' : 'Create User'}">Submit</span>
                     </button>
@@ -179,7 +123,7 @@
       <script>
         // Password confirmation validation
         document.addEventListener('DOMContentLoaded', function() {
-          const password = document.getElementById('password');
+          const password = document.getElementById('password') || document.getElementById('newPassword');
           const confirmPassword = document.getElementById('confirmPassword');
           
           if (password && confirmPassword) {

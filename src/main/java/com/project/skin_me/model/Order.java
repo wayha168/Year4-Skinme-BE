@@ -39,6 +39,28 @@ public class Order {
     private LocalDateTime shippedAt;
     private LocalDateTime deliveredAt;
 
+    // Delivery address fields
+    @Column(name = "delivery_street", length = 500)
+    private String deliveryStreet;
+
+    @Column(name = "delivery_city", length = 100)
+    private String deliveryCity;
+
+    @Column(name = "delivery_province", length = 100)
+    private String deliveryProvince;
+
+    @Column(name = "delivery_postal_code", length = 20)
+    private String deliveryPostalCode;
+
+    @Column(name = "delivery_latitude")
+    private Double deliveryLatitude;
+
+    @Column(name = "delivery_longitude")
+    private Double deliveryLongitude;
+
+    @Column(name = "delivery_address_full", length = 1000)
+    private String deliveryAddressFull;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private Set<OrderItem> orderItems = new HashSet<>();

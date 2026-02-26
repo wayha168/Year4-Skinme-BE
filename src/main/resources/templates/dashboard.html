@@ -1,13 +1,183 @@
 <!doctype html>
 <html
   xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
   lang="en"
-  th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
   <head>
     <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
       <style>
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        /* Modern Concept Style Dashboard */
+        .main-content {
+          background: #f8f9fa;
+          min-height: 100vh;
+          padding: 1rem;
+        }
+
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 2.5rem;
+        }
+
+        /* Top Section Cards - Black Outline Icons */
+        .dashboard-grid .stat-card {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 1.75rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 1.25rem;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .dashboard-grid .stat-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: transparent;
+        }
+
+        .dashboard-grid .stat-card:nth-child(1)::before { background: #f59e0b; }
+        .dashboard-grid .stat-card:nth-child(2)::before { background: #10b981; }
+        .dashboard-grid .stat-card:nth-child(3)::before { background: #3b82f6; }
+        .dashboard-grid .stat-card:nth-child(4)::before { background: #8b5cf6; }
+
+        .dashboard-grid .stat-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        .dashboard-grid .stat-icon {
+          width: 48px;
+          height: 48px;
+          min-width: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          flex-shrink: 0;
+        }
+
+        .dashboard-grid .stat-icon i {
+          font-size: 1.75rem;
+          color: #1f2937;
+        }
+
+        .dashboard-grid .stat-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #111827;
+          line-height: 1.2;
+          margin-bottom: 0.25rem;
+        }
+
+        .dashboard-grid .stat-label {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        /* Content Sections */
+        .content-section {
+          margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+          font-size: 1.25rem;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .section-title i {
+          color: #6b7280;
+          font-size: 1.1rem;
+        }
+
+        /* New Registrations Section - Colorful Gradient Icons */
+        .content-section .stats-row .stat-card {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 1.75rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 1.25rem;
+        }
+
+        .content-section .stats-row .stat-card::before {
+          display: none;
+        }
+
+        .content-section .stats-row .stat-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        .content-section .stats-row .stat-icon {
+          width: 56px;
+          height: 56px;
+          min-width: 56px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 0;
+          flex-shrink: 0;
+        }
+
+        .content-section .stats-row .stat-icon i {
+          font-size: 1.5rem;
+          color: #ffffff;
+        }
+
+        .content-section .stats-row .stat-card:nth-child(1) .stat-icon {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .content-section .stats-row .stat-card:nth-child(2) .stat-icon {
+          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .content-section .stats-row .stat-card:nth-child(3) .stat-icon {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .content-section .stats-row .stat-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #111827;
+          line-height: 1.2;
+          margin-bottom: 0.25rem;
+        }
+
+        .content-section .stats-row .stat-label {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #6b7280;
+          text-transform: none;
+          letter-spacing: 0;
+        }
+
+        /* Quick Actions Buttons */
         .btn-primary {
           background: var(--primary);
           color: white;
@@ -21,48 +191,369 @@
           display: inline-flex;
           align-items: center;
           gap: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow); color: white; }
-        .action-buttons { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+
+        .btn-primary:hover {
+          background: var(--primary-dark);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+          color: white;
+          transform: translateY(-1px);
+        }
+
+        .action-buttons {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+
+        /* Welcome Message */
+        .content-section p {
+          color: #6b7280;
+          line-height: 1.6;
+          font-size: 0.95rem;
+        }
+
+        /* Two Column Layout for Favorites and Popular */
+        .dashboard-two-column {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2rem;
+          margin-bottom: 2.5rem;
+        }
+
+        .dashboard-column {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 1.5rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 1.5rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid #e9ecef;
+        }
+
+        .section-subtitle {
+          font-size: 0.875rem;
+          color: #6b7280;
+          margin: 0;
+        }
+
+        .view-all-link {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 500;
+          font-size: 0.875rem;
+          transition: color 0.2s;
+        }
+
+        .view-all-link:hover {
+          color: #764ba2;
+        }
+
+        /* Favorites List */
+        .favorites-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .favorite-card {
+          background: #f8f9fa;
+          border-radius: 12px;
+          padding: 1rem;
+          border-left: 3px solid #ef4444;
+          transition: all 0.2s ease;
+        }
+
+        .favorite-card:hover {
+          background: #f1f3f5;
+          transform: translateX(4px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .favorite-card-content {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .favorite-user-info {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .favorite-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 600;
+          font-size: 0.875rem;
+          flex-shrink: 0;
+        }
+
+        .favorite-user-details {
+          flex: 1;
+        }
+
+        .favorite-user-name {
+          font-weight: 600;
+          color: #111827;
+          font-size: 0.9rem;
+        }
+
+        .favorite-user-email {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+
+        .favorite-product-info {
+          margin-left: 3.25rem;
+        }
+
+        .favorite-product-name {
+          font-weight: 600;
+          color: #111827;
+          font-size: 0.9rem;
+        }
+
+        .favorite-product-brand {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+
+        .favorite-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-left: 3.25rem;
+        }
+
+        .favorite-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.25rem 0.65rem;
+          background: #fee2e2;
+          color: #dc2626;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 500;
+        }
+
+        .favorite-badge i {
+          font-size: 0.7rem;
+        }
+
+        .favorite-time {
+          font-size: 0.75rem;
+          color: #9ca3af;
+        }
+
+        /* Popular Products List */
+        .popular-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .popular-card {
+          background: #f8f9fa;
+          border-radius: 12px;
+          padding: 1rem;
+          border-left: 3px solid #f59e0b;
+          transition: all 0.2s ease;
+        }
+
+        .popular-card:hover {
+          background: #f1f3f5;
+          transform: translateX(4px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .popular-card-content {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .popular-product-image {
+          width: 60px;
+          height: 60px;
+          border-radius: 8px;
+          overflow: hidden;
+          flex-shrink: 0;
+          background: #e5e7eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .popular-product-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .popular-placeholder {
+          color: #9ca3af;
+          font-size: 1.5rem;
+        }
+
+        .popular-product-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .popular-product-name {
+          font-weight: 600;
+          color: #111827;
+          font-size: 0.9rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .popular-product-brand {
+          font-size: 0.8rem;
+          color: #6b7280;
+          margin-bottom: 0.25rem;
+        }
+
+        .popular-product-price {
+          font-weight: 600;
+          color: #667eea;
+          font-size: 0.875rem;
+        }
+
+        .popular-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.25rem;
+        }
+
+        .popular-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.25rem 0.65rem;
+          background: #fef3c7;
+          color: #92400e;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 500;
+        }
+
+        .popular-badge i {
+          font-size: 0.7rem;
+        }
+
+        .popular-time {
+          font-size: 0.75rem;
+          color: #9ca3af;
+        }
+
+        .empty-state-small {
+          text-align: center;
+          padding: 2rem;
+          color: #9ca3af;
+        }
+
+        .empty-state-small i {
+          font-size: 2rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .empty-state-small p {
+          margin: 0;
+          font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+          .dashboard-two-column {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .main-content {
+            padding: 1rem;
+          }
+
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+          }
+
+          .content-section .stats-row {
+            grid-template-columns: 1fr;
+          }
+
+          .favorite-product-info,
+          .favorite-meta {
+            margin-left: 0;
+          }
+        }
       </style>
     </th:block>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title th:text="${pageTitle ?: 'Admin Dashboard'}">Admin Dashboard</title>
+    <title th:text="${pageTitle != null} ? ${pageTitle} : 'Dashboard'">Dashboard</title>
   </head>
   <body>
     <th:block th:fragment="main">
-    <main class="main-content">
-    <div th:replace="components/page-header :: page-header" th:with="pageIcon='bi-speedometer2'"></div>
+    <div class="main-content">
+    <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-speedometer2'"></div>
 
     <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
       <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 
-    <div class="dashboard-grid stats-row">
+    <!-- Top Statistics Section -->
+    <div class="dashboard-grid">
       <div class="stat-card">
         <div class="stat-icon"><i class="bi bi-box2"></i></div>
-        <div class="stat-value" th:text="${totalProducts ?: 0}">0</div>
-        <div class="stat-label">Total Products</div>
+        <div style="flex: 1;">
+          <div class="stat-value" th:text="${totalProducts ?: 0}">0</div>
+          <div class="stat-label" >Total Products</div>
+        </div>
       </div>
 
       <div class="stat-card">
         <div class="stat-icon"><i class="bi bi-cart-check"></i></div>
-        <div class="stat-value" th:text="${totalOrders ?: 0}">0</div>
-        <div class="stat-label">Total Orders</div>
+        <div style="flex: 1;">
+          <div class="stat-value" th:text="${totalOrders ?: 0}">0</div>
+          <div class="stat-label" >Total Orders</div>
+        </div>
       </div>
 
       <div class="stat-card">
         <div class="stat-icon"><i class="bi bi-people"></i></div>
-        <div class="stat-value" th:text="${totalUsers ?: 0}">0</div>
-        <div class="stat-label">Total Users</div>
+        <div style="flex: 1;">
+          <div class="stat-value" th:text="${totalUsers ?: 0}">0</div>
+          <div class="stat-label" >Total Users</div>
+        </div>
       </div>
 
       <div class="stat-card">
         <div class="stat-icon"><i class="bi bi-graph-up"></i></div>
-        <div class="stat-value" th:text="'$' + ${#numbers.formatDecimal(totalRevenue ?: 0, 1, 2)}">$0.00</div>
-        <div class="stat-label">Total Revenue</div>
+        <div style="flex: 1;">
+          <div class="stat-value" th:text="'$' + ${#numbers.formatDecimal(totalRevenue ?: 0, 1, 2)}">$0.00</div>
+          <div class="stat-label" >Total Revenue</div>
+        </div>
       </div>
     </div>
 
@@ -71,27 +562,33 @@
       <h2 class="section-title"><i class="bi bi-person-plus"></i> New User Registrations</h2>
       <div class="stats-row">
         <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <div class="stat-icon">
             <i class="bi bi-calendar-day"></i>
           </div>
-          <div class="stat-value" th:text="${newUsersToday ?: 0}">0</div>
-          <div class="stat-label">Today</div>
+          <div style="flex: 1;">
+            <div class="stat-value" th:text="${newUsersToday ?: 0}">0</div>
+            <div class="stat-label" >Today</div>
+          </div>
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="stat-icon">
             <i class="bi bi-calendar-week"></i>
           </div>
-          <div class="stat-value" th:text="${newUsersThisWeek ?: 0}">0</div>
-          <div class="stat-label">This Week</div>
+          <div style="flex: 1;">
+            <div class="stat-value" th:text="${newUsersThisWeek ?: 0}">0</div>
+            <div class="stat-label" >This Week</div>
+          </div>
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="stat-icon">
             <i class="bi bi-calendar-month"></i>
           </div>
-          <div class="stat-value" th:text="${newUsersThisMonth ?: 0}">0</div>
-          <div class="stat-label">This Month</div>
+          <div style="flex: 1;">
+            <div class="stat-value" th:text="${newUsersThisMonth ?: 0}">0</div>
+            <div class="stat-label" >This Month</div>
+          </div>
         </div>
       </div>
     </div>
@@ -102,26 +599,127 @@
       <div class="action-buttons">
         <a href="/views/categories" class="btn-primary"> <i class="bi bi-tags"></i> View Categories </a>
         <a href="/views/products" class="btn-primary"> <i class="bi bi-box-seam"></i> View Products </a>
+        <a href="/views/promotions" class="btn-primary" sec:authorize="hasRole('ADMIN')"> <i class="bi bi-tag"></i> View Promotions </a>
         <a href="/views/orders" class="btn-primary"> <i class="bi bi-bag-check"></i> View Orders </a>
         <a href="/views/payments" class="btn-primary"> <i class="bi bi-receipt"></i> View Payments </a>
       </div>
     </div>
 
+    <!-- Recent Favorites and Popular Products Section -->
+    <div class="dashboard-two-column">
+      <!-- Recent User Favorites -->
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;">
+              <i class="bi bi-heart-fill" style="color: #ef4444;"></i> Recent User Favorites
+            </h2>
+            <p class="section-subtitle" >Latest 5 products favorite by users.</p>
+          </div>
+          <a href="/views/products" class="view-all-link" >View All →</a>
+        </div>
+        
+        <div class="favorites-list">
+          <div th:if="${#lists.isEmpty(recentFavorites)}" class="empty-state-small">
+            <i class="bi bi-inbox"></i>
+            <p>No favorites yet</p>
+          </div>
+          
+          <div th:each="favorite : ${recentFavorites}" class="favorite-card">
+            <div class="favorite-card-content">
+              <div class="favorite-user-info">
+                <div class="favorite-avatar">
+                  <span th:text="${favorite.favoriteList.user.firstName != null ? favorite.favoriteList.user.firstName.substring(0, 1).toUpperCase() : favorite.favoriteList.user.email.substring(0, 1).toUpperCase()}">U</span>
+                </div>
+                <div class="favorite-user-details">
+                  <div class="favorite-user-name">
+                    <span th:if="${favorite.favoriteList.user.firstName != null}" th:text="${favorite.favoriteList.user.firstName}"></span>
+                    <span th:if="${favorite.favoriteList.user.firstName != null and favorite.favoriteList.user.lastName != null}"> </span>
+                    <span th:if="${favorite.favoriteList.user.lastName != null}" th:text="${favorite.favoriteList.user.lastName}"></span>
+                    <span th:if="${favorite.favoriteList.user.firstName == null and favorite.favoriteList.user.lastName == null}" >User</span>
+                  </div>
+                  <div class="favorite-user-email" th:text="${favorite.favoriteList.user.email}">user@example.com</div>
+                </div>
+              </div>
+              
+              <div class="favorite-product-info">
+                <div class="favorite-product-name" th:text="${favorite.product.name}">Product Name</div>
+                <div class="favorite-product-brand" th:text="${favorite.product.brand != null ? favorite.product.brand.name : 'N/A'}">Brand</div>
+              </div>
+              
+              <div class="favorite-meta">
+                <span class="favorite-badge">
+                  <i class="bi bi-heart-fill"></i> Favorite
+                </span>
+                <span class="favorite-time" >Recently</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Popular Products -->
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;">
+              <i class="bi bi-fire" style="color: #f59e0b;"></i> Popular Products
+            </h2>
+            <p class="section-subtitle" >Top 5 best-selling products.</p>
+          </div>
+          <a href="/views/products" class="view-all-link" >View All →</a>
+        </div>
+        
+        <div class="popular-list">
+          <div th:if="${#lists.isEmpty(popularProducts)}" class="empty-state-small">
+            <i class="bi bi-inbox"></i>
+            <p>No popular products yet</p>
+          </div>
+          
+          <div th:each="popular : ${popularProducts}" class="popular-card">
+            <div class="popular-card-content">
+              <div class="popular-product-image">
+                <img th:if="${popular.product.images != null and !popular.product.images.isEmpty()}" 
+                     th:src="${popular.product.images[0].downloadUrl}" 
+                     alt="Product Image"
+                     onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'">
+                <div th:unless="${popular.product.images != null and !popular.product.images.isEmpty()}" 
+                     class="popular-placeholder">
+                  <i class="bi bi-image"></i>
+                </div>
+              </div>
+              
+              <div class="popular-product-info">
+                <div class="popular-product-name" th:text="${popular.product.name}">Product Name</div>
+                <div class="popular-product-brand" th:text="${popular.product.brand != null ? popular.product.brand.name : 'N/A'}">Brand</div>
+                <div class="popular-product-price" th:text="'$' + ${#numbers.formatDecimal(popular.product.price, 1, 2)}">$0.00</div>
+              </div>
+              
+              <div class="popular-meta">
+                <span class="popular-badge">
+                  <i class="bi bi-cart-check"></i> <span th:text="${popular.quantitySold ?: 0}">0</span> sold
+                </span>
+                <span class="popular-time" th:if="${popular.lastPurchasedDate != null}" 
+                      th:text="${#temporals.format(popular.lastPurchasedDate, 'MMM dd')}">Date</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Welcome Message -->
-    <div class="content-section" style="margin-top: 30px; margin-bottom: 30px">
+    <!-- <div class="content-section" style="margin-top: 30px; margin-bottom: 30px">
       <h2 class="section-title"><i class="bi bi-hand-thumbs-up"></i> Welcome to SkinMe Admin Panel</h2>
-      <p style="color: #666; line-height: 1.6">
+      <p style="color: #666; line-height: 1.6" >
         This is your central hub for managing all skincare products, orders, and customer interactions. Use
         the navigation menu on the left to access different sections of the application.
       </p>
+    </div> -->
     </div>
-    </main>
     </th:block>
     <th:block th:fragment="script">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
-      <script src="/js/websocket-client.js"></script>
       <script>
         function logout() {
           if (confirm("Are you sure you want to logout?")) {

@@ -9,6 +9,8 @@ import com.project.skin_me.model.Category;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.repository.CategoryRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,14 +22,12 @@ public class CategoryService implements ICategoryService {
 
     @Override
     public Category getCategoryById(Long id) {
-        // Try to get category with products first
-        Category category = categoryRepository.findByIdWithProducts(id);
+        Category category = categoryRepository.findByIdWithBrands(id);
         if (category != null) {
             return category;
         }
-        // Fallback to regular findById
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not Success!"));
     }
 
     @Override
@@ -41,8 +41,13 @@ public class CategoryService implements ICategoryService {
         return categoryRepository.findAll();
     }
 
-    public List<Category> getAllCategoriesWithProductCount() {
-        return categoryRepository.findAllWithProducts();
+    @Override
+    public Page<Category> getAllCategories(Pageable pageable) {
+        return categoryRepository.findAllWithBrands(pageable);
+    }
+
+    public List<Category> getAllCategoriesWithBrands() {
+        return categoryRepository.findAllWithBrands();
     }
 
     @Override
@@ -57,7 +62,7 @@ public class CategoryService implements ICategoryService {
         return Optional.ofNullable(getCategoryById(id)).map(oldCategory -> {
             oldCategory.setName(category.getName());
             return categoryRepository.save(oldCategory);
-        }).orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
+        }).orElseThrow(() -> new ResourceNotFoundException("Category not Success!"));
     }
 
     @Override
@@ -65,7 +70,7 @@ public class CategoryService implements ICategoryService {
         categoryRepository.findById(id)
                 .ifPresentOrElse(categoryRepository::delete,
                         () -> {
-                            throw new ResourceNotFoundException("Category not found!");
+                            throw new ResourceNotFoundException("Category not Success!");
                         });
         return null;
     }

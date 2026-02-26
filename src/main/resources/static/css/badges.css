@@ -1,3 +1,24 @@
+/* ============================================
+   ROUNDED TAG/BADGE STYLES (Like deployment/v0 style)
+   ============================================
+   
+   USAGE:
+   - Use .table-tag for rounded rectangular tags in tables
+   - Combine with color classes: .table-tag-blue, .table-tag-green, etc.
+   - Status classes: .table-tag-active, .table-tag-online, .table-tag-pending, etc.
+   - Name/Text classes: .table-tag-name, .table-tag-product, .table-tag-category
+   
+   CUSTOMIZE COLORS:
+   To change colors, modify the background-color and color properties in the classes below.
+   Example:
+   .table-tag-blue {
+       background-color: #YOUR_DARK_COLOR;  /* Dark background */
+       color: #YOUR_BRIGHT_COLOR;          /* Bright text */
+   }
+   
+   Note: Price fields should NOT use .table-tag - use .price-badge instead
+   ============================================ */
+
 .badge-custom {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
     padding: 0.5rem 1rem;
@@ -7,52 +28,178 @@
     display: inline-block;
 }
 
-/* Product Status Badges */
+/* Rounded Tag Style - Base */
+.table-tag {
+    display: inline-block;
+    padding: 0.4rem 0.9rem;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.2;
+    border: none;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Tag Color Variants */
+.table-tag-blue {
+    background-color: #2d3748;
+    color: #4299e1;
+}
+
+.table-tag-green {
+    background-color: #1a365d;
+    color: #48bb78;
+}
+
+.table-tag-purple {
+    background-color: #2d1b4e;
+    color: #9f7aea;
+}
+
+.table-tag-orange {
+    background-color: #742a2a;
+    color: #ed8936;
+}
+
+.table-tag-red {
+    background-color: #63171b;
+    color: #fc8181;
+}
+
+.table-tag-yellow {
+    background-color: #744210;
+    color: #f6e05e;
+}
+
+.table-tag-gray {
+    background-color: #2d3748;
+    color: #a0aec0;
+}
+
+.table-tag-cyan {
+    background-color: #0d2b3d;
+    color: #38b2ac;
+}
+
+/* Status-specific tags - active = green (alert-box success style) */
+.table-tag-active {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    font-weight: 600;
+}
+
+.table-tag-inactive {
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-weight: 500;
+}
+
+.table-tag-online {
+    background-color: #0d2b3d;
+    color: #38b2ac;
+}
+
+.table-tag-offline {
+    background-color: #2d3748;
+    color: #718096;
+}
+
+.table-tag-pending {
+    background-color: #744210;
+    color: #f6e05e;
+}
+
+.table-tag-completed {
+    background-color: #1a365d;
+    color: #48bb78;
+}
+
+.table-tag-expired {
+    background-color: #63171b;
+    color: #fc8181;
+}
+
+/* Name/Text tags */
+.table-tag-name {
+    background-color: #2d3748;
+    color: #4299e1;
+}
+
+.table-tag-product {
+    background-color: #2d1b4e;
+    color: #9f7aea;
+}
+
+.table-tag-category {
+    background-color: #0d2b3d;
+    color: #38b2ac;
+}
+
+/* Product Status Badges - active = green */
 .badge-status {
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius-lg);
+    font-family: sans-serif;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
     font-weight: 600;
     display: inline-block;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 
 .badge-active {
-    background-color: #d4edda;
-    color: #155724;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    font-weight: 600;
 }
 
 .badge-inactive {
-    background-color: #f8d7da;
-    color: #721c24;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-weight: 500;
 }
 
-/* Order Status Badges */
+/* Order / Payment Status Badges - alert-box style; active/success = green */
 .status-badge {
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius-lg);
+    font-family: sans-serif;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     display: inline-block;
+    border: 1px solid transparent;
 }
 
 .status-pending {
-    background-color: #fff3cd;
-    color: #856404;
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fde68a;
 }
 
 .status-processing {
-    background-color: #d1ecf1;
-    color: #0c5460;
+    background: #eff6ff;
+    color: #1e40af;
+    border-color: #bfdbfe;
 }
 
-.status-completed {
-    background-color: #d4edda;
-    color: #155724;
+.status-completed,
+.status-success,
+.status-delivered,
+.status-paid {
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #bbf7d0;
 }
 
-.status-cancelled {
-    background-color: #f8d7da;
-    color: #721c24;
+.status-cancelled,
+.status-failed,
+.status-expired {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
 }
 
 /* Payment Method Badges */
@@ -89,8 +236,67 @@
     color: #166534;
 }
 
+/* Price Badge - Green text for prices */
+.price-badge {
+    color: #10b981;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.price-badge.text-primary {
+    color: #0066cc !important;
+}
+
+.price-badge.text-success {
+    color: #10b981 !important;
+}
+
+.price-badge.text-danger {
+    color: #ef4444 !important;
+}
+
+/* Status Badge Active - Green (same as alert-box success) */
+.status-badge-active {
+    font-family: sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge-active i {
+    font-size: 0.7rem;
+    color: #166534;
+}
+
+/* Status Badge Inactive - Gray */
+.status-badge-inactive {
+    font-family: sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
 /* Responsive Badges */
 @media (max-width: 768px) {
+
+    .table-tag {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.7rem;
+    }
 
     .badge-status,
     .status-badge,

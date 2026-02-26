@@ -1,0 +1,137 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Brands Management'}">Brands Management</title>
+  </head>
+  <body>
+  <th:block th:fragment="main">
+  <div class="main-content">
+    <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag'"></div>
+
+    <div class="container-fluid px-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0" style="font-weight: 700; color: #111827;">
+          <i class="bi bi-award"></i> Brands
+        </h2>
+        <a th:href="@{/views/brands/create}" class="btn btn-primary">
+          <i class="bi bi-plus-circle"></i> Add New Brand
+        </a>
+      </div>
+
+      <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div th:if="${#lists.isEmpty(brands)}" class="card mt-4">
+        <div class="empty-state">
+          <i class="bi bi-inbox"></i>
+          <h5>No Brands Found</h5>
+          <p>Create a brand to assign to products. Brands are grouped by category.</p>
+        </div>
+      </div>
+
+      <div th:unless="${#lists.isEmpty(brands)}" class="data-table mt-4">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead>
+              <tr>
+                <th style="width: 60px;">#</th>
+                <th><i class="bi bi-tag"></i> Brand Name</th>
+                <th><i class="bi bi-tags"></i> Category</th>
+                <th><i class="bi bi-image"></i> Image</th>
+                <th style="width: 140px;"><i class="bi bi-gear"></i> Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr th:each="brand : ${brands}">
+                <td class="text-muted fw-semibold" th:text="${brand.id}">1</td>
+                <td>
+                  <div class="fw-semibold text-dark" th:text="${brand.name}">Brand Name</div>
+                </td>
+                <td>
+                  <span class="text-muted" th:text="${brand.category != null ? brand.category.name : '-'}">-</span>
+                </td>
+                <td>
+                  <div th:if="${brand.imageUrl != null and !brand.imageUrl.isEmpty()}">
+                    <img th:src="${brand.imageUrl}"
+                         alt="Brand"
+                         style="width: 40px; height: 40px; object-fit: contain; border-radius: 4px; border: 1px solid #ddd;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />
+                    <span style="display: none;" class="text-muted small">-</span>
+                  </div>
+                  <span th:if="${brand.imageUrl == null or brand.imageUrl.isEmpty()}" class="text-muted">-</span>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <a th:href="'/view/products/brand/' + ${brand.id}"
+                       class="btn-action"
+                       title="View Products">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a th:href="@{/views/brands/{id}/edit(id=${brand.id})}" class="btn-action" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <button type="button"
+                            class="btn-action btn-delete-brand"
+                            title="Delete"
+                            th:attr="data-brand-id=${brand.id}, data-brand-name=${brand.name}">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  </th:block>
+  <th:block th:fragment="script">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:inline="javascript">
+      document.querySelectorAll('.btn-delete-brand').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = this.getAttribute('data-brand-id');
+          var name = this.getAttribute('data-brand-name') || 'this brand';
+          if (confirm('Are you sure you want to delete brand "' + name + '"?')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/views/brands/' + id + '/delete';
+            var csrf = document.querySelector('meta[name="_csrf"]');
+            var csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+            if (csrf && csrfHeader) {
+              var input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = csrfHeader.getAttribute('content');
+              input.value = csrf.getAttribute('content');
+              form.appendChild(input);
+            }
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      });
+    </script>
+  </th:block>
+</html>

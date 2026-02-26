@@ -1,15 +1,20 @@
-
-class WebSocketClient {
-  constructor(endpoint = "/ws-endpoint") {
-    this.endpoint = endpoint;
-    this.stompClient = null;
-    this.isConnected = false;
-    this.subscriptions = {};
-    this.messageHandlers = {};
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 3000;
+// Prevent duplicate declaration
+(function() {
+  if (typeof window.WebSocketClient !== 'undefined') {
+    return; // Already defined
   }
+
+  window.WebSocketClient = class WebSocketClient {
+    constructor(endpoint = "/ws-endpoint") {
+      this.endpoint = endpoint;
+      this.stompClient = null;
+      this.isConnected = false;
+      this.subscriptions = {};
+      this.messageHandlers = {};
+      this.reconnectAttempts = 0;
+      this.maxReconnectAttempts = 5;
+      this.reconnectDelay = 3000;
+    }
 
   /**
    * Initialize WebSocket connection
@@ -28,7 +33,6 @@ class WebSocketClient {
     this.stompClient.connect(
       {},
       (frame) => {
-        console.log("WebSocket Connected: " + frame.command);
         this.isConnected = true;
         this.reconnectAttempts = 0;
         if (onConnect) onConnect(frame);
@@ -60,7 +64,6 @@ class WebSocketClient {
     });
 
     this.subscriptions[destination] = subscription;
-    console.log("Subscribed to: " + destination);
   }
 
   /**
@@ -86,7 +89,6 @@ class WebSocketClient {
     }
 
     this.stompClient.send(destination, {}, JSON.stringify(message));
-    console.log("Message sent to: " + destination);
     return true;
   }
 
@@ -97,7 +99,6 @@ class WebSocketClient {
     if (this.subscriptions[destination]) {
       this.subscriptions[destination].unsubscribe();
       delete this.subscriptions[destination];
-      console.log("Unsubscribed from: " + destination);
     }
   }
 
@@ -121,7 +122,6 @@ class WebSocketClient {
 
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
       setTimeout(() => {
         this.connect(null, onError);
       }, this.reconnectDelay);
@@ -241,28 +241,42 @@ class WebSocketClient {
       subscriptions: Object.keys(this.subscriptions),
     };
   }
-}
+};
+})();
 
-// Create global instance
-let webSocketClient = null;
-
-// Initialize on document ready
-document.addEventListener("DOMContentLoaded", () => {
-  webSocketClient = new WebSocketClient();
-  webSocketClient.connect(
-    () => {
-      console.log("WebSocket ready for use");
-      // Subscribe to your required topics here
-    },
-    (error) => {
-      console.error("WebSocket initialization failed:", error);
-    },
-  );
-});
-
-// Clean up on page unload
-window.addEventListener("beforeunload", () => {
-  if (webSocketClient) {
-    webSocketClient.disconnect();
+// Create global instance only if it doesn't exist
+(function() {
+  if (typeof window.webSocketClient !== 'undefined' && window.webSocketClient !== null) {
+    return; // Already initialized
   }
-});
+
+  // Initialize on document ready
+  function initializeWebSocket() {
+    if (typeof window.WebSocketClient === 'undefined') {
+      console.error('WebSocketClient class is not defined');
+      return;
+    }
+
+    window.webSocketClient = new window.WebSocketClient();
+    window.webSocketClient.connect(
+      () => {
+      },
+      (error) => {
+        console.error("WebSocket initialization failed:", error);
+      },
+    );
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", initializeWebSocket);
+  } else {
+    initializeWebSocket();
+  }
+
+  // Clean up on page unload
+  window.addEventListener("beforeunload", () => {
+    if (window.webSocketClient) {
+      window.webSocketClient.disconnect();
+    }
+  });
+})();

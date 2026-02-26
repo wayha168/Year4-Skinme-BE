@@ -16,12 +16,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Optional;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class DataInitializer {
     private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
+
+    private static final String DEFAULT_ADMIN_EMAIL = "admin@skinme.com";
+    private static final String DEFAULT_PASSWORD = "password";
+
+    private static final List<String[]> DEFAULT_USERS = List.of(
+            new String[] { "Veha", "Seng" },
+            new String[] { "Bunroen", "Has" },
+            new String[] { "Sokha", "Kim" },
+            new String[] { "Jennie", "Kim" },
+            new String[] { "Rosie", "Park" });
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -30,9 +40,10 @@ public class DataInitializer {
     @EventListener
     @Transactional
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        logger.info("Initializing default roles and admin users");
+        logger.info("Initializing default roles, admin and sample users");
         createDefaultRolesIfNotExists();
-        createDefaultAdminsIfNotExists();
+        createDefaultAdminIfNotExists();
+        createDefaultUsersIfNotExists();
     }
 
     private void createDefaultRolesIfNotExists() {
@@ -50,36 +61,65 @@ public class DataInitializer {
         }
     }
 
-    private void createDefaultAdminsIfNotExists() {
-        Optional<Role> adminRoleOpt = roleRepository.findByName("ROLE_ADMIN");
-        if (adminRoleOpt.isEmpty()) {
-            logger.error("ROLE_ADMIN not found! Skipping admin creation.");
+    private void createDefaultAdminIfNotExists() {
+        if (userRepository.existsByEmail(DEFAULT_ADMIN_EMAIL)) {
+            logger.info("Admin user already exists: {}", DEFAULT_ADMIN_EMAIL);
             return;
         }
-        Role adminRole = adminRoleOpt.get();
+        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("ROLE_ADMIN not found"));
 
-        // Create up to 3 default admin users
-        for (int i = 1; i <= 3; i++) {
-            String defaultEmail = "admin" + i + "@gmail.com";
+        User admin = new User();
+        admin.setFirstName("Administrator");
+        admin.setLastName("Administrator");
+        admin.setEmail(DEFAULT_ADMIN_EMAIL);
+        String encoded = passwordEncoder.encode(DEFAULT_PASSWORD);
+        admin.setPassword(encoded);
+        admin.setConfirmPassword(encoded);
+        admin.setEnabled(true);
+        admin.setRegistrationDate(LocalDateTime.now());
+        admin.setIsOnline(false);
+        admin.setRoles(new HashSet<>(Collections.singletonList(adminRole)));
 
-            if (userRepository.existsByEmail(defaultEmail)) {
-                logger.info("Admin user already exists: {}", defaultEmail);
+        userRepository.save(admin);
+        logger.info("Created default admin: {} (email: {}, password: {})", admin.getFirstName(), DEFAULT_ADMIN_EMAIL,
+                DEFAULT_PASSWORD);
+    }
+
+    private void createDefaultUsersIfNotExists() {
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new IllegalStateException("ROLE_USER not found"));
+
+        for (int i = 0; i < DEFAULT_USERS.size(); i++) {  
+            String[] name = DEFAULT_USERS.get(i);
+            String firstName = name[0];
+            String lastName = name[1];
+
+            String email = firstName.toLowerCase() + "@skinme.com";
+
+            if (userRepository.existsByEmail(email)) {
+                logger.info("User already exists: {}", email);
                 continue;
             }
 
-            User admin = new User();
-            admin.setFirstName("Admin");
-            admin.setLastName("User");
-            admin.setEmail(defaultEmail);
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setConfirmPassword(passwordEncoder.encode("admin123"));
-            admin.setEnabled(true);
-            admin.setRegistrationDate(LocalDateTime.now());
-            admin.setIsOnline(false);
-            admin.setRoles(new HashSet<>(Collections.singletonList(adminRole)));
+            User user = new User();
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
+            user.setEmail(email);
 
-            userRepository.save(admin);
-            logger.info("Created default admin user: {}", defaultEmail);
+            String encoded = passwordEncoder.encode(DEFAULT_PASSWORD);
+            user.setPassword(encoded);
+            user.setConfirmPassword(encoded);
+
+            user.setEnabled(true);
+            user.setRegistrationDate(LocalDateTime.now());
+            user.setIsOnline(false);
+            user.setRoles(new HashSet<>(Collections.singletonList(userRole)));
+
+            userRepository.save(user);
+
+            logger.info("Created user: {} {} (email: {}, default password: {})",
+                    firstName, lastName, email, DEFAULT_PASSWORD);
         }
     }
 }

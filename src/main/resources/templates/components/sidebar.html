@@ -8,7 +8,7 @@
   <ul class="nav sidebar-nav" id="sidebar-nav">
     <li class="nav-item">
       <a th:href="@{/dashboard}" class="nav-link" data-tooltip="Dashboard"> 
-        <i class="bi bi-speedometer2"></i> 
+        <i class="bi bi-house-door"></i> 
         <span class="nav-link-text">Dashboard</span>
       </a>
     </li>
@@ -25,17 +25,26 @@
         aria-controls="stockMenu"
         data-tooltip="Stock Management"
       >
-        <i class="bi bi-box-seam"></i> 
+        <i class="bi bi-grid-3x3-gap"></i> 
         <span class="nav-link-text">Stock Management</span>
+        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="stockMenu" data-bs-parent="#sidebar-nav">
         <a th:href="@{/views/categories}" class="nav-link sub-nav-link" data-tooltip="Categories"> 
-          <i class="bi bi-tags"></i> 
+          <i class="bi bi-card-checklist"></i>
           <span class="nav-link-text">Categories</span> 
         </a>
+        <a th:href="@{/views/brands}" class="nav-link sub-nav-link" data-tooltip="Brands"> 
+          <i class="bi bi-award"></i> 
+          <span class="nav-link-text">Brands</span> 
+        </a>
         <a th:href="@{/views/products}" class="nav-link sub-nav-link" data-tooltip="Products"> 
-          <i class="bi bi-box"></i> 
+          <i class="bi bi-box-seam"></i> 
           <span class="nav-link-text">Products</span> 
+        </a>
+        <a th:href="@{/views/promotions}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="Promotions"> 
+          <i class="bi bi-percent"></i> 
+          <span class="nav-link-text">Promotions</span> 
         </a>
       </div>
     </li>
@@ -52,8 +61,9 @@
         aria-controls="saleMenu"
         data-tooltip="Sales Management"
       >
-        <i class="bi bi-cash-coin"></i> 
+        <i class="bi bi-cart-check"></i> 
         <span class="nav-link-text">Sales Management</span>
+        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="saleMenu" data-bs-parent="#sidebar-nav">
         <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record"> 
@@ -61,7 +71,7 @@
           <span class="nav-link-text">Orders Record</span> 
         </a>
         <a th:href="@{/views/payments}" class="nav-link sub-nav-link" data-tooltip="Payment Record"> 
-          <i class="bi bi-receipt"></i> 
+          <i class="bi bi-receipt-cutoff"></i> 
           <span class="nav-link-text">Payment Record</span> 
         </a>
         <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record"> 
@@ -69,6 +79,15 @@
           <span class="nav-link-text">Delivery Record</span> 
         </a>
       </div>
+    </li>
+
+    <li class="nav-separator"></li>
+
+    <li class="nav-item">
+      <a th:href="@{/views/chat}" class="nav-link" data-tooltip="Chat"> 
+        <i class="bi bi-chat-square-text"></i> 
+        <span class="nav-link-text">Chat</span>
+      </a>
     </li>
 
     <li class="nav-separator"></li>
@@ -83,8 +102,9 @@
         aria-controls="userMenu"
         data-tooltip="User Menu"
       >
-        <i class="bi bi-person-circle"></i> 
+        <i class="bi bi-person-badge"></i> 
         <span class="nav-link-text">User Menu</span>
+        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="userMenu" data-bs-parent="#sidebar-nav">
         <a th:href="@{/views/my-orders}" class="nav-link sub-nav-link" data-tooltip="My Orders"> 
@@ -98,6 +118,10 @@
         <a th:href="@{/views/users}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="User Management"> 
           <i class="bi bi-people"></i> 
           <span class="nav-link-text">User Management</span> 
+        </a>
+        <a th:href="@{/views/audit-logs}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')" data-tooltip="Audit Log"> 
+          <i class="bi bi-journal-text"></i> 
+          <span class="nav-link-text">Audit Log</span> 
         </a>
       </div>
     </li>

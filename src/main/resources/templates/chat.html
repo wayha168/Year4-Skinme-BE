@@ -1,0 +1,514 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::scripts})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <style>
+        .chat-container {
+          display: flex;
+          flex-direction: column;
+          height: calc(100vh - 200px);
+          max-height: 800px;
+          border: 1px solid #e0e0e0;
+          border-radius: 12px;
+          background: #ffffff;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-header {
+          padding: 16px 20px;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+          color: white;
+          border-radius: 12px 12px 0 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .chat-header h5 {
+          margin: 0;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .chat-messages {
+          flex: 1;
+          overflow-y: auto;
+          padding: 20px;
+          background: #f8f9fa;
+        }
+        
+        .message {
+          margin-bottom: 16px;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .message.user {
+          align-items: flex-end;
+        }
+        .message.user.message--from-customer {
+          align-items: flex-start;
+        }
+        .message.user.message--from-customer .message-bubble {
+          margin-left: 0;
+        }
+        
+        .message.admin {
+          align-items: flex-start;
+        }
+        
+        .message.assistant {
+          align-items: flex-start;
+        }
+        
+        .message-bubble {
+          max-width: 70%;
+          padding: 12px 16px;
+          border-radius: 18px;
+          word-wrap: break-word;
+          position: relative;
+        }
+        
+        .message.user .message-bubble {
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+          color: white;
+          border-bottom-right-radius: 4px;
+        }
+        
+        /* User message: show profile icon + online (for admin viewing users who ask) */
+        .message.user .message-meta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 6px;
+        }
+        .message-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          color: white;
+          font-weight: 700;
+          font-size: 0.95rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          position: relative;
+        }
+        .message-avatar.online::after {
+          content: '';
+          position: absolute;
+          bottom: 2px;
+          right: 2px;
+          width: 10px;
+          height: 10px;
+          background: #22c55e;
+          border: 2px solid #f8f9fa;
+          border-radius: 50%;
+        }
+        .message.user .message-sender {
+          margin-bottom: 0;
+          font-size: 0.8rem;
+        }
+        
+        .message.admin .message-bubble {
+          background: #e3f2fd;
+          color: #1976d2;
+          border-bottom-left-radius: 4px;
+        }
+        
+        .message.assistant .message-bubble {
+          background: #f1f8e9;
+          color: #558b2f;
+          border-bottom-left-radius: 4px;
+        }
+        
+        .message-sender {
+          font-size: 0.75rem;
+          font-weight: 600;
+          margin-bottom: 4px;
+          opacity: 0.8;
+        }
+        
+        .message-content {
+          font-size: 0.95rem;
+          line-height: 1.5;
+        }
+        
+        .message-content img {
+          max-width: 100%;
+          border-radius: 8px;
+          margin-top: 8px;
+        }
+        
+        .message-time {
+          font-size: 0.7rem;
+          opacity: 0.6;
+          margin-top: 4px;
+        }
+        
+        .chat-input-container {
+          padding: 16px 20px;
+          background: white;
+          border-top: 1px solid #e0e0e0;
+          border-radius: 0 0 12px 12px;
+        }
+        
+        .chat-input-form {
+          display: flex;
+          gap: 12px;
+        }
+        
+        .chat-input {
+          flex: 1;
+          padding: 12px 16px;
+          border: 2px solid #e0e0e0;
+          border-radius: 24px;
+          font-size: 0.95rem;
+          resize: none;
+        }
+        
+        .chat-input:focus {
+          outline: none;
+          border-color: var(--primary);
+        }
+        
+        .chat-send-btn {
+          padding: 12px 24px;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+          color: white;
+          border: none;
+          border-radius: 24px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+        
+        .chat-send-btn:hover {
+          transform: scale(1.05);
+        }
+        
+        .chat-send-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .chat-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        
+        .chat-tab {
+          padding: 8px 16px;
+          background: white;
+          border: 2px solid #e0e0e0;
+          border-radius: 20px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        
+        .chat-tab.active {
+          background: var(--primary);
+          color: white;
+          border-color: var(--primary);
+        }
+        
+        .ai-responses-section {
+          margin-top: 24px;
+        }
+        
+        .ai-response-item {
+          padding: 12px;
+          background: white;
+          border-left: 4px solid #558b2f;
+          border-radius: 8px;
+          margin-bottom: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ai-response-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        
+        .ai-response-time {
+          font-size: 0.75rem;
+          color: #666;
+        }
+      </style>
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Chat'}">Chat</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+    <div class="main-content">
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-chat-dots'"></div>
+
+      <div class="container-fluid px-4">
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-8">
+            <div class="chat-container">
+              <div class="chat-header">
+                <h5>
+                  <i class="bi bi-chat-dots"></i>
+                  <span>Chat</span>
+                </h5>
+                <div>
+                  <span id="connection-status" class="badge bg-secondary">Connecting...</span>
+                </div>
+              </div>
+              
+              <div class="chat-messages" id="chat-messages">
+                <!-- Chat messages will be loaded here -->
+                <div th:each="message : ${chatHistory}" 
+                     th:classappend="'message ' + ${message.type} + (isAdmin and message.type == 'user' ? ' message--from-customer' : '')"
+                     class="message">
+                  <!-- From-customer (user messaging admin): profile icon + online -->
+                  <div th:if="${isAdmin and message.type == 'user'}" class="message-meta">
+                    <div class="message-avatar online" th:attr="data-initial=${#strings.substring(message.sender, 0, 1)}" th:text="${#strings.toUpperCase(#strings.substring(message.sender, 0, 1))}">U</div>
+                    <div class="message-sender" th:text="${message.sender}">Sender</div>
+                  </div>
+                  <div th:if="${!(isAdmin and message.type == 'user')}" class="message-sender" th:text="${message.sender}">Sender</div>
+                  <div class="message-bubble">
+                    <div class="message-content" th:utext="${message.content}">Message content</div>
+                    <div class="message-time" th:text="${#temporals.format(message.timestamp, 'MMM dd, yyyy HH:mm')}">Time</div>
+                  </div>
+                </div>
+                
+                <!-- Pagination for Chat History -->
+                <div th:if="${totalPages > 1}" class="mt-3">
+                  <div th:replace="~{components/pagination :: pagination('/views/chat', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
+                </div>
+              </div>
+              
+              <div class="chat-input-container">
+                <form class="chat-input-form" id="chat-form">
+                  <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="message-input" 
+                    placeholder="Type your message..."
+                    autocomplete="off"
+                  />
+                  <button type="submit" class="chat-send-btn" id="send-btn">
+                    <i class="bi bi-send"></i> Send
+                  </button>
+                </form>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="ai-chat-btn">
+                    <i class="bi bi-robot"></i> Ask AI Assistant
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-chat-btn">
+                    <i class="bi bi-trash"></i> Clear Chat
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4">
+            <div class="card">
+              <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white;">
+                <h6 class="mb-0"><i class="bi bi-robot"></i> AI Responses</h6>
+              </div>
+              <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                <div th:if="${#lists.isEmpty(aiResponses)}" class="text-center text-muted py-4">
+                  <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                  <p class="mt-2">No AI responses yet</p>
+                </div>
+                <div th:each="response : ${aiResponses}" class="ai-response-item">
+                  <div class="ai-response-header">
+                    <strong><i class="bi bi-robot"></i> AI Assistant</strong>
+                    <span class="ai-response-time" th:text="${#temporals.format(response.timestamp, 'MMM dd, HH:mm')}">Time</span>
+                  </div>
+                  <div class="ai-response-content" th:utext="${#strings.abbreviate(response.content, 150)}">Response</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </th:block>
+    <th:block th:fragment="scripts">
+      <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+      <script src="/js/websocket-client.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script th:inline="javascript">
+        const API_PREFIX = /*[[${api.prefix}]]*/ '/api/v1';
+        const CURRENT_USER_ID = /*[[${currentUserId}]]*/ null;
+        const CURRENT_USER_EMAIL = /*[[${currentUserEmail}]]*/ '';
+        const IS_ADMIN = /*[[${isAdmin}]]*/ false;
+        const CONVERSATION_ID = 'conv_' + Date.now();
+        
+        let webSocketClient = null;
+        let isAiMode = false;
+        
+        // Initialize WebSocket
+        function initWebSocket() {
+          if (typeof window.WebSocketClient === 'undefined') {
+            updateConnectionStatus('disconnected');
+            return;
+          }
+          
+          webSocketClient = new window.WebSocketClient('/ws-endpoint');
+          
+          webSocketClient.connect(
+            function(frame) {
+              updateConnectionStatus('connected');
+              
+              // Subscribe to chat topic
+              webSocketClient.subscribe('/topic/chat', function(message) {
+                displayMessage(message);
+              });
+              
+              // Subscribe to user-specific messages
+              webSocketClient.subscribeToUser('/topic/chat', function(message) {
+                displayMessage(message);
+              });
+            },
+            function(error) {
+              updateConnectionStatus('disconnected');
+            }
+          );
+        }
+        
+        function updateConnectionStatus(status) {
+          const statusEl = document.getElementById('connection-status');
+          if (statusEl) {
+            if (status === 'connected') {
+              statusEl.textContent = 'Connected';
+              statusEl.className = 'badge bg-success';
+            } else {
+              statusEl.textContent = 'Disconnected';
+              statusEl.className = 'badge bg-danger';
+            }
+          }
+        }
+        
+        function displayMessage(message) {
+          const messagesContainer = document.getElementById('chat-messages');
+          const messageDiv = document.createElement('div');
+          const type = message.type || 'user';
+          const fromCustomer = IS_ADMIN && type === 'user';
+          messageDiv.className = 'message ' + type + (fromCustomer ? ' message--from-customer' : '');
+          
+          const sender = message.sender || 'Unknown';
+          const content = message.content || '';
+          const timestamp = message.timestamp ? new Date(message.timestamp).toLocaleString() : new Date().toLocaleString();
+          const initial = sender.charAt(0).toUpperCase();
+          const metaHtml = fromCustomer
+            ? '<div class="message-meta"><div class="message-avatar online" title="Online">' + initial + '</div><div class="message-sender">' + sender + '</div></div>'
+            : '<div class="message-sender">' + sender + '</div>';
+          
+          messageDiv.innerHTML = metaHtml + `
+            <div class="message-bubble">
+              <div class="message-content">${content}</div>
+              <div class="message-time">${timestamp}</div>
+            </div>
+          `;
+          
+          messagesContainer.appendChild(messageDiv);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function sendMessage(content, isAiQuery = false) {
+          if (!content || !content.trim()) {
+            return;
+          }
+          
+          if (!webSocketClient || !webSocketClient.isConnected) {
+            if (typeof showToast === 'function') {
+              showToast('Connection not established. Please wait...', 'warning');
+            }
+            return;
+          }
+          
+          const message = {
+            sender: CURRENT_USER_EMAIL,
+            content: content.trim(),
+            type: IS_ADMIN ? 'admin' : 'user',
+            conversationId: CONVERSATION_ID
+          };
+          
+          if (isAiQuery) {
+            // Send AI query
+            webSocketClient.sendMessage('/app/chat/query', message);
+          } else {
+            // Send regular chat message
+            webSocketClient.sendMessage('/app/chat/message', message);
+          }
+          
+          // Clear input
+          document.getElementById('message-input').value = '';
+        }
+        
+        // Form submission
+        document.getElementById('chat-form').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const input = document.getElementById('message-input');
+          const content = input.value.trim();
+          
+          if (content) {
+            sendMessage(content, isAiMode);
+          }
+        });
+        
+        // AI chat button
+        document.getElementById('ai-chat-btn').addEventListener('click', function() {
+          isAiMode = !isAiMode;
+          const input = document.getElementById('message-input');
+          if (isAiMode) {
+            this.classList.add('active');
+            this.innerHTML = '<i class="bi bi-robot"></i> AI Mode ON';
+            input.placeholder = 'Ask AI assistant...';
+          } else {
+            this.classList.remove('active');
+            this.innerHTML = '<i class="bi bi-robot"></i> Ask AI Assistant';
+            input.placeholder = 'Type your message...';
+          }
+        });
+        
+        // Clear chat button
+        document.getElementById('clear-chat-btn').addEventListener('click', function() {
+          if (confirm('Are you sure you want to clear the chat?')) {
+            document.getElementById('chat-messages').innerHTML = '';
+          }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+          initWebSocket();
+          
+          // Scroll to bottom
+          const messagesContainer = document.getElementById('chat-messages');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        });
+      </script>
+    </th:block>
+  </body>
+</html>

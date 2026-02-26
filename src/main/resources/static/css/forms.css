@@ -1,0 +1,355 @@
+/* ============================================
+   FORM STYLES - Table-like rows (like detail pages)
+   ============================================ */
+
+/* Form container - see details.css for .detail-card */
+
+.detail-card .card-header.detail-header,
+.detail-card .card-header {
+    background: #f8fafc;
+    color: #334155;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.detail-card .card-header h5 {
+    margin: 0;
+    font-weight: 600;
+    font-family: sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.detail-card .card-body {
+    padding: 1.5rem 1.75rem;
+}
+
+/* Form body: no extra padding when using form-rows so rows span full width */
+.detail-card .card-body.form-body {
+    padding: 0;
+}
+
+/* Table-like form row: label left, control right (same look as .info-row) */
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.875rem 1.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fafafa;
+    margin: 0;
+    font-family: sans-serif;
+}
+
+.form-row:nth-child(even) {
+    background: #ffffff;
+}
+
+.form-row:last-child {
+    border-bottom: none;
+}
+
+.form-row .form-label {
+    flex: 0 0 200px;
+    margin-bottom: 0;
+    min-width: 140px;
+}
+
+.form-row .form-control-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+.form-row .form-control,
+.form-row .form-select {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Full-width row: label on top, control below (e.g. textarea, file) */
+.form-row--full {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.form-row--full .form-label {
+    flex: 0 0 100%;
+    margin-bottom: 0.35rem;
+}
+
+.form-row--full .form-control-wrap {
+    flex: 1 1 100%;
+}
+
+/* Checkbox row */
+.form-row .form-check {
+    margin-bottom: 0;
+}
+
+.form-row .form-check-label {
+    font-weight: 500;
+    color: #334155;
+}
+
+/* Form actions row */
+.form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1.25rem 1.75rem;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    margin: 0;
+}
+
+/* Form Labels - clean alert-box style */
+.form-label {
+    font-family: sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #334155;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-label i {
+    color: #475569;
+}
+
+/* Form Controls - soft border, clean */
+.form-control,
+.form-select {
+    font-family: sans-serif;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.65rem 0.875rem;
+    font-size: 0.875rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #ffffff;
+    color: #334155;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #334155;
+    box-shadow: 0 0 0 2px rgba(51, 65, 85, 0.1);
+    outline: none;
+}
+
+.form-control::placeholder {
+    color: #94a3b8;
+}
+
+/* Textarea */
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Form Groups */
+.mb-3 {
+    margin-bottom: 1.5rem;
+}
+
+/* Buttons in Forms - clean, not loud */
+.btn-primary {
+    font-family: sans-serif;
+    background: #334155;
+    border: 1px solid #334155;
+    color: #fff;
+    padding: 0.65rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: background 0.2s, border-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary:hover {
+    background: #1e293b;
+    border-color: #1e293b;
+    color: #fff;
+}
+
+.btn-outline-secondary {
+    font-family: sans-serif;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    background: #f8fafc;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-outline-secondary:hover {
+    border-color: #cbd5e1;
+    color: #334155;
+    background: #f1f5f9;
+}
+
+.btn-outline-primary {
+    font-family: sans-serif;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    background: #f8fafc;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-outline-primary:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+/* Form Validation - alert-box style */
+.form-control:invalid {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.form-control:valid {
+    border-color: #bbf7d0;
+}
+
+/* Required Field Indicator */
+.form-label.required::after {
+    content: " *";
+    color: #991b1b;
+}
+
+/* Form Row */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+}
+
+.row > * {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.col-md-4,
+.col-md-6,
+.col-lg-6,
+.col-lg-10 {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .col-md-4 {
+        width: 33.333333%;
+    }
+    
+    .col-md-6 {
+        width: 50%;
+    }
+}
+
+@media (min-width: 992px) {
+    .col-lg-6 {
+        width: 50%;
+    }
+    
+    .col-lg-10 {
+        width: 83.333333%;
+    }
+}
+
+/* Form Actions */
+.d-flex {
+    display: flex;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.justify-content-end {
+    justify-content: flex-end;
+}
+
+.justify-content-center {
+    justify-content: center;
+}
+
+.mt-4 {
+    margin-top: 1.5rem;
+}
+
+.mb-2 {
+    margin-bottom: 0.5rem;
+}
+
+.mb-5 {
+    margin-bottom: 3rem;
+}
+
+.px-4 {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .detail-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    .form-row .form-label {
+        flex: none;
+        min-width: 0;
+    }
+    
+    .form-row .form-control-wrap {
+        flex: none;
+    }
+    
+    .form-control,
+    .form-select {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .btn-primary,
+    .btn-outline-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .d-flex.gap-2 {
+        flex-direction: column;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        padding: 1rem;
+    }
+    
+    .form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

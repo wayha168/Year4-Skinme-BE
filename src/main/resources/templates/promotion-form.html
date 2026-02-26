@@ -1,0 +1,421 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/details.css" />
+      <link rel="stylesheet" href="/css/alerts.css" />
+      <link rel="stylesheet" href="/css/forms.css" />
+      <style>
+        .discount-preview {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 1rem 1.25rem;
+          border-radius: 8px;
+          margin-top: 0.75rem;
+          font-family: sans-serif;
+        }
+        .discount-preview h6 { margin: 0 0 0.5rem 0; font-weight: 600; color: #334155; }
+        .discount-preview .price-comparison { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .price-original { text-decoration: line-through; color: #64748b; }
+        .price-discounted { font-weight: 700; color: #166534; }
+        .image-preview-item {
+          position: relative;
+          width: 120px;
+          height: 120px;
+          border: 2px solid #e2e8f0;
+          border-radius: 8px;
+          overflow: hidden;
+          display: inline-block;
+        }
+        .image-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .image-preview-item .remove-image {
+          position: absolute; top: 4px; right: 4px;
+          background: rgba(220, 53, 69, 0.9); color: white; border: none; border-radius: 50%;
+          width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;
+        }
+      </style>
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Create Promotion'}">Create Promotion</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+      <div class="main-content">
+        <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag', pageTitle=${pageTitle ?: 'Create Promotion'}"></div>
+
+        <div class=" px-4 mb-2">
+          <a th:href="@{/views/promotions}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
+        </div>
+        <div class="container-fluid px-4 detail-page-content">
+          <div class="card detail-card">
+            <div class="card-header detail-header">
+              <h5 class="mb-0">
+                <i class="bi" th:classappend="${editingId != null} ? 'bi-pencil' : 'bi-plus-circle'"></i>
+                <span id="form-title" th:text="${editingId != null} ? 'Edit Promotion' : 'Create New Promotion'">Create New Promotion</span>
+              </h5>
+            </div>
+            <div class="card-body form-body">
+              <form id="promotion-form">
+                <input type="hidden" id="promotion-id" th:value="${editingId}" />
+                <div class="form-row">
+                  <label for="title" class="form-label"><i class="bi bi-tag"></i> Title *</label>
+                  <div class="form-control-wrap">
+                    <input type="text" class="form-control" id="title" required maxlength="200" placeholder="Promotion title" th:value="${promotion?.title}" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="product-select" class="form-label"><i class="bi bi-box"></i> Product *</label>
+                  <div class="form-control-wrap">
+                    <select class="form-select" id="product-select" required>
+                      <option value="">Select a product</option>
+                      <option th:each="product : ${products}" th:value="${product.id}"
+                              th:text="${product.name + ' - $' + #numbers.formatDecimal(product.price, 1, 2)}"
+                              th:selected="${promotion != null and promotion.productId == product.id}"></option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-row form-row--full">
+                  <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description</label>
+                  <div class="form-control-wrap">
+                    <textarea class="form-control" id="description" rows="3" placeholder="Promotion description" th:text="${promotion?.description}"></textarea>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="discount-percentage" class="form-label"><i class="bi bi-percent"></i> Discount (%) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="discount-percentage" required min="0.01" max="100" step="0.01" placeholder="0.00" th:value="${promotion?.discountPercentage}" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="start-date" class="form-label"><i class="bi bi-calendar-check"></i> Start Date *</label>
+                  <div class="form-control-wrap">
+                    <input type="datetime-local" class="form-control" id="start-date" required />
+                    <small class="form-text text-muted">Auto-set to now when creating</small>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="duration-days" class="form-label"><i class="bi bi-clock"></i> Duration (Days) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="duration-days" min="1" max="365" step="1" placeholder="7" value="7" />
+                    <small class="form-text text-muted">Auto-calculates deadline</small>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="deadline" class="form-label"><i class="bi bi-calendar-x"></i> Deadline *</label>
+                  <div class="form-control-wrap">
+                    <input type="datetime-local" class="form-control" id="deadline" required />
+                    <small class="form-text text-muted">Auto-calculated from duration</small>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="link" class="form-label"><i class="bi bi-link-45deg"></i> Link</label>
+                  <div class="form-control-wrap">
+                    <input type="url" class="form-control" id="link" placeholder="https://example.com/promotion" th:value="${promotion?.link}" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <span class="form-label"><i class="bi bi-toggle-on"></i> Active</span>
+                  <div class="form-control-wrap">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="active" th:checked="${promotion == null or promotion.active}" />
+                      <label class="form-check-label" for="active">Promotion is active</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row form-row--full">
+                  <label for="promotion-images" class="form-label"><i class="bi bi-image"></i> Promotion Images</label>
+                  <div class="form-control-wrap">
+                    <input type="file" class="form-control" id="promotion-images" multiple accept="image/*" />
+                    <small class="form-text text-muted">You can select one or multiple images</small>
+                    <div id="image-preview-container" class="mt-3" style="display: none;">
+                      <div class="d-flex flex-wrap gap-2" id="image-preview-list"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row form-row--full">
+                  <span class="form-label"><i class="bi bi-calculator"></i> Price Preview</span>
+                  <div class="form-control-wrap">
+                    <div id="discount-preview" class="discount-preview" style="display: none;">
+                      <h6>Price Preview</h6>
+                      <div class="price-comparison">
+                        <div><small>Original:</small> <span class="price-original" id="original-price">$0.00</span></div>
+                        <div><small>Discounted:</small> <span class="price-discounted" id="discounted-price">$0.00</span></div>
+                        <div><small>You Save:</small> <span class="price-discounted" id="savings">$0.00</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <a href="/views/promotions" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Cancel</a>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> <span id="submit-text" th:text="${editingId != null} ? 'Update Promotion' : 'Create Promotion'">Create Promotion</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </th:block>
+
+    <th:block th:fragment="script">
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script th:inline="javascript">
+        const API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
+        let productsData = /*[[${products}]]*/ [];
+        let editingPromotionId = /*[[${editingId}]]*/ null;
+        let selectedImages = [];
+
+        // Initialize form if editing
+        document.addEventListener('DOMContentLoaded', function() {
+          const promotion = /*[[${promotion}]]*/ null;
+          if (promotion && editingPromotionId) {
+            // Format dates for datetime-local input
+            if (promotion.startDate) {
+              const startDate = new Date(promotion.startDate);
+              document.getElementById('start-date').value = formatDateTimeLocal(startDate);
+            }
+            if (promotion.deadline) {
+              const deadline = new Date(promotion.deadline);
+              document.getElementById('deadline').value = formatDateTimeLocal(deadline);
+              
+              // Calculate duration from start date and deadline
+              if (promotion.startDate) {
+                const start = new Date(promotion.startDate);
+                const end = new Date(promotion.deadline);
+                const diffTime = Math.abs(end - start);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                document.getElementById('duration-days').value = diffDays;
+              }
+            }
+            updateDiscountPreview();
+          } else {
+            // Auto-set start date to now when creating
+            autoSetStartDate();
+          }
+        });
+
+        // Image handling
+        document.getElementById('promotion-images').addEventListener('change', function(e) {
+          selectedImages = Array.from(e.target.files);
+          displayImagePreviews();
+        });
+
+        function displayImagePreviews() {
+          const container = document.getElementById('image-preview-container');
+          const list = document.getElementById('image-preview-list');
+          
+          if (selectedImages.length === 0) {
+            container.style.display = 'none';
+            return;
+          }
+          
+          container.style.display = 'block';
+          list.innerHTML = '';
+          
+          selectedImages.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              const div = document.createElement('div');
+              div.className = 'image-preview-item';
+              div.innerHTML = `
+                <img src="${e.target.result}" alt="Preview ${index + 1}" />
+                <button type="button" class="remove-image" onclick="removeImage(${index})">
+                  <i class="bi bi-x"></i>
+                </button>
+              `;
+              list.appendChild(div);
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        function removeImage(index) {
+          selectedImages.splice(index, 1);
+          const input = document.getElementById('promotion-images');
+          const dt = new DataTransfer();
+          selectedImages.forEach(file => dt.items.add(file));
+          input.files = dt.files;
+          displayImagePreviews();
+        }
+
+        async function uploadPromotionImages(promotionId) {
+          if (selectedImages.length === 0) {
+            return;
+          }
+
+          const formData = new FormData();
+          selectedImages.forEach(file => {
+            formData.append('files', file);
+          });
+
+          try {
+            const response = await fetch(`${API_PREFIX}/promotions/${promotionId}/images`, {
+              method: 'POST',
+              body: formData
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+              console.error('Failed to upload images:', result.message);
+              if (typeof showToast === 'function') {
+                showToast('Failed to upload images: ' + (result.message || 'Unknown error'), 'error');
+              }
+            }
+          } catch (error) {
+            console.error('Error uploading images:', error);
+            if (typeof showToast === 'function') {
+              showToast('Error uploading images: ' + error.message, 'error');
+            }
+          }
+        }
+
+        // Auto-calculate deadline from duration
+        function calculateDeadline() {
+          const startDateInput = document.getElementById('start-date');
+          const durationInput = document.getElementById('duration-days');
+          const deadlineInput = document.getElementById('deadline');
+          
+          if (startDateInput.value && durationInput.value) {
+            const startDate = new Date(startDateInput.value);
+            const durationDays = parseInt(durationInput.value) || 7;
+            const deadline = new Date(startDate);
+            deadline.setDate(deadline.getDate() + durationDays);
+            deadlineInput.value = formatDateTimeLocal(deadline);
+          }
+        }
+
+        // Auto-set start date to now when creating
+        function autoSetStartDate() {
+          if (!editingPromotionId) {
+            const now = new Date();
+            const startDateInput = document.getElementById('start-date');
+            startDateInput.value = formatDateTimeLocal(now);
+            calculateDeadline();
+          }
+        }
+
+        // Format date for datetime-local input
+        function formatDateTimeLocal(date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        // Update discount preview
+        function updateDiscountPreview() {
+          const productId = document.getElementById('product-select').value;
+          const discountPercentage = parseFloat(document.getElementById('discount-percentage').value) || 0;
+          
+          if (productId && discountPercentage > 0) {
+            const product = productsData.find(p => p.id == productId);
+            if (product && product.price) {
+              const originalPrice = parseFloat(product.price);
+              const discountAmount = originalPrice * (discountPercentage / 100);
+              const discountedPrice = originalPrice - discountAmount;
+              
+              document.getElementById('original-price').textContent = '$' + originalPrice.toFixed(2);
+              document.getElementById('discounted-price').textContent = '$' + discountedPrice.toFixed(2);
+              document.getElementById('savings').textContent = '$' + discountAmount.toFixed(2);
+              document.getElementById('discount-preview').style.display = 'block';
+            }
+          } else {
+            document.getElementById('discount-preview').style.display = 'none';
+          }
+        }
+
+        // Form submission
+        document.getElementById('promotion-form').addEventListener('submit', async function(e) {
+          e.preventDefault();
+          
+          if (typeof showToast === 'function') {
+            showToast(editingPromotionId ? 'Updating promotion...' : 'Creating promotion...', 'info');
+          }
+          
+          const formData = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            link: document.getElementById('link').value,
+            discountPercentage: parseFloat(document.getElementById('discount-percentage').value),
+            startDate: document.getElementById('start-date').value,
+            deadline: document.getElementById('deadline').value,
+            productId: parseInt(document.getElementById('product-select').value),
+            active: document.getElementById('active').checked
+          };
+          
+          // Convert datetime-local to ISO format
+          if (formData.startDate) {
+            formData.startDate = new Date(formData.startDate).toISOString();
+          }
+          if (formData.deadline) {
+            formData.deadline = new Date(formData.deadline).toISOString();
+          }
+          
+          try {
+            const url = editingPromotionId 
+              ? `${API_PREFIX}/promotions/${editingPromotionId}`
+              : `${API_PREFIX}/promotions/create`;
+            const method = editingPromotionId ? 'PUT' : 'POST';
+            
+            const response = await fetch(url, {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+              const promotionId = result.data?.id || editingPromotionId;
+              if (promotionId && selectedImages.length > 0) {
+                // Upload images after promotion is created/updated
+                await uploadPromotionImages(promotionId);
+              }
+              if (typeof showToast === 'function') {
+                showToast(result.message || (editingPromotionId ? 'Promotion updated successfully' : 'Promotion created successfully'), 'success');
+              }
+              setTimeout(() => {
+                window.location.href = '/views/promotions';
+              }, 1000);
+            } else {
+              if (typeof showToast === 'function') {
+                showToast('Failed to save promotion: ' + (result.message || 'Unknown error'), 'error');
+              }
+            }
+          } catch (error) {
+            console.error('Error saving promotion:', error);
+            if (typeof showToast === 'function') {
+              showToast('Error saving promotion: ' + error.message, 'error');
+            }
+          }
+        });
+
+        // Update preview on change
+        document.getElementById('product-select').addEventListener('change', updateDiscountPreview);
+        document.getElementById('discount-percentage').addEventListener('input', updateDiscountPreview);
+        
+        // Auto-calculate deadline when start date or duration changes
+        document.getElementById('start-date').addEventListener('change', calculateDeadline);
+        document.getElementById('duration-days').addEventListener('input', calculateDeadline);
+        document.getElementById('duration-days').addEventListener('change', calculateDeadline);
+
+        // Set minimum date to today
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('start-date').min = now.toISOString().slice(0, 16);
+        document.getElementById('deadline').min = now.toISOString().slice(0, 16);
+      </script>
+    </th:block>
+  </body>
+</html>

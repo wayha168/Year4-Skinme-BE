@@ -3,7 +3,6 @@ package com.project.skin_me.request;
 import java.math.BigDecimal;
 
 import com.project.skin_me.enums.ProductStatus;
-import com.project.skin_me.model.Category;
 
 import lombok.Data;
 
@@ -11,12 +10,13 @@ import lombok.Data;
 public class ProductUpdateRequest {
     private Long id;
     private String name;
-    private String brand;
     private BigDecimal price;
     private String productType;
     private int inventory;
     private String description;
     private String howToUse;
-    private Category category;
+    private String skinType;
+    private String benefit;
+    private Long brandId;
     private ProductStatus status;
 }

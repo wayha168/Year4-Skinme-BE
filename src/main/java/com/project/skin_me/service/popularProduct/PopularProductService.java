@@ -75,7 +75,7 @@ public class PopularProductService implements IPopularProductService {
                     dto.setProductId(product.getId());
                     dto.setName(product.getName());
                     dto.setPrice(product.getPrice());
-                    dto.setBrand(product.getBrand());
+                    dto.setBrand(product.getBrand() != null ? product.getBrand().getName() : null);
                     dto.setQuantitySold(popular != null ? popular.getQuantitySold() : product.getTotalOrders());
                     return dto;
                 })
@@ -104,7 +104,7 @@ public class PopularProductService implements IPopularProductService {
                     dto.setProductId(productId);
                     dto.setName(product.getName());
                     dto.setPrice(product.getPrice());
-                    dto.setBrand(product.getBrand());
+                    dto.setBrand(product.getBrand() != null ? product.getBrand().getName() : null);
                     dto.setQuantitySold(quantitySold);
                     return dto;
                 })
@@ -116,7 +116,7 @@ public class PopularProductService implements IPopularProductService {
         Product product = popularProduct.getProduct();
         dto.setName(product.getName());
         dto.setPrice(product.getPrice());
-        dto.setBrand(product.getBrand());
+        dto.setBrand(product.getBrand() != null ? product.getBrand().getName() : null);
         return dto;
     }
 

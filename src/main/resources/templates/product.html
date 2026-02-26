@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="app :: layout(~{::main}, ~{::style}, ~{::script})">
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}">
 <head>
     <meta charset="UTF-8">
     <title>Product</title>
@@ -7,7 +7,7 @@
       .main-content {
         width: 100%;
         margin-left: 0;
-        padding: 24px 32px;
+        padding: 12px 24px;
         min-height: 100vh;
         background: #ffffff;
       }

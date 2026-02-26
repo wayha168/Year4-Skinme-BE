@@ -1,40 +1,89 @@
 /* ============================================
-   TABLE STYLES FOR PRODUCT, ORDER, PAYMENT TABLES
+   TABLE STYLES - MODERN CONCEPT STYLE
    ============================================ */
 
-/* Base Table Styles */
-.data-table {
+/* Base Table Styles - clean bg and text like alert-box */
+.data-table,
+.users-table,
+.order-table,
+.payment-table,
+.audit-table,
+.delivery-table {
+    font-family: sans-serif;
     background: var(--white);
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     overflow: hidden;
     margin-bottom: 2rem;
+    border: 1px solid #e5e7eb;
 }
 
-.data-table thead {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+.data-table thead,
+.users-table thead,
+.order-table thead,
+.payment-table thead,
+.audit-table thead,
+.delivery-table thead {
+    background: #f8fafc;
+    color: #475569;
 }
 
-.data-table thead th {
-    padding: 1.2rem;
-    font-weight: 700;
+.data-table thead th,
+.users-table thead th,
+.order-table thead th,
+.payment-table thead th,
+.audit-table thead th,
+.delivery-table thead th {
+    padding: 12px 1rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     border: none;
+    border-bottom: 1px solid #e2e8f0;
     text-align: left;
+    color: #475569;
 }
 
-.data-table tbody tr {
-    border-bottom: 1px solid var(--gray-200);
-    transition: all 0.3s ease;
+.data-table tbody tr,
+.users-table tbody tr,
+.order-table tbody tr,
+.payment-table tbody tr,
+.audit-table tbody tr,
+.delivery-table tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
+    background: var(--white);
 }
 
-.data-table tbody tr:hover {
-    background-color: var(--gray-100);
+.data-table tbody tr:hover,
+.users-table tbody tr:hover,
+.order-table tbody tr:hover,
+.payment-table tbody tr:hover,
+.audit-table tbody tr:hover,
+.delivery-table tbody tr:hover {
+    background: #f8fafc;
 }
 
-.data-table tbody td {
-    padding: 1rem 1.2rem;
+.data-table tbody tr:last-child,
+.users-table tbody tr:last-child,
+.order-table tbody tr:last-child,
+.payment-table tbody tr:last-child,
+.audit-table tbody tr:last-child,
+.delivery-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.data-table tbody td,
+.users-table tbody td,
+.order-table tbody td,
+.payment-table tbody td,
+.audit-table tbody td,
+.delivery-table tbody td {
+    padding: 1rem 1.25rem;
     vertical-align: middle;
+    font-size: 0.875rem;
+    color: #334155;
 }
 
 .data-table tbody tr:last-child {
@@ -43,93 +92,236 @@
 
 /* Specific Table Types */
 .product-table {
+    font-family: sans-serif;
     background: var(--white);
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     overflow: hidden;
+    border: 1px solid #e5e7eb;
 }
 
 .product-table thead {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+    background: #f8fafc;
+    color: #475569;
+}
+
+.product-table thead th {
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
 }
 
 .product-table tbody tr {
-    border-bottom: 1px solid var(--gray-200);
-    transition: all 0.3s ease;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
+    background: var(--white);
 }
 
 .product-table tbody tr:hover {
-    background-color: var(--gray-100);
+    background: #f8fafc;
 }
 
-/* Order Table */
-.order-table {
-    background: var(--white);
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
+.product-table tbody tr:last-child {
+    border-bottom: none;
 }
 
-.order-table thead {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+.product-table tbody td {
+    padding: 1rem 1.25rem;
+    vertical-align: middle;
+    font-size: 0.875rem;
+    color: #334155;
 }
 
-.order-table tbody tr:hover {
-    background-color: var(--gray-100);
-}
-
-/* Payment Table */
-.payment-table {
-    background: var(--white);
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.payment-table thead {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
-}
-
-.payment-table tbody tr:hover {
-    background-color: var(--gray-100);
-}
-
-/* Table Actions */
+/* Table Actions - clean, alert-box style (soft bg, clear text) */
 .table-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.table-actions .btn,
+.btn-action,
+.table-actions button,
+.table-actions a {
+    font-family: sans-serif;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    font-size: 0.875rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.table-actions .btn:hover,
+.btn-action:hover,
+.table-actions button:hover,
+.table-actions a:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+.table-actions .btn-primary,
+.btn-action.btn-primary,
+.table-actions .btn-outline-primary,
+.table-actions .btn-outline-danger,
+.btn-action.btn-danger,
+.table-actions .btn-danger {
+    border-color: #e2e8f0;
+    color: #475569;
+    background: #f8fafc;
+}
+
+.table-actions .btn-primary:hover,
+.btn-action.btn-primary:hover,
+.table-actions .btn-outline-primary:hover,
+.table-actions .btn-outline-danger:hover,
+.btn-action.btn-danger:hover,
+.table-actions .btn-danger:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+.table-actions .btn-sm {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
+}
+
+/* Status Badge - alert-box style (soft bg + text) */
+.status-badge-active {
+    font-family: sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge-active i {
+    font-size: 0.7rem;
+    color: #166534;
+}
+
+.status-badge-inactive {
+    font-family: sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Priority Badge - Light Blue Circular */
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.table-actions .btn-group,
+table .btn-group {
     display: flex;
     gap: 0.5rem;
     align-items: center;
 }
 
-.table-actions .btn {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
-    border-radius: 0.4rem;
+.table-actions .btn-group .btn,
+table .btn-group .btn {
+    font-family: sans-serif;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    font-size: 0.875rem;
 }
 
-.table-actions .btn-sm {
-    padding: 0.3rem 0.6rem;
+.table-actions .btn-group .btn:hover,
+table .btn-group .btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
 }
 
-/* Price Badge in Tables */
+table .btn-primary,
+table .btn-outline-primary,
+table .btn-outline-danger,
+table .btn-danger {
+    border-color: #e2e8f0 !important;
+    color: #475569 !important;
+    background: #f8fafc !important;
+}
+
+table .btn-primary:hover,
+table .btn-outline-primary:hover,
+table .btn-outline-danger:hover,
+table .btn-danger:hover {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+}
+
+/* Price / amount badges - soft style like alert-box */
 .price-badge {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+    font-family: sans-serif;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
     padding: 0.25rem 0.75rem;
-    border-radius: 0.4rem;
+    border-radius: 8px;
     font-weight: 600;
+    font-size: 0.875rem;
     display: inline-block;
 }
 
 .amount-badge {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: var(--white);
+    font-family: sans-serif;
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #e2e8f0;
     padding: 0.5rem 1rem;
-    border-radius: 0.4rem;
+    border-radius: 8px;
     font-weight: 600;
+    font-size: 0.875rem;
     display: inline-block;
 }
 

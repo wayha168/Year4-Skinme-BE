@@ -1,9 +1,13 @@
 package com.project.skin_me.service.image;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,6 +23,9 @@ import com.project.skin_me.service.product.IProductService;
 @Service
 @RequiredArgsConstructor
 public class ImageService implements IImageService {
+
+    @Value("${upload.dir:uploads}")
+    private String uploadDir;
 
     private final ImageRepository imageRepository;
     private final IProductService productService;
@@ -39,23 +46,34 @@ public class ImageService implements IImageService {
     @Override
     public List<ImageDto> saveImages(Long productId, List<MultipartFile> files) {
         Product product = productService.getProductById(productId);
+        Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(basePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not create upload directory: " + e.getMessage());
+        }
 
         List<ImageDto> saveImageDto = new ArrayList<>();
         for (MultipartFile file : files) {
             try {
+                String originalFilename = file.getOriginalFilename();
+                if (originalFilename == null || originalFilename.isBlank()) {
+                    originalFilename = "image_" + System.currentTimeMillis() + ".dat";
+                }
+                if (originalFilename.contains("..")) {
+                    originalFilename = originalFilename.replace("..", "");
+                }
+
+                Path targetFile = basePath.resolve(originalFilename);
+                Files.write(targetFile, file.getBytes());
+
                 Image image = new Image();
-                image.setFileName(file.getOriginalFilename());
+                image.setFileName(originalFilename);
                 image.setFileType(file.getContentType());
-                image.setImage(file.getBytes());
                 image.setProduct(product);
-
-                String buildDownloadUrl = "/api/v1/images/image/download/";
-                String downloadUrl = buildDownloadUrl + image.getId();
-                image.setDownloadUrl(downloadUrl);
+                image.setDownloadUrl("/uploads/" + originalFilename);
+                image.setImage(null);
                 Image saveImage = imageRepository.save(image);
-
-                saveImage.setDownloadUrl(buildDownloadUrl + saveImage.getId());
-                imageRepository.save(saveImage);
 
                 ImageDto imageDto = new ImageDto();
                 imageDto.setImageId(saveImage.getId());
@@ -72,12 +90,23 @@ public class ImageService implements IImageService {
 
     @Override
     public void updateImage(MultipartFile file, Long imageId) {
-
         Image image = getImageById(imageId);
+        Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
-            image.setFileName(file.getOriginalFilename());
+            Files.createDirectories(basePath);
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null || originalFilename.isBlank()) {
+                originalFilename = "image_" + System.currentTimeMillis() + ".dat";
+            }
+            if (originalFilename.contains("..")) {
+                originalFilename = originalFilename.replace("..", "");
+            }
+            Path targetFile = basePath.resolve(originalFilename);
+            Files.write(targetFile, file.getBytes());
+            image.setFileName(originalFilename);
             image.setFileType(file.getContentType());
-            image.setImage(file.getBytes());
+            image.setDownloadUrl("/uploads/" + originalFilename);
+            image.setImage(null);
             imageRepository.save(image);
         } catch (IOException e) {
             throw new RuntimeException(e.getMessage());

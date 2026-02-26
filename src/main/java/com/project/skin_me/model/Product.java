@@ -22,7 +22,6 @@ public class Product {
     private Long id;
 
     private String name;
-    private String brand;
     private BigDecimal price;
     private String productType;
     private int inventory;
@@ -36,11 +35,21 @@ public class Product {
     @Column(columnDefinition = "TEXT")
     private String howToUse;
 
+    private String skinType;
+
+    @Column(columnDefinition = "TEXT")
+    private String benefit;
+
     private int totalOrders;
 
-    @ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "category_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
     @JsonIgnoreProperties("products")
+    private Brand brand;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    @JsonIgnoreProperties({"products", "brands"})
     private Category category;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -55,16 +64,20 @@ public class Product {
     @JsonIgnore
     private User user;
 
-    public Product(String name, String brand, BigDecimal price,
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Promotion> promotions;
+
+    public Product(String name, BigDecimal price,
                    String productType, int inventory, String description,
-                   String howToUse, Category category) {
+                   String howToUse, Brand brand) {
         this.name = name;
-        this.brand = brand;
         this.price = price;
         this.productType = productType;
         this.inventory = inventory;
         this.description = description;
         this.howToUse = howToUse;
-        this.category = category;
+        this.brand = brand;
+        this.category = brand != null ? brand.getCategory() : null;
     }
 }

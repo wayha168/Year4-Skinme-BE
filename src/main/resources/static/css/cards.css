@@ -7,14 +7,15 @@
     border: none;
     border-radius: var(--border-radius-md);
     box-shadow: var(--box-shadow-sm);
+    background: var(--white);
     transition: all 0.3s ease;
     overflow: hidden;
     margin-bottom: 1.5rem;
 }
 
 .card-item:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow-lg);
+    transform: translateY(-4px);
+    box-shadow: var(--box-shadow-md);
 }
 
 /* Order Card */
@@ -22,14 +23,15 @@
     border: none;
     border-radius: var(--border-radius-md);
     box-shadow: var(--box-shadow-sm);
+    background: var(--white);
     transition: all 0.3s ease;
     overflow: hidden;
     margin-bottom: 1.5rem;
 }
 
 .order-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow-lg);
+    transform: translateY(-4px);
+    box-shadow: var(--box-shadow-md);
 }
 
 .order-header {
@@ -77,6 +79,7 @@
     border: none;
     border-radius: var(--border-radius-md);
     box-shadow: var(--box-shadow-sm);
+    background: var(--white);
     transition: all 0.3s ease;
     overflow: hidden;
     margin-bottom: 1.5rem;
@@ -84,8 +87,8 @@
 }
 
 .payment-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow-lg);
+    transform: translateY(-4px);
+    box-shadow: var(--box-shadow-md);
 }
 
 .payment-card::before {
@@ -142,13 +145,14 @@
     border: none;
     border-radius: var(--border-radius-md);
     box-shadow: var(--box-shadow-sm);
+    background: var(--white);
     transition: all 0.3s ease;
     overflow: hidden;
 }
 
 .product-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow-lg);
+    transform: translateY(-4px);
+    box-shadow: var(--box-shadow-md);
 }
 
 .product-image-placeholder {

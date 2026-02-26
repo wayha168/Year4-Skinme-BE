@@ -1,5 +1,6 @@
 package com.project.skin_me.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,5 +24,6 @@ public class Role {
     }
 
     @ManyToMany(mappedBy = "roles")
+    @JsonIgnore
     private Collection<User> users = new HashSet<>();
 }
