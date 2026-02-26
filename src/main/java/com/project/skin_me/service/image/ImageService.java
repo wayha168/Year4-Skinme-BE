@@ -72,7 +72,7 @@ public class ImageService implements IImageService {
                 image.setFileType(file.getContentType());
                 image.setProduct(product);
                 image.setDownloadUrl("/uploads/" + originalFilename);
-                image.setImage(null);
+                image.setImage(file.getBytes());
                 Image saveImage = imageRepository.save(image);
 
                 ImageDto imageDto = new ImageDto();
@@ -106,7 +106,7 @@ public class ImageService implements IImageService {
             image.setFileName(originalFilename);
             image.setFileType(file.getContentType());
             image.setDownloadUrl("/uploads/" + originalFilename);
-            image.setImage(null);
+            image.setImage(file.getBytes());
             imageRepository.save(image);
         } catch (IOException e) {
             throw new RuntimeException(e.getMessage());

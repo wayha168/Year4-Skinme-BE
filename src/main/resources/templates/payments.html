@@ -79,7 +79,7 @@
                 </td>
                 <td>
                   <span th:if="${payment.status?.toString() == 'COMPLETED' || payment.status?.toString() == 'SUCCESS'}" class="status-badge-active">
-                    <i class="bi bi-check-circle-fill"></i> <span th:text="${payment.status}">SUCCESS</span>
+                    <i class="bi bi-check-circle-fill "></i> <span th:text="${payment.status}">SUCCESS</span>
                   </span>
                   <span th:if="${payment.status?.toString() != 'COMPLETED' && payment.status?.toString() != 'SUCCESS'}" class="status-badge-inactive" th:text="${payment.status != null ? payment.status : 'PENDING'}">PENDING</span>
                 </td>

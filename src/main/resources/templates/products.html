@@ -216,7 +216,7 @@
                   </div>
                 </td>
                 <td>
-                  <span th:if="${product.status == 'ACTIVE'}" class="status-badge-active">
+                  <span th:if="${product.status == 'ACTIVE'}" class="status-badge-active ">
                     <i class="bi bi-check-circle-fill"></i> Active
                   </span>
                   <span th:if="${product.status != 'ACTIVE'}" class="status-badge-inactive" th:text="${product.status}">Inactive</span>

@@ -292,7 +292,8 @@
               const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                redirect: 'manual'
               });
               const contentType = response.headers.get('content-type');
               const isRedirect = response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400);
@@ -301,7 +302,9 @@
               if (isOk) {
                 await uploadProductImages(productId);
                 if (typeof showToast === 'function') showToast('Product updated successfully', 'success');
-                window.location.href = '/views/products?success=Product%20updated%20successfully';
+                const loc = response.headers.get('Location');
+                const successUrl = (loc && loc.startsWith('/')) ? loc : '/views/products?success=Product%20updated%20successfully';
+                window.location.href = successUrl;
                 return;
               }
               const errorText = await response.text();

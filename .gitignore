@@ -33,4 +33,4 @@ build/
 .vscode/
 
 ### Uploaded product images (stored on disk) ###
-/uploads/
+# /uploads/
