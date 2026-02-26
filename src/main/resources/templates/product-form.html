@@ -64,18 +64,23 @@
                       />
                     </div>
                     <div class="col-md-6">
-                      <label for="brand" class="form-label">
+                      <label for="brandId" class="form-label">
                         <i class="bi bi-tag"></i> Brand *
                       </label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
-                        id="brand" 
-                        name="brand"
-                        th:value="${product != null ? product.brand : ''}"
+                      <select 
+                        class="form-select" 
+                        id="brandId" 
+                        name="brandId"
                         required
-                        placeholder="Enter brand name"
-                      />
+                      >
+                        <option value="">Select a brand</option>
+                        <option 
+                          th:each="b : ${brands}"
+                          th:value="${b.id}"
+                          th:text="${b.name}"
+                          th:selected="${product != null && product.brand != null && product.brand.id == b.id}"
+                        ></option>
+                      </select>
                     </div>
                   </div>
 
@@ -212,7 +217,7 @@
                       <label class="form-label"><i class="bi bi-images"></i> Existing Images</label>
                       <div class="d-flex flex-wrap gap-2">
                         <div th:each="image : ${product.images}" class="image-preview-item" style="position: relative; width: 120px; height: 120px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; display: inline-block;">
-                          <img th:src="${image.downloadUrl}" 
+                          <img th:src="${(image.downloadUrl != null and !image.downloadUrl.isEmpty()) ? image.downloadUrl : ((api.prefix != null and api.prefix.startsWith('/')) ? api.prefix : '/' + api.prefix) + '/images/image/download/' + image.id}" 
                                alt="Product image" 
                                style="width: 100%; height: 100%; object-fit: cover;"
                                onerror="this.style.display='none';" />
@@ -250,6 +255,8 @@
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script th:inline="javascript">
         const API_PREFIX = /*[[${api.prefix}]]*/ '/api/v1';
+        const CSRF_PARAM = /*[[${_csrf?.parameterName}]]*/ '_csrf';
+        const CSRF_TOKEN = /*[[${_csrf?.token}]]*/ '';
         let selectedImages = [];
         let productId = /*[[${product != null ? product.id : null}]]*/ null;
 
@@ -307,7 +314,8 @@
             const response = await fetch(`${API_PREFIX}/images/image/${imageId}/delete`, {
               method: 'DELETE',
               headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF_TOKEN
               }
             });
             
@@ -331,7 +339,7 @@
           }
         }
 
-        // Upload images after product is created/updated
+        // Upload images after product is created/updated (supports one or many images)
         async function uploadProductImages(productId) {
           if (selectedImages.length === 0) {
             return;
@@ -342,6 +350,9 @@
             formData.append('files', file);
           });
           formData.append('productId', productId);
+          if (CSRF_PARAM && CSRF_TOKEN) {
+            formData.append(CSRF_PARAM, CSRF_TOKEN);
+          }
 
           try {
             const response = await fetch(`${API_PREFIX}/images/upload`, {

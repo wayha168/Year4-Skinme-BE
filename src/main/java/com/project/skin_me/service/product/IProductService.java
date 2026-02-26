@@ -13,6 +13,9 @@ public interface IProductService {
 
     Product getProductById(Long id);
 
+    /** Product with brand, category, and images loaded (for detail view). */
+    Product getProductByIdWithDetails(Long id);
+
     void deleteProductById(Long id);
 
     List<Product> getActiveProducts();
@@ -20,6 +23,9 @@ public interface IProductService {
     Product updateProduct(ProductUpdateRequest product, Long productId);
 
     List<Product> getAllProducts();
+
+    /** Products with category, brand, and images loaded (for list/detail views). */
+    List<Product> getAllProductsWithImages();
 
     List<Product> getAllProductsByCategory(String category);
 

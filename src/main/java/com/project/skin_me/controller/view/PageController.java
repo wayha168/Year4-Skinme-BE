@@ -1,6 +1,7 @@
 package com.project.skin_me.controller.view;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.model.Brand;
 import com.project.skin_me.model.Category;
 import com.project.skin_me.model.Order;
 import com.project.skin_me.model.Payment;
@@ -43,6 +44,8 @@ import com.project.skin_me.dto.ProductDto;
 import com.project.skin_me.request.AddProductRequest;
 import com.project.skin_me.request.ProductUpdateRequest;
 import com.project.skin_me.enums.ProductStatus;
+import com.project.skin_me.service.image.IImageService;
+import org.springframework.web.multipart.MultipartFile;
 
 @Controller
 @RequiredArgsConstructor
@@ -51,6 +54,7 @@ public class PageController {
     private final ICategoryService categoryService;
     private final IBrandService brandService;
     private final IProductService productService;
+    private final IImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
@@ -376,11 +380,141 @@ public class PageController {
         }
     }
 
+    // ========== Brand CRUD View ==========
+    @GetMapping("/views/brands")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String brandsPage(@RequestParam(defaultValue = "0") int page, Model model) {
+        try {
+            List<Brand> allBrands = brandService.getAllBrands();
+            int pageSize = 12;
+            int totalPages = Math.max(1, (int) Math.ceil((double) allBrands.size() / pageSize));
+            int start = page * pageSize;
+            int end = Math.min(start + pageSize, allBrands.size());
+            List<Brand> brands = start < allBrands.size() ? allBrands.subList(start, end) : List.<Brand>of();
+            model.addAttribute("brands", brands);
+            model.addAttribute("currentPage", page);
+            model.addAttribute("totalPages", totalPages);
+            model.addAttribute("totalItems", allBrands.size());
+            model.addAttribute("hasNext", page < totalPages - 1);
+            model.addAttribute("hasPrev", page > 0);
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load brands: " + e.getMessage());
+            model.addAttribute("brands", List.<Brand>of());
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("totalItems", 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
+        }
+        model.addAttribute("pageTitle", "Brands Management");
+        return "brands";
+    }
+
+    @GetMapping("/views/brands/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String createBrandPage(Model model) {
+        model.addAttribute("pageTitle", "Create Brand");
+        model.addAttribute("brand", null);
+        model.addAttribute("categories", categoryService.getAllCategories());
+        model.addAttribute("error", null);
+        return "brand-form";
+    }
+
+    @PostMapping("/views/brands/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String createBrand(
+            @RequestParam String name,
+            @RequestParam(required = false) String imageUrl,
+            @RequestParam(required = false) Long categoryId,
+            Model model) {
+        try {
+            if (name == null || name.trim().isEmpty()) {
+                model.addAttribute("error", "Brand name cannot be empty");
+                model.addAttribute("brand", null);
+                model.addAttribute("categories", categoryService.getAllCategories());
+                model.addAttribute("pageTitle", "Create Brand");
+                return "brand-form";
+            }
+            if (categoryId == null) {
+                model.addAttribute("error", "Please select a category");
+                model.addAttribute("brand", null);
+                model.addAttribute("categories", categoryService.getAllCategories());
+                model.addAttribute("pageTitle", "Create Brand");
+                return "brand-form";
+            }
+            brandService.createBrand(name.trim(), imageUrl != null ? imageUrl.trim() : "", categoryId);
+            return "redirect:/views/brands?success=Brand created successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to create brand: " + e.getMessage());
+            model.addAttribute("brand", null);
+            model.addAttribute("categories", categoryService.getAllCategories());
+            model.addAttribute("pageTitle", "Create Brand");
+            return "brand-form";
+        }
+    }
+
+    @GetMapping("/views/brands/{brandId}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String editBrandPage(@PathVariable Long brandId, Model model) {
+        try {
+            Brand brand = brandService.getBrandById(brandId);
+            model.addAttribute("brand", brand);
+            model.addAttribute("categories", categoryService.getAllCategories());
+            model.addAttribute("pageTitle", "Edit Brand");
+            return "brand-form";
+        } catch (Exception e) {
+            return "redirect:/views/brands?error=Brand not found";
+        }
+    }
+
+    @PostMapping("/views/brands/{brandId}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String updateBrand(
+            @PathVariable Long brandId,
+            @RequestParam String name,
+            @RequestParam(required = false) String imageUrl,
+            Model model) {
+        try {
+            if (name == null || name.trim().isEmpty()) {
+                model.addAttribute("error", "Brand name cannot be empty");
+                Brand brand = brandService.getBrandById(brandId);
+                model.addAttribute("brand", brand);
+                model.addAttribute("categories", categoryService.getAllCategories());
+                model.addAttribute("pageTitle", "Edit Brand");
+                return "brand-form";
+            }
+            brandService.updateBrand(brandId, name.trim(), imageUrl != null ? imageUrl.trim() : null);
+            return "redirect:/views/brands?success=Brand updated successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to update brand: " + e.getMessage());
+            model.addAttribute("pageTitle", "Edit Brand");
+            try {
+                Brand brand = brandService.getBrandById(brandId);
+                model.addAttribute("brand", brand);
+                model.addAttribute("categories", categoryService.getAllCategories());
+            } catch (Exception ex) {
+                // ignore
+            }
+            return "brand-form";
+        }
+    }
+
+    @PostMapping("/views/brands/{brandId}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String deleteBrand(@PathVariable Long brandId) {
+        try {
+            brandService.deleteBrandById(brandId);
+            return "redirect:/views/brands?success=Brand deleted successfully";
+        } catch (Exception e) {
+            return "redirect:/views/brands?error=Failed to delete brand: " + e.getMessage();
+        }
+    }
+
     @GetMapping("/views/products")
     @PreAuthorize("hasRole('ADMIN')")
     public String productsListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
-            List<Product> allProducts = productService.getAllProducts();
+            List<Product> allProducts = productService.getAllProductsWithImages();
             List<Category> categories = categoryService.getAllCategories();
             
             int pageSize = 12;
@@ -440,9 +574,18 @@ public class PageController {
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
-            @RequestParam Long brandId,
+            @RequestParam(required = false) Long brandId,
+            @RequestParam(value = "product-images", required = false) List<MultipartFile> productImages,
             Model model) {
         try {
+            if (brandId == null) {
+                model.addAttribute("error", "Please select a brand.");
+                model.addAttribute("product", null);
+                model.addAttribute("categories", categoryService.getAllCategories());
+                model.addAttribute("brands", brandService.getAllBrands());
+                model.addAttribute("pageTitle", "Create Product");
+                return "product-form";
+            }
             AddProductRequest request = new AddProductRequest();
             request.setName(name);
             request.setPrice(price);
@@ -452,7 +595,15 @@ public class PageController {
             request.setHowToUse(howToUse != null ? howToUse : "");
             request.setBrandId(brandId);
 
-            productService.addProduct(request);
+            Product created = productService.addProduct(request);
+            if (productImages != null && !productImages.isEmpty()) {
+                List<MultipartFile> validFiles = productImages.stream()
+                        .filter(f -> f != null && !f.isEmpty())
+                        .toList();
+                if (!validFiles.isEmpty()) {
+                    imageService.saveImages(created.getId(), validFiles);
+                }
+            }
             return "redirect:/views/products?success=Product created successfully";
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create product: " + e.getMessage());
@@ -473,7 +624,7 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String editProductPage(@PathVariable Long productId, Model model) {
         try {
-            Product product = productService.getProductById(productId);
+            Product product = productService.getProductByIdWithDetails(productId);
             List<Category> categories = categoryService.getAllCategories();
             List<com.project.skin_me.model.Brand> brands = brandService.getAllBrands();
             model.addAttribute("product", product);
@@ -496,10 +647,19 @@ public class PageController {
             @RequestParam int inventory,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String howToUse,
-            @RequestParam Long brandId,
+            @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) String status,
             Model model) {
         try {
+            if (brandId == null) {
+                model.addAttribute("error", "Please select a brand.");
+                Product product = productService.getProductById(productId);
+                model.addAttribute("product", product);
+                model.addAttribute("categories", categoryService.getAllCategories());
+                model.addAttribute("brands", brandService.getAllBrands());
+                model.addAttribute("pageTitle", "Edit Product");
+                return "product-form";
+            }
             ProductUpdateRequest request = new ProductUpdateRequest();
             request.setName(name);
             request.setPrice(price);
@@ -564,7 +724,7 @@ public class PageController {
     @PreAuthorize("isAuthenticated()")
     public String getProductByIdView(@PathVariable Long productId, Model model) {
         try {
-            Product product = productService.getProductById(productId);
+            Product product = productService.getProductByIdWithDetails(productId);
             List<Category> categories = categoryService.getAllCategories();
             model.addAttribute("product", product);
             model.addAttribute("categories", categories);
@@ -608,7 +768,7 @@ public class PageController {
     @GetMapping("/views/products/product-details")
     public String getProductDetailsPage(@RequestParam Long productId, Model model) {
         try {
-            Product product = productService.getProductById(productId);
+            Product product = productService.getProductByIdWithDetails(productId);
             model.addAttribute("product", product);
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load product details: " + e.getMessage());

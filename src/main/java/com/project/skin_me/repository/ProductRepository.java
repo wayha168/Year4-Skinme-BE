@@ -1,6 +1,7 @@
 package com.project.skin_me.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.project.skin_me.enums.ProductStatus;
 import com.project.skin_me.model.Product;
@@ -44,9 +45,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH p.category")
     List<Product> findAllWithCategory();
 
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH p.category c LEFT JOIN FETCH p.images")
+    List<Product> findAllWithCategoryAndImages();
+
     @Query("SELECT DISTINCT p FROM Product p JOIN FETCH p.brand INNER JOIN FETCH p.category c WHERE c.name = :categoryName")
     List<Product> findByCategoryNameWithCategory(String categoryName);
 
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category c LEFT JOIN FETCH p.brand WHERE c.id = :categoryId")
     List<Product> findByCategoryIdWithCategory(@Param("categoryId") Long categoryId);
+
+    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.brand b LEFT JOIN FETCH p.category c LEFT JOIN FETCH p.images WHERE p.id = :id")
+    Optional<Product> findByIdWithBrandAndImages(@Param("id") Long id);
 }

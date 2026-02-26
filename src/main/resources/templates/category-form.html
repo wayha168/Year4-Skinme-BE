@@ -330,25 +330,44 @@
           previewImg.src = '';
         }
 
-        // Handle form submission - convert image to data URL if file is selected
+        // Handle form submission - upload image first if file is selected, then submit with URL
         document.querySelectorAll('form').forEach(form => {
           form.addEventListener('submit', function(e) {
             const imageUrlInput = document.getElementById('image');
-            const fileInput = document.getElementById('category-image-upload');
-            
-            // If file is selected but no URL, convert file to data URL
-            if (selectedImageFile && !imageUrlInput.value) {
-              const reader = new FileReader();
-              reader.onload = function(event) {
-                imageUrlInput.value = event.target.result;
-                // Submit form after setting the data URL
-                form.submit();
-              };
-              reader.readAsDataURL(selectedImageFile);
-              e.preventDefault(); // Prevent default submission
+            if (!selectedImageFile || imageUrlInput.value) {
+              // No file selected or URL already set (manual URL or already uploaded)
+              return;
             }
-            // If URL is provided, submit normally
-            // If neither file nor URL, submit normally (image is optional)
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+            }
+            const formData = new FormData();
+            formData.append('file', selectedImageFile);
+            fetch(API_PREFIX + '/admin/category-image/upload', {
+              method: 'POST',
+              body: formData,
+              credentials: 'include'
+            })
+              .then(function(r) { return r.json(); })
+              .then(function(res) {
+                if (res.data && res.data.url) {
+                  imageUrlInput.value = res.data.url;
+                  imageUrlInput.removeAttribute('type');
+                  imageUrlInput.setAttribute('type', 'text');
+                  form.submit();
+                } else {
+                  alert(res.message || 'Upload failed');
+                  if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHtml; }
+                }
+              })
+              .catch(function(err) {
+                alert('Upload failed: ' + (err.message || 'Unknown error'));
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHtml; }
+              });
           });
         });
       </script>

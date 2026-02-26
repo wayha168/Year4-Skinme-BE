@@ -31,7 +31,9 @@ public class Category {
     
     @Column(columnDefinition = "TEXT")
     private String description;
-    
+
+    /** Image URL or base64 data URL; use LONGTEXT to support inline base64 images. */
+    @Column(columnDefinition = "LONGTEXT")
     private String image;
     private String link;
 

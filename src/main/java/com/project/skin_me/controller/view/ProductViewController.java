@@ -44,7 +44,7 @@ public class ProductViewController {
     @PreAuthorize("isAuthenticated()")
     public String getProductById(@PathVariable Long productId, Model model) {
         try {
-            Product product = productService.getProductById(productId);
+            Product product = productService.getProductByIdWithDetails(productId);
             List<Category> categories = categoryService.getAllCategories();
 
             model.addAttribute("product", product);

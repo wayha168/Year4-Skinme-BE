@@ -1,0 +1,143 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Brands Management'}">Brands Management</title>
+  </head>
+  <body>
+  <th:block th:fragment="main">
+  <div class="main-content">
+    <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-tag'"></div>
+
+    <div class="container-fluid px-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0" style="font-weight: 700; color: #111827;">
+          <i class="bi bi-tag"></i> Brands
+        </h2>
+        <a th:href="@{/views/brands/create}" class="btn btn-primary">
+          <i class="bi bi-plus-circle"></i> Create New Brand
+        </a>
+      </div>
+
+      <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div th:if="${#lists.isEmpty(brands)}" class="card mt-4">
+        <div class="empty-state">
+          <i class="bi bi-inbox"></i>
+          <h5>No Brands Found</h5>
+          <p>Create a category first, then add brands under it.</p>
+          <a th:href="@{/views/categories}" class="btn btn-outline-primary btn-sm mt-2">Manage Categories</a>
+        </div>
+      </div>
+
+      <div th:unless="${#lists.isEmpty(brands)}" class="data-table mt-4">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead>
+              <tr>
+                <th style="width: 60px;">#</th>
+                <th><i class="bi bi-tag"></i> Name</th>
+                <th><i class="bi bi-tags"></i> Category</th>
+                <th><i class="bi bi-image"></i> Image</th>
+                <th style="width: 100px;"><i class="bi bi-box-seam"></i> Products</th>
+                <th style="width: 120px;"><i class="bi bi-gear"></i> Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr th:each="brand : ${brands}">
+                <td class="text-muted fw-semibold" th:text="${brand.id}">1</td>
+                <td>
+                  <div class="fw-semibold text-dark" th:text="${brand.name}">Brand Name</div>
+                </td>
+                <td>
+                  <span class="text-muted" th:text="${brand.category != null ? brand.category.name : '-'}">-</span>
+                </td>
+                <td>
+                  <div th:if="${brand.imageUrl != null and !brand.imageUrl.isEmpty()}">
+                    <img th:src="${brand.imageUrl}"
+                         alt="Brand logo"
+                         style="width: 50px; height: 50px; object-fit: contain; border-radius: 4px; border: 2px solid #ddd;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />
+                    <span style="display: none; color: #6c757d; font-size: 0.875rem;">No image</span>
+                  </div>
+                  <span th:if="${brand.imageUrl == null or brand.imageUrl.isEmpty()}" class="text-muted" style="font-size: 0.875rem;">-</span>
+                </td>
+                <td>
+                  <span class="text-muted" th:text="${brand.products != null ? brand.products.size() : 0}">0</span>
+                  <small class="text-muted d-block">products</small>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <a th:href="'/views/brands/' + ${brand.id} + '/edit'"
+                       class="btn-action"
+                       title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <button type="button"
+                            class="btn-action"
+                            title="Delete"
+                            th:data-brand-name="${brand.name}"
+                            th:data-brand-id="${brand.id}"
+                            onclick="deleteBrand(this)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div th:if="${totalPages > 1}" th:replace="~{components/pagination :: pagination('/views/brands', ${currentPage}, ${totalPages}, ${hasNext}, ${hasPrev})}"></div>
+      </div>
+    </div>
+  </div>
+  </th:block>
+  <th:block th:fragment="script">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:inline="javascript">
+      function deleteBrand(btn) {
+        var id = btn.getAttribute('data-brand-id');
+        var name = btn.getAttribute('data-brand-name') || 'this brand';
+        if (confirm('Are you sure you want to delete brand "' + name + '"? Products under this brand may be affected.')) {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/views/brands/' + id + '/delete';
+          const csrfToken = document.querySelector('meta[name="_csrf"]');
+          const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+          if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
+            csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
+            form.appendChild(csrfInput);
+          }
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
+    </script>
+  </th:block>
+</html>

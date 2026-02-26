@@ -106,10 +106,10 @@
                   <td class="text-muted fw-semibold" th:text="${product.id}">1</td>
                   <td>
                     <div th:if="${product.images != null and !product.images.isEmpty()}">
-                      <img th:src="${product.images[0].downloadUrl}"
+                      <img th:src="${(product.images[0].downloadUrl != null and !product.images[0].downloadUrl.isEmpty()) ? product.images[0].downloadUrl : ((api.prefix != null and api.prefix.startsWith('/')) ? api.prefix : '/' + api.prefix) + '/images/image/download/' + product.images[0].imageId}"
                            alt="Product image"
                            style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 2px solid #ddd; cursor: pointer;"
-                           th:attr="data-image-url=${product.images[0].downloadUrl}"
+                           th:attr="data-image-url=${(product.images[0].downloadUrl != null and !product.images[0].downloadUrl.isEmpty()) ? product.images[0].downloadUrl : ((api.prefix != null and api.prefix.startsWith('/')) ? api.prefix : '/' + api.prefix) + '/images/image/download/' + product.images[0].imageId}"
                            onclick="window.open(this.getAttribute('data-image-url'), '_blank')"
                            onerror="this.style.display='none'; var n=this.nextElementSibling; if(n) n.style.display='block';" />
                       <span style="display: none; color: #6c757d; font-size: 0.875rem;">No image</span>

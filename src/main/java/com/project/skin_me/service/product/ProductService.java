@@ -93,6 +93,11 @@ public class ProductService implements IProductService {
         return productRepository.findAllWithCategory(); // Optimized: fetch category to avoid N+1
     }
 
+    @Override
+    public List<Product> getAllProductsWithImages() {
+        return productRepository.findAllWithCategoryAndImages();
+    }
+
     public List<Product> getAllProductsWithoutImages() {
         return productRepository.findAll();
     }
@@ -100,6 +105,12 @@ public class ProductService implements IProductService {
     @Override
     public Product getProductById(Long productId) {
         return productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not Success!"));
+    }
+
+    @Override
+    public Product getProductByIdWithDetails(Long productId) {
+        return productRepository.findByIdWithBrandAndImages(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not Success!"));
     }
 
