@@ -505,13 +505,18 @@ public class PaymentController {
     public ResponseEntity<ApiResponse> generateKhqr(
             @RequestParam Long orderId,
             @RequestParam Double amount,
-            @RequestParam(defaultValue = "USD") String currency) {
+            @RequestParam(defaultValue = "USD") String currency,
+            @RequestParam(defaultValue = "aba") String gateway) {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            // Support both currencies: USD and Khmer Riel (KHR)
+            if (currency == null || (!"USD".equalsIgnoreCase(currency) && !"KHR".equalsIgnoreCase(currency))) {
+                currency = "USD";
+            }
 
             BigDecimal amountDecimal = BigDecimal.valueOf(amount);
-            Map<String, String> khqrData = khqrService.generateKhqrForOrder(amountDecimal, currency);
+            Map<String, String> khqrData = khqrService.generateKhqrForOrder(amountDecimal, currency, gateway);
 
             // Create or update payment record for KHQR
             Payment payment = paymentRepository.findByOrder(order).orElse(null);
@@ -537,6 +542,8 @@ public class PaymentController {
             responseData.put("qrImage", khqrData.get("qrImage"));
             responseData.put("amount", khqrData.get("amount"));
             responseData.put("currency", khqrData.get("currency"));
+            responseData.put("merchantName", khqrData.get("merchantName"));
+            responseData.put("gateway", khqrData.get("gateway"));
             responseData.put("orderId", orderId);
             responseData.put("paymentId", payment.getId());
 
@@ -561,19 +568,20 @@ public class PaymentController {
                         .body(new ApiResponse("Payment method is not KHQR", null));
             }
 
-            // In a real implementation, you would verify the payment with the bank/merchant
-            // API
-            // For now, we'll mark it as pending and require manual verification
-            // payment.setStatus(OrderStatus.SUCCESS);
-            // payment.setTransactionTime(LocalDateTime.now());
-            // paymentRepository.save(payment);
-            // orderService.confirmOrderPayment(order);
+            // Update and persist payment record so it appears in user payment table with latest state
+            payment.setTransactionTime(LocalDateTime.now());
+            payment.setMessage("User confirmed payment; pending bank verification");
+            paymentRepository.save(payment);
+
+            // In production you would verify with bank/KHQR API and then:
+            // payment.setStatus(OrderStatus.SUCCESS); orderService.confirmOrderPayment(order);
 
             Map<String, Object> data = new HashMap<>();
             data.put("orderId", orderId);
-            data.put("status", "pending_verification");
+            data.put("paymentId", payment.getId());
+            data.put("status", payment.getStatus().toString());
             data.put("message",
-                    "Payment verification pending. Please contact support with your transaction reference.");
+                    "Payment verification initiated. Your payment record has been updated.");
 
             return ResponseEntity.ok(new ApiResponse("KHQR payment verification initiated", data));
         } catch (Exception e) {

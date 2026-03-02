@@ -24,6 +24,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
@@ -97,7 +98,6 @@ public class SecurityConfig {
         public SecurityFilterChain securityFilterChain(HttpSecurity http, RequestCache requestCache) throws Exception {
                 http
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                                .exceptionHandling(e -> e.authenticationEntryPoint(authenticationEntryPoint()))
                                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                                 .requestCache(cache -> cache.requestCache(requestCache))
                                 .authorizeHttpRequests(auth -> auth
@@ -106,26 +106,33 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(ADMIN_URLS).hasRole("ADMIN")
                                                 .requestMatchers(SECURED_API).authenticated()
-                                                .requestMatchers("/dashboard", "/views/**").authenticated()
+                                                .requestMatchers("/dashboard", "/views/**").hasRole("ADMIN")
                                                 .anyRequest().authenticated())
+                                .exceptionHandling(e -> e
+                                                .authenticationEntryPoint(authenticationEntryPoint())
+                                                .accessDeniedHandler(accessDeniedHandler()))
                                 .formLogin(form -> form
                                                 .loginPage("/login-page")
                                                 .loginProcessingUrl("/login")
                                                 .defaultSuccessUrl("/dashboard", true)
                                                 .successHandler((request, response, authentication) -> {
+                                                        boolean isAdmin = authentication.getAuthorities().stream()
+                                                                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+                                                        if (!isAdmin) {
+                                                                request.getSession().invalidate();
+                                                                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                                                                response.sendRedirect(request.getContextPath() + "/login-page?error=access_denied");
+                                                                return;
+                                                        }
                                                         // Check if there's a saved request (original URL before login)
                                                         SavedRequest savedRequest = requestCache.getRequest(request, response);
-                                                        
                                                         if (savedRequest != null) {
-                                                                // Redirect to the originally requested page
                                                                 String redirectUrl = savedRequest.getRedirectUrl();
                                                                 if (redirectUrl != null && isValidRedirectUrl(redirectUrl)) {
                                                                         response.sendRedirect(redirectUrl);
                                                                         return;
                                                                 }
                                                         }
-                                                        
-                                                        // Default redirect to dashboard/homepage
                                                         response.sendRedirect("/dashboard");
                                                 })
                                                 .failureUrl("/login-page?error=true")
@@ -186,6 +193,21 @@ public class SecurityConfig {
                                 new LoginUrlAuthenticationEntryPoint("/login-page")
                                                 .commence(request, response, authException);
                         }
+                };
+        }
+
+        /**
+         * When an authenticated user without ROLE_ADMIN accesses /dashboard or /views/**,
+         * clear session and redirect to login with error so they see "Invalid credentials" message.
+         */
+        @Bean
+        public AccessDeniedHandler accessDeniedHandler() {
+                return (request, response, accessDeniedException) -> {
+                        if (request.getSession(false) != null) {
+                                request.getSession().invalidate();
+                        }
+                        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                        response.sendRedirect(request.getContextPath() + "/login-page?error=access_denied");
                 };
         }
 

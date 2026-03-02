@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Component
@@ -33,6 +34,7 @@ public class UserActivityFilter extends OncePerRequestFilter {
             "/api/v1/auth/logout",
             "/api/v1/auth/signup",
             "/login-page",
+            "/logout",
             "/signup",
             "/reset-password",
             "/css",
@@ -61,19 +63,21 @@ public class UserActivityFilter extends OncePerRequestFilter {
                 ShopUserDetails userDetails = (ShopUserDetails) authentication.getPrincipal();
                 Long userId = userDetails.getId();
                 
-                // Update user's last activity timestamp and IP address
+                // Real-time online: if user is logged in and viewing the site, mark online and refresh last activity
                 userRepository.findById(userId).ifPresent(user -> {
                     LocalDateTime now = LocalDateTime.now();
+                    LocalDateTime previousActivity = user.getLastActivity();
                     String ipAddress = getClientIpAddress(request);
-                    
-                    // Only update if user is marked as online
-                    if (user.isOnline()) {
-                        user.setLastActivity(now);
-                        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equals(ipAddress)) {
-                            user.setLastIpAddress(ipAddress);
-                        }
+                    user.setIsOnline(true);
+                    user.setLastActivity(now);
+                    if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equals(ipAddress)) {
+                        user.setLastIpAddress(ipAddress);
+                    }
+                    // Persist at most once per minute to avoid excessive DB writes
+                    boolean shouldSave = previousActivity == null || ChronoUnit.MINUTES.between(previousActivity, now) >= 1;
+                    if (shouldSave) {
                         userRepository.save(user);
-                        logger.debug("Updated activity for user ID: {} from IP: {}", userId, ipAddress);
+                        logger.debug("Updated activity for user ID: {} from IP: {} (online)", userId, ipAddress);
                     }
                 });
             }

@@ -25,8 +25,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 @Service
 @RequiredArgsConstructor
@@ -330,5 +336,40 @@ public class ProductService implements IProductService {
                     .append(p.getTotalOrders()).append("\n");
         }
         return csv.toString();
+    }
+
+    @Override
+    public byte[] toExcel(List<Product> products) {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Products");
+            String[] headers = {"ID", "Name", "Brand", "Price", "Type", "Inventory", "Status", "Category", "Total Orders"};
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+            int rowNum = 1;
+            for (Product p : products) {
+                Row row = sheet.createRow(rowNum++);
+                String brandName = p.getBrand() != null ? p.getBrand().getName() : "";
+                String categoryName = p.getCategory() != null ? p.getCategory().getName() : "";
+                row.createCell(0).setCellValue(p.getId() != null ? p.getId() : 0);
+                row.createCell(1).setCellValue(p.getName() != null ? p.getName() : "");
+                row.createCell(2).setCellValue(brandName);
+                row.createCell(3).setCellValue(p.getPrice() != null ? p.getPrice().doubleValue() : 0);
+                row.createCell(4).setCellValue(p.getProductType() != null ? p.getProductType() : "");
+                row.createCell(5).setCellValue(p.getInventory());
+                row.createCell(6).setCellValue(p.getStatus() != null ? p.getStatus().name() : "");
+                row.createCell(7).setCellValue(categoryName);
+                row.createCell(8).setCellValue(p.getTotalOrders());
+            }
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Excel export failed", e);
+        }
     }
 }

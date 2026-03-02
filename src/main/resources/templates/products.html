@@ -98,6 +98,11 @@
                   <i class="bi bi-file-earmark-spreadsheet"></i> Export as CSV (all products)
                 </a>
               </li>
+              <li>
+                <a class="dropdown-item" th:href="${(api.prefix.startsWith('/') ? api.prefix : '/' + api.prefix) + '/admin/products/export-xlsx'}" download="products.xlsx">
+                  <i class="bi bi-file-earmark-excel"></i> Export as Excel (.xlsx) (all products)
+                </a>
+              </li>
             </ul>
           </div>
           <button type="button" class="btn btn-outline-secondary no-print" id="btnPrintProducts" title="Print product table">
@@ -125,20 +130,28 @@
       <div class="filter-section">
         <h6 class="mb-3"><i class="bi bi-funnel"></i> Filter & Search</h6>
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <input type="text" class="form-control" placeholder="Search products..." id="searchInput" />
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <select class="form-select" id="categoryFilter">
               <option value="">All Categories</option>
               <option th:each="cat : ${categories}" th:value="${cat.id}" th:text="${cat.name}"></option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <select class="form-select" id="statusFilter">
               <option value="">All Status</option>
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select class="form-select" id="priceFilter">
+              <option value="">All Prices</option>
+              <option value="10">$0 – $9.99</option>
+              <option value="20">$10 – $19.99</option>
+              <option value="30">$20 – $29.99</option>
             </select>
           </div>
         </div>
@@ -172,7 +185,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr th:each="product : ${products}" th:data-category-id="${product.category != null ? product.category.id : ''}" th:data-status="${product.status != null ? product.status : ''}">
+              <tr th:each="product : ${products}" th:data-category-id="${product.category != null ? product.category.id : ''}" th:data-status="${product.status != null ? product.status : ''}" th:data-price="${product.price != null ? product.price : 0}">
                 <td class="text-muted fw-semibold" th:text="${product.id}">1</td>
                 <td>
                   <div th:if="${product.images != null and !product.images.isEmpty()}">
@@ -297,6 +310,9 @@
         const searchTerm = (document.getElementById("searchInput") && document.getElementById("searchInput").value) ? document.getElementById("searchInput").value.toLowerCase() : "";
         const categoryVal = document.getElementById("categoryFilter") ? document.getElementById("categoryFilter").value : "";
         const statusVal = document.getElementById("statusFilter") ? document.getElementById("statusFilter").value : "";
+        const priceFilterEl = document.getElementById("priceFilter");
+        const priceRangeVal = priceFilterEl ? priceFilterEl.value : "";
+        const rangeMax = priceRangeVal === "" ? null : parseFloat(priceRangeVal);
         const rows = document.querySelectorAll(".product-table tbody tr");
         rows.forEach((row) => {
           const text = row.textContent.toLowerCase();
@@ -305,7 +321,14 @@
           const matchCategory = !categoryVal || rowCategoryId === categoryVal;
           const rowStatus = (row.getAttribute("data-status") || "").toUpperCase();
           const matchStatus = !statusVal || rowStatus === statusVal;
-          row.style.display = (matchSearch && matchCategory && matchStatus) ? "" : "none";
+          const rowPrice = parseFloat(row.getAttribute("data-price") || "0");
+          let matchPrice = true;
+          if (rangeMax != null) {
+            if (rangeMax === 10) matchPrice = rowPrice < 10;
+            else if (rangeMax === 20) matchPrice = rowPrice >= 10 && rowPrice < 20;
+            else if (rangeMax === 30) matchPrice = rowPrice >= 20 && rowPrice < 30;
+          }
+          row.style.display = (matchSearch && matchCategory && matchStatus && matchPrice) ? "" : "none";
         });
       }
 
@@ -321,6 +344,10 @@
         const statusFilter = document.getElementById("statusFilter");
         if (statusFilter) {
           statusFilter.addEventListener("change", applyProductFilters);
+        }
+        const priceFilter = document.getElementById("priceFilter");
+        if (priceFilter) {
+          priceFilter.addEventListener("change", applyProductFilters);
         }
 
         var btnPrint = document.getElementById("btnPrintProducts");

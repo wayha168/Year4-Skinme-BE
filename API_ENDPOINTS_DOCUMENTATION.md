@@ -33,6 +33,87 @@ All API endpoints return `ApiResponse` format with the following structure:
 }
 ```
 
+---
+
+## Postman & Frontend Integration
+
+### Base URL
+- Local: `http://localhost:8080`
+- API prefix: `/api/v1` (all endpoints below are under this prefix)
+
+### Authentication (for secured endpoints)
+Most payment, order, cart, and delivery endpoints require a JWT. After **Login**, use the token from the response:
+
+1. **Login** (no auth): `POST /api/v1/auth/login`  
+   Body: `{ "email": "user@example.com", "password": "your_password" }`  
+   Response: `{ "message": "...", "data": { "id": 1, "jwtToken": "<token>", "roles": ["ROLE_USER"] } }`
+
+2. **Use token in requests**:  
+   Header: `Authorization: Bearer <jwtToken>`
+
+### Postman collection
+Import the collection from the repo to test all endpoints in Postman:
+
+- **File**: `postman/Skinme_API.postman_collection.json`
+- **Collection variables**: `baseUrl` (e.g. `http://localhost:8080`), `token` (set automatically after **Login** if you use the collection’s Login request).
+
+### Frontend examples (JavaScript fetch)
+
+**Login and store token:**
+```javascript
+const res = await fetch('http://localhost:8080/api/v1/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'user@example.com', password: 'your_password' })
+});
+const { data } = await res.json();
+const token = data.jwtToken; // use in subsequent requests
+```
+
+**Generate KHQR (authenticated). Use `gateway=aba` for ABA Mobile or `gateway=khqr` for generic KHQR:**
+```javascript
+const orderId = 1, amount = 50, currency = 'USD', gateway = 'aba';
+const res = await fetch(
+  `http://localhost:8080/api/v1/payment/generate-khqr?orderId=${orderId}&amount=${amount}&currency=${currency}&gateway=${gateway}`,
+  { headers: { 'Authorization': `Bearer ${token}` } }
+);
+const { data } = await res.json();
+// data.qrImage (base64), data.qrData, data.merchantName, data.amount, data.currency
+```
+
+**Create payment intent (Stripe):**
+```javascript
+const res = await fetch('http://localhost:8080/api/v1/payment/create-payment-intent', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  body: JSON.stringify({ orderId: 1, amountCents: 5000, cardholderName: 'John Doe' })
+});
+const { data } = await res.json();
+// data.clientSecret for Stripe.js
+```
+
+**Update delivery address:**
+```javascript
+await fetch(`http://localhost:8080/api/v1/delivery/address/${orderId}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  body: JSON.stringify({
+    deliveryStreet: '123 Main St',
+    deliveryCity: 'Phnom Penh',
+    deliveryProvince: 'Phnom Penh',
+    deliveryPostalCode: '12000',
+    deliveryLatitude: 11.5564,
+    deliveryLongitude: 104.9282,
+    deliveryAddressFull: '123 Main St, Phnom Penh, Cambodia'
+  })
+});
+```
+
+**Public endpoints (no auth):**  
+`/api/v1/auth/login`, `/api/v1/auth/signup`, `/api/v1/products/**`, `/api/v1/categories/**`, `/api/v1/payment/verify-success`, `/api/v1/payment/webhook`
+
+---
+
 ## Delivery Address Management API
 
 ### Base URL: `/api/v1/delivery`
@@ -174,7 +255,9 @@ All API endpoints return `ApiResponse` format with the following structure:
 - **Response**: `ApiResponse` with payment status
 
 #### 4. Generate KHQR QR Code
-- **Endpoint**: `GET /api/v1/payment/generate-khqr?orderId={orderId}&amount={amount}&currency={currency}`
+- **Endpoint**: `GET /api/v1/payment/generate-khqr?orderId={orderId}&amount={amount}&currency={currency}&gateway={gateway}`
+- **Query params**: `orderId` (long), `amount` (number), `currency` (USD or KHR), `gateway` (optional: `aba` for ABA Mobile, `khqr` for generic KHQR; default `aba`). For KHR, pass amount in Riel.
+- **Auth**: Bearer token required.
 - **Response**: 
   ```json
   {
@@ -184,6 +267,8 @@ All API endpoints return `ApiResponse` format with the following structure:
       "qrImage": "data:image/png;base64,...",
       "amount": "100.00",
       "currency": "USD",
+      "merchantName": "SkinMe Store",
+      "gateway": "aba",
       "orderId": 1,
       "paymentId": 1
     }

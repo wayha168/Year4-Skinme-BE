@@ -33,6 +33,15 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
            countQuery = "SELECT COUNT(p) FROM Payment p WHERE p.order.user.id = :userId")
     Page<Payment> findByOrderUserId(@Param("userId") Long userId, Pageable pageable);
 
+    /** User's payments with order and user eagerly fetched (for display without LazyInitializationException). */
+    @Query("SELECT DISTINCT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.user u WHERE u.id = :userId ORDER BY p.id DESC")
+    List<Payment> findByOrderUserIdWithOrderAndUser(@Param("userId") Long userId);
+
+    /** User's payments with order and user eagerly fetched, paginated. */
+    @Query(value = "SELECT DISTINCT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.user u WHERE u.id = :userId",
+           countQuery = "SELECT COUNT(p) FROM Payment p WHERE p.order.user.id = :userId")
+    Page<Payment> findByOrderUserIdWithOrderAndUser(@Param("userId") Long userId, Pageable pageable);
+
     long countByStatus(OrderStatus status);
 
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p")
@@ -43,4 +52,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     
     @Query("SELECT p FROM Payment p WHERE p.order = :order")
     Optional<Payment> findByOrder(@Param("order") Order order);
+
+    @Query("SELECT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.user WHERE p.id = :id")
+    Optional<Payment> findByIdWithOrderAndUser(@Param("id") Long id);
 }

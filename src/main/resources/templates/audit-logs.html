@@ -238,8 +238,9 @@
                     <div class="table-actions">
                       <button 
                         class="btn-action" 
-                        th:attr="onclick='viewActivityDetails(' + ${activity.id} + ')'"
-                        title="View Details"
+                        title="View user details"
+                        th:attr="data-user-id=${activity.user.id}, data-activity-type=${activity.activityType}, data-activity-details=${activity.details}, data-activity-timestamp=${activity.timestamp != null ? #temporals.format(activity.timestamp, 'MMM dd, yyyy HH:mm') : 'N/A'}"
+                        onclick="viewActivityDetails(this)"
                       >
                         <i class="bi bi-eye"></i>
                       </button>
@@ -256,33 +257,128 @@
         </div>
       </div>
     </div>
+
+    <!-- View Activity / User Details Modal -->
+    <div class="modal fade" id="viewActivityUserModal" tabindex="-1" aria-labelledby="viewActivityUserModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="viewActivityUserModalLabel"><i class="bi bi-person-badge"></i> Activity &amp; User Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="viewActivitySection" class="mb-4">
+              <h6 class="text-muted border-bottom pb-2"><i class="bi bi-activity"></i> Activity</h6>
+              <table class="table table-sm table-bordered">
+                <tbody>
+                  <tr><th style="width: 140px;">Type</th><td id="modalActivityType">-</td></tr>
+                  <tr><th>Details</th><td id="modalActivityDetails">-</td></tr>
+                  <tr><th>Timestamp</th><td id="modalActivityTimestamp">-</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="viewUserSection">
+              <h6 class="text-muted border-bottom pb-2"><i class="bi bi-person"></i> User Data</h6>
+              <div id="viewUserLoading" class="text-center py-4 text-muted" style="display: none;">
+                <div class="spinner-border spinner-border-sm" role="status"></div> Loading user...
+              </div>
+              <div id="viewUserError" class="alert alert-danger py-2" style="display: none;"></div>
+              <div class="table-responsive" id="viewUserTableWrap" style="display: none;">
+                <table class="table table-bordered table-hover mb-0">
+                  <thead class="table-light">
+                    <tr><th style="width: 180px;">Field</th><th>Value</th></tr>
+                  </thead>
+                  <tbody id="viewUserTableBody">
+                    <tr><td>ID</td><td id="udId">-</td></tr>
+                    <tr><td>First Name</td><td id="udFirstName">-</td></tr>
+                    <tr><td>Last Name</td><td id="udLastName">-</td></tr>
+                    <tr><td>Email</td><td id="udEmail">-</td></tr>
+                    <tr><td>Registration Date</td><td id="udRegistrationDate">-</td></tr>
+                    <tr><td>Last Login</td><td id="udLastLogin">-</td></tr>
+                    <tr><td>Roles</td><td id="udRoles">-</td></tr>
+                    <tr><td>Enabled</td><td id="udEnabled">-</td></tr>
+                    <tr><td>Online</td><td id="udOnline">-</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <a id="viewUserLinkToProfile" href="#" class="btn btn-primary" style="display: none;"><i class="bi bi-person"></i> Open User Profile</a>
+          </div>
+        </div>
+      </div>
+    </div>
     </th:block>
     <th:block th:fragment="script">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script>
+        const API_PREFIX = '/api/v1';
         function applyFilters() {
           const userId = document.getElementById('userFilter').value;
           const activityType = document.getElementById('activityTypeFilter').value;
-          
           let url = '/views/audit-logs?';
           if (userId) url += 'userId=' + userId + '&';
           if (activityType) url += 'activityType=' + activityType;
-          
-          if (url.endsWith('&') || url.endsWith('?')) {
-            url = url.slice(0, -1);
-          }
-          
+          if (url.endsWith('&') || url.endsWith('?')) url = url.slice(0, -1);
           window.location.href = url;
         }
-        
         function clearFilters() {
           window.location.href = '/views/audit-logs';
         }
-        
-        function viewActivityDetails(activityId) {
-          // Show activity details in a modal or navigate to details page
-          showToast('Viewing activity details...', 'info');
-          // You can implement a modal here or navigate to a details page
+        function viewActivityDetails(btn) {
+          const userId = btn.getAttribute('data-user-id');
+          const activityType = btn.getAttribute('data-activity-type') || '-';
+          const activityDetails = btn.getAttribute('data-activity-details') || 'N/A';
+          const activityTimestamp = btn.getAttribute('data-activity-timestamp') || '-';
+          document.getElementById('modalActivityType').textContent = activityType;
+          document.getElementById('modalActivityDetails').textContent = activityDetails;
+          document.getElementById('modalActivityTimestamp').textContent = activityTimestamp;
+          var wrap = document.getElementById('viewUserTableWrap');
+          var loading = document.getElementById('viewUserLoading');
+          var err = document.getElementById('viewUserError');
+          var link = document.getElementById('viewUserLinkToProfile');
+          wrap.style.display = 'none';
+          link.style.display = 'none';
+          err.style.display = 'none';
+          err.textContent = '';
+          if (!userId) {
+            err.textContent = 'User ID not available.';
+            err.style.display = 'block';
+            var modal = new bootstrap.Modal(document.getElementById('viewActivityUserModal'));
+            modal.show();
+            return;
+          }
+          loading.style.display = 'block';
+          link.href = '/views/users/' + userId;
+          var modal = new bootstrap.Modal(document.getElementById('viewActivityUserModal'));
+          modal.show();
+          fetch(API_PREFIX + '/users/' + userId + '/user', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('Failed to load user')); })
+            .then(function(res) {
+              loading.style.display = 'none';
+              var u = res && res.data;
+              if (!u) { err.textContent = 'No user data.'; err.style.display = 'block'; return; }
+              function fmt(d) { return d ? (typeof d === 'string' ? d : (d.date ? d.date + (d.time ? ' ' + d.time : '') : JSON.stringify(d))) : '-'; }
+              function rolesStr(s) { if (!s) return '-'; return Array.isArray(s) ? s.join(', ') : (typeof s === 'object' ? Object.keys(s).join(', ') : String(s)); }
+              document.getElementById('udId').textContent = u.id != null ? u.id : '-';
+              document.getElementById('udFirstName').textContent = u.firstName != null ? u.firstName : '-';
+              document.getElementById('udLastName').textContent = u.lastName != null ? u.lastName : '-';
+              document.getElementById('udEmail').textContent = u.email != null ? u.email : '-';
+              document.getElementById('udRegistrationDate').textContent = u.registrationDate != null ? u.registrationDate : '-';
+              document.getElementById('udLastLogin').textContent = u.lastLogin != null ? u.lastLogin : '-';
+              document.getElementById('udRoles').textContent = rolesStr(u.roles);
+              document.getElementById('udEnabled').textContent = u.enabled != null ? (u.enabled ? 'Yes' : 'No') : '-';
+              document.getElementById('udOnline').textContent = u.isOnline != null ? (u.isOnline ? 'Yes' : 'No') : '-';
+              wrap.style.display = 'block';
+              link.style.display = 'inline-block';
+            })
+            .catch(function(e) {
+              loading.style.display = 'none';
+              err.textContent = e.message || 'Could not load user.';
+              err.style.display = 'block';
+            });
         }
       </script>
     </th:block>

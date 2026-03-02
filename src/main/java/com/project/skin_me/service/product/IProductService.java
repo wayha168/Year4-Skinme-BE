@@ -60,6 +60,9 @@ public interface IProductService {
     /** Export all products as CSV (header + rows, proper escaping). */
     String toCsv(List<Product> products);
 
+    /** Export all products as Excel (.xlsx). */
+    byte[] toExcel(List<Product> products);
+
     List<Product> getAllProductsWithoutImages();
 
 }

@@ -68,6 +68,87 @@
         .payment-method-option input[type="radio"] {
           margin-right: 10px;
         }
+        /* KHQR / ABA Digital Standard design */
+        .khqr-card {
+          max-width: 340px;
+          margin: 20px auto 0;
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          border: 1px solid #e5e7eb;
+        }
+        .khqr-header {
+          background: #c41e3a;
+          color: #fff;
+          padding: 12px 16px;
+          font-weight: 700;
+          font-size: 1.1rem;
+          text-align: center;
+          letter-spacing: 0.02em;
+        }
+        .khqr-body {
+          padding: 20px 16px;
+          text-align: center;
+        }
+        .khqr-product-name {
+          font-size: 1rem;
+          color: #374151;
+          margin-bottom: 8px;
+          font-weight: 500;
+        }
+        .khqr-amount {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 16px;
+        }
+        .khqr-amount.usd { color: #059669; }
+        .khqr-amount.khr { color: #b91c1c; }
+        .khqr-qr-wrapper {
+          display: inline-block;
+          padding: 12px;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          margin-bottom: 16px;
+        }
+        .khqr-qr-wrapper img {
+          display: block;
+          width: 220px;
+          height: 220px;
+          border-radius: 4px;
+        }
+        .khqr-instruction {
+          font-size: 0.875rem;
+          color: #6b7280;
+          line-height: 1.4;
+          margin-bottom: 16px;
+        }
+        .khqr-instruction strong { color: #374151; }
+        .khqr-currency-tabs {
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          margin-bottom: 12px;
+        }
+        .khqr-currency-tabs button {
+          padding: 6px 14px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          background: #f9fafb;
+          font-size: 0.9rem;
+          cursor: pointer;
+          color: #4b5563;
+        }
+        .khqr-currency-tabs button.active {
+          background: #c41e3a;
+          color: #fff;
+          border-color: #c41e3a;
+        }
+        .khqr-currency-tabs button:hover:not(.active) {
+          background: #f3f4f6;
+        }
         .khqr-qr-container {
           text-align: center;
           padding: 20px;
@@ -173,11 +254,18 @@
               </label>
             </div>
 
+            <div class="payment-method-option" onclick="selectPaymentMethod('aba')">
+              <input type="radio" name="payment-method" id="payment-aba" value="aba" />
+              <label for="payment-aba" style="cursor: pointer;">
+                <strong><i class="bi bi-qr-code"></i> ABA Payment (ABA Mobile)</strong>
+                <p class="text-muted mb-0" style="font-size: 0.9rem;">Scan with ABA Mobile app</p>
+              </label>
+            </div>
             <div class="payment-method-option" onclick="selectPaymentMethod('khqr')">
               <input type="radio" name="payment-method" id="payment-khqr" value="khqr" />
               <label for="payment-khqr" style="cursor: pointer;">
-                <strong><i class="bi bi-qr-code"></i> KHQR Payment</strong>
-                <p class="text-muted mb-0" style="font-size: 0.9rem;">Scan QR code with your mobile banking app</p>
+                <strong><i class="bi bi-qr-code"></i> KHQR Payment (any bank)</strong>
+                <p class="text-muted mb-0" style="font-size: 0.9rem;">Scan with any KHQR-supported banking app</p>
               </label>
             </div>
 
@@ -210,20 +298,31 @@
               </form>
             </div>
 
-            <!-- KHQR Payment Section -->
+            <!-- KHQR / ABA Payment Section: USD and Khmer Riel -->
             <div id="khqr-payment-section" style="display: none;">
-              <div class="khqr-qr-container">
-                <h6 class="mb-3">Scan QR Code to Pay</h6>
-                <div id="khqr-qr-image-container">
-                  <p class="text-muted">Loading QR code...</p>
-                </div>
-                <p class="mt-3 text-muted" style="font-size: 0.9rem;">
-                  Scan this QR code with your mobile banking app (ABA, ACLEDA, etc.) to complete payment
-                </p>
-                <div class="mt-3">
-                  <button type="button" id="verify-khqr-payment" class="btn btn-success">
-                    <i class="bi bi-check-circle"></i> I've Completed Payment
-                  </button>
+              <p class="text-muted small mb-2">Choose currency: <strong>USD</strong> or <strong>Khmer Riel (៛)</strong></p>
+              <div class="khqr-currency-tabs">
+                <button type="button" id="khqr-currency-usd" class="active" aria-label="Pay in US Dollar">USD ($)</button>
+                <button type="button" id="khqr-currency-khr" aria-label="Pay in Khmer Riel">Khmer Riel (៛)</button>
+              </div>
+              <div id="khqr-card-container">
+                <div class="khqr-card">
+                  <div class="khqr-header" id="khqr-header-label">US Dollar (USD)</div>
+                  <div class="khqr-body">
+                    <div class="khqr-product-name" id="khqr-product-name">SkinMe Store</div>
+                    <div class="khqr-amount usd" id="khqr-amount-display">$ 0.00</div>
+                    <div class="khqr-qr-wrapper">
+                      <div id="khqr-qr-image-container">
+                        <p class="text-muted mb-0 py-4">Loading QR code...</p>
+                      </div>
+                    </div>
+                    <p class="khqr-instruction" id="khqr-instruction-text">
+                      Scan with <strong>ABA Mobile</strong> or any <strong>KHQR</strong> supported banking app
+                    </p>
+                    <button type="button" id="verify-khqr-payment" class="btn btn-success">
+                      <i class="bi bi-check-circle"></i> I've Completed Payment
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -376,7 +475,7 @@
           updateAddressFromLocation(position);
         }
 
-        // Payment method selection
+        // Payment method selection (stripe | aba | khqr)
         function selectPaymentMethod(method) {
           document.querySelectorAll('.payment-method-option').forEach(opt => {
             opt.classList.remove('selected');
@@ -388,35 +487,86 @@
           if (method === 'stripe') {
             document.getElementById('stripe-payment-section').style.display = 'block';
             document.getElementById('khqr-payment-section').style.display = 'none';
-          } else if (method === 'khqr') {
+          } else if (method === 'aba' || method === 'khqr') {
+            khqrCurrentGateway = method;
             document.getElementById('stripe-payment-section').style.display = 'none';
             document.getElementById('khqr-payment-section').style.display = 'block';
+            updateKhqrInstruction();
             loadKhqrQrCode();
           }
         }
 
-        // Load KHQR QR Code
+        // KHQR/ABA: gateway (aba | khqr) and currency (USD | Khmer Riel)
+        const KHQR_USD_TO_KHR = /*[[${khqrUsdToKhrRate != null ? khqrUsdToKhrRate : 4100}]]*/ 4100;
+        let khqrCurrentGateway = 'aba';
+        let khqrCurrentCurrency = 'USD';
+
+        function updateKhqrInstruction() {
+          const el = document.getElementById('khqr-instruction-text');
+          if (!el) return;
+          el.innerHTML = khqrCurrentGateway === 'aba'
+            ? 'Scan with <strong>ABA Mobile</strong> app'
+            : 'Scan with any <strong>KHQR</strong> supported banking app (ACLEDA, etc.)';
+        }
+
+        function formatKhqrAmount(amount, currency) {
+          if (currency === 'KHR') {
+            const khr = Math.round(amount * KHQR_USD_TO_KHR);
+            return khr.toLocaleString('en-KH') + ' ៛';
+          }
+          return '$ ' + Number(amount).toFixed(2);
+        }
+
         async function loadKhqrQrCode() {
           const orderId = document.getElementById('order-id').value;
-          const amount = document.getElementById('amount-cents').value / 100;
-          
+          const amountUsd = document.getElementById('amount-cents').value / 100;
+          // For KHR: convert USD to Riel (integer); for USD use amount as-is
+          const amount = khqrCurrentCurrency === 'KHR'
+            ? Math.round(amountUsd * KHQR_USD_TO_KHR)
+            : amountUsd;
+          const currency = khqrCurrentCurrency;
+          const gateway = khqrCurrentGateway;
+
+          document.getElementById('khqr-qr-image-container').innerHTML = '<p class="text-muted mb-0 py-4">Loading QR code...</p>';
+          const currencyLabel = currency === 'USD' ? 'US Dollar (USD)' : 'Khmer Riel (៛)';
+          document.getElementById('khqr-header-label').textContent = currencyLabel;
+          document.getElementById('khqr-amount-display').textContent = formatKhqrAmount(amountUsd, currency);
+          document.getElementById('khqr-amount-display').className = 'khqr-amount ' + (currency === 'USD' ? 'usd' : 'khr');
+          updateKhqrInstruction();
+
           try {
-            const response = await fetch(`/api/v1/payment/generate-khqr?orderId=${orderId}&amount=${amount}&currency=USD`);
+            const response = await fetch(`/api/v1/payment/generate-khqr?orderId=${orderId}&amount=${amount}&currency=${currency}&gateway=${gateway}`);
             const data = await response.json();
-            
+
             if (response.ok && data.data && data.data.qrImage) {
-              document.getElementById('khqr-qr-image-container').innerHTML = 
-                `<img src="${data.data.qrImage}" alt="KHQR Payment QR Code" />`;
+              const d = data.data;
+              document.getElementById('khqr-product-name').textContent = d.merchantName || 'SkinMe Store';
+              document.getElementById('khqr-amount-display').textContent = formatKhqrAmount(amountUsd, currency);
+              document.getElementById('khqr-qr-image-container').innerHTML =
+                '<img src="' + d.qrImage + '" alt="KHQR Payment QR Code" />';
             } else {
-              document.getElementById('khqr-qr-image-container').innerHTML = 
-                '<p class="text-danger">Failed to generate QR code. Please try again.</p>';
+              document.getElementById('khqr-qr-image-container').innerHTML =
+                '<p class="text-danger small mb-0">Failed to generate QR code. Please try again.</p>';
             }
           } catch (error) {
             console.error('Error loading KHQR:', error);
-            document.getElementById('khqr-qr-image-container').innerHTML = 
-              '<p class="text-danger">Error loading QR code. Please try again.</p>';
+            document.getElementById('khqr-qr-image-container').innerHTML =
+              '<p class="text-danger small mb-0">Error loading QR code. Please try again.</p>';
           }
         }
+
+        document.getElementById('khqr-currency-usd').addEventListener('click', function() {
+          khqrCurrentCurrency = 'USD';
+          document.getElementById('khqr-currency-usd').classList.add('active');
+          document.getElementById('khqr-currency-khr').classList.remove('active');
+          loadKhqrQrCode();
+        });
+        document.getElementById('khqr-currency-khr').addEventListener('click', function() {
+          khqrCurrentCurrency = 'KHR';
+          document.getElementById('khqr-currency-khr').classList.add('active');
+          document.getElementById('khqr-currency-usd').classList.remove('active');
+          loadKhqrQrCode();
+        });
 
         // Initialize map when page loads
         window.addEventListener('load', function() {

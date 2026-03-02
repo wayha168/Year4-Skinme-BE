@@ -49,6 +49,14 @@
                   <span class="info-label"><i class="bi bi-hash"></i> Transaction Reference</span>
                   <span class="info-value text-monospace" th:text="${payment.transactionRef}">REF</span>
                 </div>
+                <div class="info-row" th:if="${payment.transactionTime != null}">
+                  <span class="info-label"><i class="bi bi-clock"></i> Transaction Time</span>
+                  <span class="info-value" th:text="${#temporals.format(payment.transactionTime, 'dd/MM/yyyy HH:mm')}">-</span>
+                </div>
+                <div class="info-row" th:if="${payment.message != null and !payment.message.isEmpty()}">
+                  <span class="info-label"><i class="bi bi-chat-text"></i> Note</span>
+                  <span class="info-value" th:text="${payment.message}">-</span>
+                </div>
                 <div class="info-row" th:if="${payment.cardHolderName != null and !payment.cardHolderName.isEmpty()}">
                   <span class="info-label"><i class="bi bi-person-badge"></i> Card Holder</span>
                   <span class="info-value" th:text="${payment.cardHolderName}">-</span>

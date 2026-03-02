@@ -47,6 +47,7 @@ import com.project.skin_me.repository.FavoriteItemRepository;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.PaymentRepository;
 import com.project.skin_me.repository.PopularProductRepository;
+import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
 import com.project.skin_me.request.AddProductRequest;
@@ -79,6 +80,7 @@ public class PageController {
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final ProductRepository productRepository;
     private final IUserService userService;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -92,18 +94,27 @@ public class PageController {
     @org.springframework.beans.factory.annotation.Value("${stripe.public.key}")
     private String stripePublicKey;
 
+    @org.springframework.beans.factory.annotation.Value("${payment.khqr.usd-to-khr-rate:4100}")
+    private int khqrUsdToKhrRate;
+
     @GetMapping("/login-page")
     public String loginPage(Model model,
             HttpServletRequest request,
             @RequestParam(required = false) String error,
             @RequestParam(required = false) String expired,
             @RequestParam(required = false) String logout) {
-        // If user is already authenticated, redirect to dashboard
         org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication();
+        // Only redirect to dashboard if authenticated and has ROLE_ADMIN
         if (auth != null && auth.isAuthenticated() &&
                 !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
-            return "redirect:/dashboard";
+            boolean isAdmin = auth.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+            if (isAdmin) {
+                return "redirect:/dashboard";
+            }
+            // Authenticated but not admin: show error and stay on login (they must sign in as admin)
+            model.addAttribute("error", "Invalid credentials. Only administrators can access the dashboard.");
         }
 
         // Ensure CSRF token is available for the standalone login form (required for
@@ -120,6 +131,8 @@ public class PageController {
             model.addAttribute("error", "Your session has expired. Please login again.");
         } else if (logout != null) {
             model.addAttribute("success", "You have been logged out successfully.");
+        } else if ("access_denied".equals(error)) {
+            model.addAttribute("error", "Invalid credentials. Only administrators can access the dashboard.");
         } else if (error != null) {
             model.addAttribute("error", "Invalid email or password. Please try again.");
         }
@@ -155,61 +168,44 @@ public class PageController {
     }
 
     @GetMapping("/dashboard")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public String dashboard(Model model) {
         try {
-            List<Product> products = productService.getAllProducts();
-            List<OrderDto> orders = orderService.getAllUserOrders();
-            int totalUsers = userService.getAllUsers().size();
-            List<Payment> payments = paymentRepository.findAll();
-            double totalRevenue = payments.stream()
-                    .mapToDouble(p -> p.getAmount() != null ? p.getAmount().doubleValue() : 0)
-                    .sum();
+            // Use counts and sums instead of loading full tables (fast render)
+            long totalProducts = productRepository.count();
+            long totalOrders = orderRepository.count();
+            long totalUsers = userRepository.count();
+            java.math.BigDecimal sumResult = paymentRepository.sumAllAmounts();
+            double totalRevenue = sumResult != null ? sumResult.doubleValue() : 0;
 
-            // Calculate new registrations
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
             java.time.LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
             java.time.LocalDateTime weekStart = now.minusDays(7);
             java.time.LocalDateTime monthStart = now.minusDays(30);
 
-            long newUsersToday = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null &&
-                            !u.getRegistrationDate().isBefore(todayStart))
-                    .count();
+            long newUsersToday = userRepository.countByRegistrationDateAfter(todayStart);
+            long newUsersThisWeek = userRepository.countByRegistrationDateAfter(weekStart);
+            long newUsersThisMonth = userRepository.countByRegistrationDateAfter(monthStart);
 
-            long newUsersThisWeek = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null &&
-                            !u.getRegistrationDate().isBefore(weekStart))
-                    .count();
-
-            long newUsersThisMonth = userRepository.findAll().stream()
-                    .filter(u -> u.getRegistrationDate() != null &&
-                            !u.getRegistrationDate().isBefore(monthStart))
-                    .count();
-
-            model.addAttribute("totalProducts", products.size());
-            model.addAttribute("totalOrders", orders.size());
+            model.addAttribute("totalProducts", totalProducts);
+            model.addAttribute("totalOrders", totalOrders);
             model.addAttribute("totalUsers", totalUsers);
             model.addAttribute("totalRevenue", totalRevenue);
             model.addAttribute("newUsersToday", newUsersToday);
             model.addAttribute("newUsersThisWeek", newUsersThisWeek);
             model.addAttribute("newUsersThisMonth", newUsersThisMonth);
 
-            // Get recent favorite products (latest 5)
-            List<FavoriteItem> recentFavorites = favoriteItemRepository.findRecentFavoritesWithRelations();
-            List<FavoriteItem> top5Favorites = recentFavorites.stream()
-                    .limit(5)
-                    .collect(java.util.stream.Collectors.toList());
-            model.addAttribute("recentFavorites", top5Favorites);
+            // Dashboard widgets: only last 10 orders and 10 payments (no full table load)
+            Pageable top10 = PageRequest.of(0, 10, Sort.by("orderId").descending());
+            model.addAttribute("userOrders", orderService.getAllUserOrders(top10).getContent());
+            Pageable top10Payments = PageRequest.of(0, 10, Sort.by("id").descending());
+            model.addAttribute("userPayments", paymentRepository.findAllWithOrderAndUser(top10Payments).getContent());
 
-            // Get popular products (top 5)
+            // Recent favorites and popular: limit to 5 in memory (tables usually small)
+            List<FavoriteItem> recentFavorites = favoriteItemRepository.findRecentFavoritesWithRelations();
+            model.addAttribute("recentFavorites", recentFavorites.stream().limit(5).toList());
             List<PopularProduct> popularProducts = popularProductRepository.findTopPopularProductsWithRelations();
-            List<PopularProduct> top5Popular = popularProducts.stream()
-                    .limit(5)
-                    .collect(java.util.stream.Collectors.toList());
-            model.addAttribute("popularProducts", top5Popular);
-            model.addAttribute("userOrders", orders);
-            model.addAttribute("userPayments", paymentRepository.findAllWithOrderAndUser());
+            model.addAttribute("popularProducts", popularProducts.stream().limit(5).toList());
 
         } catch (Exception e) {
             model.addAttribute("totalProducts", 0);
@@ -1009,7 +1005,7 @@ public class PageController {
     @PreAuthorize("isAuthenticated()")
     public String getPaymentByIdView(@PathVariable Long paymentId, Model model) {
         try {
-            Payment payment = paymentRepository.findById(paymentId).orElse(null);
+            Payment payment = paymentRepository.findByIdWithOrderAndUser(paymentId).orElse(null);
             if (payment == null) {
                 model.addAttribute("error", "Payment not found");
                 model.addAttribute("pageTitle", "Payment Not Found");
@@ -1025,23 +1021,44 @@ public class PageController {
     }
 
     @GetMapping("/view/payments/my-payments")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("isAuthenticated()")
     public String getMyPaymentsView(Authentication authentication, Model model) {
         try {
             User user = userService.getAuthenticatedUser();
-            List<Payment> payments = paymentRepository.findByOrderUserId(user.getId());
-            double totalPaymentAmount = payments.stream()
-                    .mapToDouble(p -> p.getAmount() != null ? p.getAmount().doubleValue() : 0)
-                    .sum();
-            model.addAttribute("payments", payments);
-            model.addAttribute("pageTitle", "My Payments");
-            model.addAttribute("totalPayments", payments.size());
+            if (user == null) {
+                model.addAttribute("payments", List.<Payment>of());
+                model.addAttribute("totalPayments", 0);
+                model.addAttribute("totalPaymentAmount", 0.0);
+                model.addAttribute("currentPage", 0);
+                model.addAttribute("totalPages", 0);
+                model.addAttribute("hasNext", false);
+                model.addAttribute("hasPrev", false);
+                model.addAttribute("pageTitle", "User Payment");
+                model.addAttribute("pageSubtitle", "Payment Record");
+                return "my-payments";
+            }
+            List<Payment> payments = paymentRepository.findByOrderUserIdWithOrderAndUser(user.getId());
+            java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
+            double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
+            int total = payments != null ? payments.size() : 0;
+            model.addAttribute("payments", payments != null ? payments : List.<Payment>of());
+            model.addAttribute("pageTitle", "User Payment");
+            model.addAttribute("pageSubtitle", "Payment Record");
+            model.addAttribute("totalPayments", total);
             model.addAttribute("totalPaymentAmount", totalPaymentAmount);
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", total > 0 ? 1 : 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load your payments: " + e.getMessage());
             model.addAttribute("payments", List.<Payment>of());
             model.addAttribute("totalPayments", 0);
             model.addAttribute("totalPaymentAmount", 0.0);
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
         }
         return "my-payments";
     }
@@ -1055,9 +1072,11 @@ public class PageController {
             model.addAttribute("order", order);
             model.addAttribute("pageTitle", "Checkout");
             model.addAttribute("stripePublicKey", stripePublicKey);
+            model.addAttribute("khqrUsdToKhrRate", khqrUsdToKhrRate);
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load order: " + e.getMessage());
             model.addAttribute("pageTitle", "Checkout Error");
+            model.addAttribute("khqrUsdToKhrRate", khqrUsdToKhrRate);
         }
         return "checkout";
     }
@@ -1067,7 +1086,7 @@ public class PageController {
     public String paymentsListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
             Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id").descending());
-            var paymentPage = paymentRepository.findAll(pageable);
+            var paymentPage = paymentRepository.findAllWithOrderAndUser(pageable);
             List<Payment> payments = paymentPage.getContent();
             long totalPayments = paymentPage.getTotalElements();
             long completedPayments = paymentRepository.countByStatus(OrderStatus.SUCCESS);
@@ -1100,25 +1119,45 @@ public class PageController {
     @GetMapping("/views/my-payments")
     @PreAuthorize("isAuthenticated()")
     public String myPaymentsListPage(@RequestParam(defaultValue = "0") int page,
-            Model model) {
+            Authentication authentication, Model model) {
         try {
-            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id").descending());
-            var paymentPage = paymentRepository.findAllWithOrderAndUser(pageable);
-            List<Payment> payments = paymentPage.getContent();
-            long totalPayments = paymentPage.getTotalElements();
-            java.math.BigDecimal sum = paymentRepository.sumAllAmounts();
+            User user = userService.getAuthenticatedUser();
+            if (user == null) {
+                model.addAttribute("payments", List.<Payment>of());
+                model.addAttribute("totalPayments", 0);
+                model.addAttribute("totalPaymentAmount", 0.0);
+                model.addAttribute("currentPage", 0);
+                model.addAttribute("totalPages", 0);
+                model.addAttribute("hasNext", false);
+                model.addAttribute("hasPrev", false);
+                model.addAttribute("pageTitle", "User Payment");
+                model.addAttribute("pageSubtitle", "Payment Record");
+                return "my-payments";
+            }
+            // Load all user payments in one query (same as Payment Record pattern) then paginate in memory
+            // to avoid JOIN FETCH + Pageable issues and ensure data always displays
+            List<Payment> allPayments = paymentRepository.findByOrderUserIdWithOrderAndUser(user.getId());
+            int total = allPayments != null ? allPayments.size() : 0;
+            int totalPages = total > 0 ? (int) Math.ceil((double) total / PAGE_SIZE) : 0;
+            int from = Math.min(page * PAGE_SIZE, total);
+            int to = Math.min(from + PAGE_SIZE, total);
+            List<Payment> payments = (allPayments != null && from < allPayments.size())
+                    ? allPayments.subList(from, to) : List.<Payment>of();
+
+            java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
             double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
-            int totalPages = paymentPage.getTotalPages();
+
             model.addAttribute("payments", payments);
-            model.addAttribute("totalPayments", totalPayments);
+            model.addAttribute("totalPayments", (long) total);
             model.addAttribute("totalPaymentAmount", totalPaymentAmount);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
-            model.addAttribute("pageTitle", "User Payments");
+            model.addAttribute("pageTitle", "User Payment");
+            model.addAttribute("pageSubtitle", "Payment Record");
         } catch (Exception e) {
-            model.addAttribute("error", "Failed to load user payments: " + e.getMessage());
+            model.addAttribute("error", "Failed to load your payments: " + e.getMessage());
             model.addAttribute("payments", List.<Payment>of());
             model.addAttribute("totalPayments", 0);
             model.addAttribute("totalPaymentAmount", 0.0);
@@ -1126,7 +1165,8 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
-            model.addAttribute("pageTitle", "User Payments");
+            model.addAttribute("pageTitle", "User Payment");
+            model.addAttribute("pageSubtitle", "Payment Record");
         }
         return "my-payments";
     }
@@ -1389,13 +1429,12 @@ public class PageController {
             List<Activity> activities;
 
             if (userId != null) {
-                activities = activityRepository.findByUserIdOrderByTimestampDesc(userId);
+                activities = activityRepository.findByUserIdWithUserOrderByTimestampDesc(userId);
             } else if (activityType != null && !activityType.isEmpty()) {
                 try {
                     com.project.skin_me.enums.ActivityType type = com.project.skin_me.enums.ActivityType
                             .valueOf(activityType.toUpperCase());
-                    activities = activityRepository.findByActivityType(type);
-                    activities.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
+                    activities = activityRepository.findByActivityTypeWithUserOrderByTimestampDesc(type);
                 } catch (IllegalArgumentException e) {
                     activities = activityRepository.findAllWithUserOrderByTimestampDesc();
                 }

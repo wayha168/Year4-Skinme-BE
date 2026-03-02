@@ -72,6 +72,22 @@ public class AdminProductExportController {
     }
 
     @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @GetMapping("/products/export-xlsx")
+    public ResponseEntity<byte[]> exportProductsExcel() {
+        try {
+            var products = productService.getAllProducts();
+            byte[] bytes = productService.toExcel(products);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", "products.xlsx");
+            headers.setContentLength(bytes.length);
+            return new ResponseEntity<>(bytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @GetMapping("/products/markdown-file")
     public ResponseEntity<Resource> downloadExportedFile() throws Exception {
         Path filePath = EXPORT_DIR.resolve(FILE_NAME);

@@ -28,79 +28,99 @@ import java.util.Map;
 public class KhqrService {
     private static final Logger logger = LoggerFactory.getLogger(KhqrService.class);
 
+    public static final String GATEWAY_ABA = "aba";
+    public static final String GATEWAY_KHQR = "khqr";
+    private static final String FALLBACK_TEST_ACCOUNT = "0000000000";
+
+    // Option 1: ABA (ABA Mobile)
+    @Value("${aba.khqr.merchant.account:}")
+    private String abaMerchantAccount;
+    @Value("${aba.khqr.merchant.test-account-usd:111111111}")
+    private String abaTestAccountUsd;
+    @Value("${aba.khqr.merchant.test-account-khr:222222222}")
+    private String abaTestAccountKhr;
+    @Value("${aba.khqr.merchant.name:SkinMe Store}")
+    private String abaMerchantName;
+    @Value("${aba.khqr.merchant.city:Phnom Penh}")
+    private String abaMerchantCity;
+    @Value("${aba.khqr.merchant.category.code:5999}")
+    private String abaMerchantCategoryCode;
+    @Value("${aba.khqr.merchant.use-test-when-empty:true}")
+    private boolean abaUseTestWhenEmpty;
+
+    // Option 2: KHQR (any KHQR bank)
     @Value("${khqr.merchant.account:}")
-    private String merchantAccount;
-
+    private String khqrMerchantAccount;
+    @Value("${khqr.merchant.test-account-usd:111111111}")
+    private String khqrTestAccountUsd;
+    @Value("${khqr.merchant.test-account-khr:222222222}")
+    private String khqrTestAccountKhr;
     @Value("${khqr.merchant.name:SkinMe Store}")
-    private String merchantName;
-
+    private String khqrMerchantName;
     @Value("${khqr.merchant.city:Phnom Penh}")
-    private String merchantCity;
-
+    private String khqrMerchantCity;
     @Value("${khqr.merchant.category.code:5999}")
-    private String merchantCategoryCode;
+    private String khqrMerchantCategoryCode;
+    @Value("${khqr.merchant.use-test-when-empty:true}")
+    private boolean khqrUseTestWhenEmpty;
 
     /**
-     * Generate KHQR QR code data string
+     * Generate KHQR QR code data for the given gateway (aba or khqr).
      */
-    public String generateKhqrData(BigDecimal amount, String currency) {
+    public String generateKhqrData(BigDecimal amount, String currency, String gateway) {
+        boolean useAba = GATEWAY_ABA.equalsIgnoreCase(gateway);
+        String account = useAba ? abaMerchantAccount : khqrMerchantAccount;
+        String name = useAba ? abaMerchantName : khqrMerchantName;
+        String city = useAba ? abaMerchantCity : khqrMerchantCity;
+        String categoryCode = useAba ? abaMerchantCategoryCode : khqrMerchantCategoryCode;
+        boolean useTestWhenEmpty = useAba ? abaUseTestWhenEmpty : khqrUseTestWhenEmpty;
+        String gatewayLabel = useAba ? "ABA" : "KHQR";
+
+        if (account == null) account = "";
+        account = account.trim();
+        if (account.isEmpty()) {
+            if (useTestWhenEmpty) {
+                // Use currency-specific testing accounts: 111 111 111 (USD), 222 222 222 (KHR)
+                boolean isUsd = "USD".equalsIgnoreCase(currency);
+                account = useAba
+                        ? (isUsd ? normalizeAccount(abaTestAccountUsd) : normalizeAccount(abaTestAccountKhr))
+                        : (isUsd ? normalizeAccount(khqrTestAccountUsd) : normalizeAccount(khqrTestAccountKhr));
+                if (account.isEmpty()) account = FALLBACK_TEST_ACCOUNT;
+                logger.debug("Using test merchant account for {} {} ({}); set merchant.account for production", gatewayLabel, currency, account);
+            } else {
+                throw new IllegalStateException(gatewayLabel + " merchant account is not configured. Set " + (useAba ? "aba.khqr" : "khqr") + ".merchant.account in application.properties or enable use-test-when-empty for testing.");
+            }
+        }
+
         try {
-            // KHQR follows EMV QR Code Payment Specification (EMV QRCPS)
             StringBuilder qrData = new StringBuilder();
-
-            // Payload Format Indicator (00) - Mandatory
             qrData.append("000201");
-
-            // Point of Initiation Method (01) - 12 for dynamic QR (with amount)
             qrData.append("010212");
 
-            // Merchant Account Information (30) - Mandatory
-            if (merchantAccount == null || merchantAccount.isEmpty()) {
-                throw new IllegalStateException("KHQR merchant account is not configured");
-            }
-            String merchantInfo = String.format("00%02d%s", merchantAccount.length(), merchantAccount);
+            String merchantInfo = String.format("00%02d%s", account.length(), account);
             qrData.append("30").append(String.format("%02d", merchantInfo.length())).append(merchantInfo);
+            qrData.append("52").append(String.format("%02d", categoryCode.length())).append(categoryCode);
 
-            // Merchant Category Code (52) - Mandatory
-            qrData.append("52").append(String.format("%02d", merchantCategoryCode.length())).append(merchantCategoryCode);
-
-            // Transaction Currency (53) - Mandatory
-            // 116 = KHR (Cambodian Riel), 840 = USD
-            String currencyCode = "116"; // Default to KHR
-            if ("USD".equalsIgnoreCase(currency)) {
-                currencyCode = "840";
-            }
+            String currencyCode = "USD".equalsIgnoreCase(currency) ? "840" : "116";
             qrData.append("53").append(String.format("%02d", currencyCode.length())).append(currencyCode);
 
-            // Transaction Amount (54) - Conditional (required for dynamic QR)
             if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
-                // For KHR, no decimals; for USD, 2 decimals
-                String amountStr;
-                if ("USD".equalsIgnoreCase(currency)) {
-                    amountStr = amount.setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString();
-                } else {
-                    amountStr = amount.setScale(0, BigDecimal.ROUND_HALF_UP).toPlainString();
-                }
+                String amountStr = "USD".equalsIgnoreCase(currency)
+                        ? amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                        : amount.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString();
                 qrData.append("54").append(String.format("%02d", amountStr.length())).append(amountStr);
             }
 
-            // Country Code (58) - Mandatory
             qrData.append("58").append("02KH");
+            String nameTrim = name.length() > 25 ? name.substring(0, 25) : name;
+            qrData.append("59").append(String.format("%02d", nameTrim.length())).append(nameTrim);
+            String cityTrim = city.length() > 15 ? city.substring(0, 15) : city;
+            qrData.append("60").append(String.format("%02d", cityTrim.length())).append(cityTrim);
 
-            // Merchant Name (59) - Mandatory (max 25 characters)
-            String name = merchantName.length() > 25 ? merchantName.substring(0, 25) : merchantName;
-            qrData.append("59").append(String.format("%02d", name.length())).append(name);
-
-            // Merchant City (60) - Mandatory
-            String city = merchantCity.length() > 15 ? merchantCity.substring(0, 15) : merchantCity;
-            qrData.append("60").append(String.format("%02d", city.length())).append(city);
-
-            // CRC (63) - Cyclic Redundancy Check - 4 characters
             String dataWithoutCrc = qrData.toString();
-            String crc = calculateCRC(dataWithoutCrc);
-            qrData.append("63").append("04").append(crc);
+            qrData.append("63").append("04").append(calculateCRC(dataWithoutCrc));
 
-            logger.debug("Generated KHQR data: {}", qrData.toString());
+            logger.debug("Generated {} KHQR data", gatewayLabel);
             return qrData.toString();
         } catch (Exception e) {
             logger.error("Failed to generate KHQR data: {}", e.getMessage(), e);
@@ -148,6 +168,12 @@ public class KhqrService {
         }
     }
 
+    /** Strip spaces from account number (e.g. "111 111 111" -> "111111111"). */
+    private static String normalizeAccount(String account) {
+        if (account == null) return "";
+        return account.replaceAll("\\s+", "").trim();
+    }
+
     /**
      * Calculate CRC-16/AUG-CCITT checksum for KHQR
      */
@@ -171,17 +197,22 @@ public class KhqrService {
     }
 
     /**
-     * Generate complete KHQR QR code with image for an order
+     * Generate complete KHQR QR code with image for an order.
+     * @param gateway "aba" for ABA Mobile or "khqr" for generic KHQR
      */
-    public Map<String, String> generateKhqrForOrder(BigDecimal amount, String currency) {
-        String qrData = generateKhqrData(amount, currency);
+    public Map<String, String> generateKhqrForOrder(BigDecimal amount, String currency, String gateway) {
+        if (gateway == null || gateway.isBlank()) gateway = GATEWAY_ABA;
+        String qrData = generateKhqrData(amount, currency, gateway);
         String qrImageBase64 = generateQrCodeImage(qrData, 300, 300);
+        String merchantName = GATEWAY_ABA.equalsIgnoreCase(gateway) ? abaMerchantName : khqrMerchantName;
 
         Map<String, String> result = new HashMap<>();
         result.put("qrData", qrData);
         result.put("qrImage", qrImageBase64);
         result.put("amount", amount.toString());
         result.put("currency", currency);
+        result.put("merchantName", merchantName);
+        result.put("gateway", gateway);
 
         return result;
     }

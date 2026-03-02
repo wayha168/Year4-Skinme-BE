@@ -22,6 +22,12 @@ public interface ActivityRepository extends JpaRepository<Activity,Long> {
     
     @Query("SELECT a FROM Activity a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.roles ORDER BY a.timestamp DESC")
     List<Activity> findAllWithUserOrderByTimestampDesc();
+
+    @Query("SELECT a FROM Activity a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.roles WHERE a.user.id = :userId ORDER BY a.timestamp DESC")
+    List<Activity> findByUserIdWithUserOrderByTimestampDesc(@Param("userId") Long userId);
+
+    @Query("SELECT a FROM Activity a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.roles WHERE a.activityType = :type ORDER BY a.timestamp DESC")
+    List<Activity> findByActivityTypeWithUserOrderByTimestampDesc(@Param("type") ActivityType type);
     
     List<Activity> findByTimestampBetween(LocalDateTime start, LocalDateTime end);
     

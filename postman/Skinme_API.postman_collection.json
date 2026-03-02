@@ -1,0 +1,267 @@
+{
+  "info": {
+    "name": "SkinMe Backend API",
+    "description": "API collection for frontend integration and Postman testing. Base URL: `{{baseUrl}}` (e.g. http://localhost:8080). After login, use `{{token}}` as Bearer token for secured endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 && pm.response.json().data && pm.response.json().data.jwtToken) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().data.jwtToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"your_password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          }
+        },
+        {
+          "name": "Signup",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"fullName\": \"Full Name\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/signup"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "item": [
+        {
+          "name": "Create Payment Intent (Stripe)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 1,\n  \"amountCents\": 5000,\n  \"cardholderName\": \"John Doe\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payment/create-payment-intent"
+          }
+        },
+        {
+          "name": "Generate KHQR (ABA gateway)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment/generate-khqr?orderId=1&amount=50&currency=USD&gateway=aba",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payment", "generate-khqr"],
+              "query": [
+                { "key": "orderId", "value": "1" },
+                { "key": "amount", "value": "50" },
+                { "key": "currency", "value": "USD" },
+                { "key": "gateway", "value": "aba" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate KHQR (KHQR gateway)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment/generate-khqr?orderId=1&amount=50&currency=USD&gateway=khqr",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payment", "generate-khqr"],
+              "query": [
+                { "key": "orderId", "value": "1" },
+                { "key": "amount", "value": "50" },
+                { "key": "currency", "value": "USD" },
+                { "key": "gateway", "value": "khqr" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate KHQR (KHR)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment/generate-khqr?orderId=1&amount=205000&currency=KHR&gateway=aba",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payment", "generate-khqr"],
+              "query": [
+                { "key": "orderId", "value": "1" },
+                { "key": "amount", "value": "205000" },
+                { "key": "currency", "value": "KHR" },
+                { "key": "gateway", "value": "aba" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify KHQR Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/payment/verify-khqr/1"
+          }
+        },
+        {
+          "name": "Verify Payment Success (after Stripe redirect)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment/verify-success?orderId=1",
+              "query": [{ "key": "orderId", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Record Payment (webhook/manual)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 1,\n  \"status\": \"SUCCESS\",\n  \"method\": \"KHQR\",\n  \"amount\": 50.00,\n  \"transactionRef\": \"KHQR-1-1234567890\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payment/record"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/orders/order?userId=1"
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/orders/1"
+          }
+        },
+        {
+          "name": "Get User Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/orders/user/1"
+          }
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/orders/my-orders"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delivery",
+      "item": [
+        {
+          "name": "Update Delivery Address",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryStreet\": \"123 Main Street\",\n  \"deliveryCity\": \"Phnom Penh\",\n  \"deliveryProvince\": \"Phnom Penh\",\n  \"deliveryPostalCode\": \"12000\",\n  \"deliveryLatitude\": 11.5564,\n  \"deliveryLongitude\": 104.9282,\n  \"deliveryAddressFull\": \"123 Main Street, Phnom Penh, Cambodia\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/delivery/address/1"
+          }
+        },
+        {
+          "name": "Get Delivery Address",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/delivery/address/1"
+          }
+        },
+        {
+          "name": "Track Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/delivery/track/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products (public)",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/products/all"
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/products/product/1/product"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Get My Cart",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/carts/my-cart"
+          }
+        },
+        {
+          "name": "Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/cartItems/item/add?productId=1&userId=1&quantity=1"
+          }
+        }
+      ]
+    }
+  ]
+}
