@@ -272,7 +272,7 @@ public class OrderService implements IOrderService {
     @Override
     @Transactional
     public void confirmOrderPayment(Order order) {
-        Order managedOrder = orderRepository.findById(order.getId())
+        Order managedOrder = orderRepository.findByIdWithOrderItemsAndProducts(order.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + order.getId()));
         if (managedOrder.getOrderStatus() != OrderStatus.PENDING && managedOrder.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
             return;
@@ -289,14 +289,13 @@ public class OrderService implements IOrderService {
         }
         // Update popular products
         popularProductService.saveFromOrder(managedOrder);
-        // Remove cart
-        Cart cart = cartService.getCartByUserId(managedOrder.getUser().getId());
-        if (cart != null) {
-            cartService.removeCart(cart.getId());
-        }
-        // Update payment record
+        // Remove cart (optional: user may already have no cart)
+        cartService.getUserActiveCart(managedOrder.getUser())
+                .ifPresent(cart -> cartService.removeCart(cart.getId()));
+        // Update payment record (by session ref or by order)
         Payment payment = paymentRepository.findByTransactionRef(managedOrder.getStripeSessionId())
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for sessionId: " + managedOrder.getStripeSessionId()));
+                .or(() -> paymentRepository.findByOrder(managedOrder))
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found for order/sessionId: " + managedOrder.getStripeSessionId()));
         payment.setStatus(OrderStatus.SUCCESS);
         payment.setTransactionTime(LocalDateTime.now());
         paymentRepository.save(payment);

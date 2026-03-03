@@ -481,12 +481,13 @@ public class AuthService implements IAuthService {
                         .body(ApiResponse.ofKey("api.auth.email.invalid", null));
             }
             User user = optionalUser.get();
-            String newPassword = UUID.randomUUID().toString();
-            user.setPassword(passwordEncoder.encode(newPassword));
+            String resetToken = UUID.randomUUID().toString().replace("-", "");
+            user.setResetToken(resetToken);
+            user.setResetTokenExpiry(LocalDateTime.now().plusHours(1));
             userRepository.save(user);
-            recordPasswordReset(user.getId(), email);
-            logger.info("Password reset successful for email: {}", email);
-            return ResponseEntity.ok(ApiResponse.ofKey("api.auth.password.reset.success", null));
+            emailService.sendPasswordResetEmail(email, resetToken);
+            logger.info("Password reset email sent for email: {}", email);
+            return ResponseEntity.ok(ApiResponse.ofKey("api.auth.forgot.password.sent", null));
         } catch (Exception e) {
             logger.error("Forgot password failed for email: {}. Error: {}", email, e.getMessage(), e);
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)

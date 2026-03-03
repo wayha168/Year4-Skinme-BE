@@ -37,10 +37,15 @@ import com.project.skin_me.repository.UserRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.OncePerRequestFilter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Cookie;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -80,16 +85,16 @@ public class SecurityConfig {
                         String path = request.getRequestURI();
                         // Don't save requests for system URLs, Chrome DevTools, favicons, etc.
                         return !path.contains("/.well-known") &&
-                               !path.contains("devtools") &&
-                               !path.contains("favicon") &&
-                               !path.contains(".ico") &&
-                               !path.startsWith("/api/") &&
-                               !path.startsWith("/v3/api-docs") &&
-                               !path.startsWith("/swagger") &&
-                               !path.startsWith("/webjars") &&
-                               !path.startsWith("/css") &&
-                               !path.startsWith("/js") &&
-                               !path.startsWith("/images");
+                                        !path.contains("devtools") &&
+                                        !path.contains("favicon") &&
+                                        !path.contains(".ico") &&
+                                        !path.startsWith("/api/") &&
+                                        !path.startsWith("/v3/api-docs") &&
+                                        !path.startsWith("/swagger") &&
+                                        !path.startsWith("/webjars") &&
+                                        !path.startsWith("/css") &&
+                                        !path.startsWith("/js") &&
+                                        !path.startsWith("/images");
                 });
                 return requestCache;
         }
@@ -101,7 +106,9 @@ public class SecurityConfig {
                                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                                 .requestCache(cache -> cache.requestCache(requestCache))
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico").permitAll()
+                                                .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**",
+                                                                "/favicon.ico")
+                                                .permitAll()
                                                 .requestMatchers(PUBLIC_API).permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(ADMIN_URLS).hasRole("ADMIN")
@@ -117,18 +124,23 @@ public class SecurityConfig {
                                                 .defaultSuccessUrl("/dashboard", true)
                                                 .successHandler((request, response, authentication) -> {
                                                         boolean isAdmin = authentication.getAuthorities().stream()
-                                                                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+                                                                        .anyMatch(a -> "ROLE_ADMIN"
+                                                                                        .equals(a.getAuthority()));
                                                         if (!isAdmin) {
                                                                 request.getSession().invalidate();
-                                                                org.springframework.security.core.context.SecurityContextHolder.clearContext();
-                                                                response.sendRedirect(request.getContextPath() + "/login-page?error=access_denied");
+                                                                org.springframework.security.core.context.SecurityContextHolder
+                                                                                .clearContext();
+                                                                response.sendRedirect(request.getContextPath()
+                                                                                + "/login-page?error=access_denied");
                                                                 return;
                                                         }
                                                         // Check if there's a saved request (original URL before login)
-                                                        SavedRequest savedRequest = requestCache.getRequest(request, response);
+                                                        SavedRequest savedRequest = requestCache.getRequest(request,
+                                                                        response);
                                                         if (savedRequest != null) {
                                                                 String redirectUrl = savedRequest.getRedirectUrl();
-                                                                if (redirectUrl != null && isValidRedirectUrl(redirectUrl)) {
+                                                                if (redirectUrl != null
+                                                                                && isValidRedirectUrl(redirectUrl)) {
                                                                         response.sendRedirect(redirectUrl);
                                                                         return;
                                                                 }
@@ -152,6 +164,7 @@ public class SecurityConfig {
                                                 "/ws-endpoint/**"))
                                 .authenticationProvider(daoAuthProvider());
 
+                http.addFilterBefore(corsHeadersFilter(), UsernamePasswordAuthenticationFilter.class);
                 http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
                 
                 // Add user activity filter after authentication
@@ -183,7 +196,7 @@ public class SecurityConfig {
         public AuthenticationEntryPoint authenticationEntryPoint() {
                 return (request, response, authException) -> {
                         String requestUri = request.getRequestURI();
-                        
+
                         // For API requests, return JSON error
                         if (requestUri.startsWith("/api/")) {
                                 jwtAuthEntryPoint.commence(request, response, authException);
@@ -197,8 +210,10 @@ public class SecurityConfig {
         }
 
         /**
-         * When an authenticated user without ROLE_ADMIN accesses /dashboard or /views/**,
-         * clear session and redirect to login with error so they see "Invalid credentials" message.
+         * When an authenticated user without ROLE_ADMIN accesses /dashboard or
+         * /views/**,
+         * clear session and redirect to login with error so they see "Invalid
+         * credentials" message.
          */
         @Bean
         public AccessDeniedHandler accessDeniedHandler() {
@@ -216,17 +231,21 @@ public class SecurityConfig {
                 return new ModelMapper();
         }
 
+        private static final List<String> CORS_ALLOWED_ORIGINS = Arrays.asList(
+                        "http://localhost:5173",
+                        "http://localhost:8800",
+                        "http://127.0.0.1:5173",
+                        "http://127.0.0.1:8800",
+                        "https://skinme.store",
+                        "https://www.skinme.store",
+                        "https://backend.skinme.store");
+
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration config = new CorsConfiguration();
-                config.setAllowedOrigins(List.of(
-                                "http://localhost:5173",
-                                "http://localhost:8800",
-                                "https://skinme.store",
-                                "https://www.skinme.store",
-                                "https://backend.skinme.store"));
-                config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+                config.setAllowedOrigins(CORS_ALLOWED_ORIGINS);
+                config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+                config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
                 config.setExposedHeaders(List.of("Authorization"));
                 config.setAllowCredentials(true);
                 config.setMaxAge(3600L);
@@ -234,6 +253,33 @@ public class SecurityConfig {
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
                 source.registerCorsConfiguration("/**", config);
                 return source;
+        }
+
+        /**
+         * Ensures CORS headers are added to every response (including redirects).
+         * Spring's default CORS filter may not add headers to 302 responses, which causes
+         * "No 'Access-Control-Allow-Origin' header" when the frontend is redirected to login-page.
+         */
+        @Bean
+        public OncePerRequestFilter corsHeadersFilter() {
+                return new OncePerRequestFilter() {
+                        @Override
+                        protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                        FilterChain filterChain) throws ServletException, IOException {
+                                String origin = request.getHeader("Origin");
+                                if (origin != null && CORS_ALLOWED_ORIGINS.contains(origin)) {
+                                        response.setHeader("Access-Control-Allow-Origin", origin);
+                                        response.setHeader("Access-Control-Allow-Credentials", "true");
+                                        response.setHeader("Access-Control-Expose-Headers", "Authorization");
+                                }
+                                if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                                        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+                                        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, X-Requested-With, Origin");
+                                        response.setHeader("Access-Control-Max-Age", "3600");
+                                }
+                                filterChain.doFilter(request, response);
+                        }
+                };
         }
 
         @Bean
@@ -260,59 +306,59 @@ public class SecurityConfig {
 
         @Bean
         public LogoutHandler customLogoutHandler() {
-            return (HttpServletRequest request, HttpServletResponse response, 
-                    org.springframework.security.core.Authentication authentication) -> {
-                // Clear all cookies
-                Cookie[] cookies = request.getCookies();
-                if (cookies != null) {
-                    for (Cookie cookie : cookies) {
-                        cookie.setValue("");
-                        cookie.setPath("/");
-                        cookie.setMaxAge(0);
-                        cookie.setHttpOnly(true);
-                        cookie.setSecure(true);
-                        response.addCookie(cookie);
-                    }
-                }
-                
-                // Clear session
-                if (request.getSession(false) != null) {
-                    request.getSession().invalidate();
-                }
-                
-                // Clear Security Context
-                org.springframework.security.core.context.SecurityContextHolder.clearContext();
-            };
+                return (HttpServletRequest request, HttpServletResponse response,
+                                org.springframework.security.core.Authentication authentication) -> {
+                        // Clear all cookies
+                        Cookie[] cookies = request.getCookies();
+                        if (cookies != null) {
+                                for (Cookie cookie : cookies) {
+                                        cookie.setValue("");
+                                        cookie.setPath("/");
+                                        cookie.setMaxAge(0);
+                                        cookie.setHttpOnly(true);
+                                        cookie.setSecure(true);
+                                        response.addCookie(cookie);
+                                }
+                        }
+
+                        // Clear session
+                        if (request.getSession(false) != null) {
+                                request.getSession().invalidate();
+                        }
+
+                        // Clear Security Context
+                        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                };
         }
 
         @Bean
         public LogoutSuccessHandler logoutSuccessHandler() {
-            return (HttpServletRequest request, HttpServletResponse response, 
-                    org.springframework.security.core.Authentication authentication) -> {
-                // Clear all cookies again to be sure
-                Cookie[] cookies = request.getCookies();
-                if (cookies != null) {
-                    for (Cookie cookie : cookies) {
-                        Cookie deleteCookie = new Cookie(cookie.getName(), null);
-                        deleteCookie.setPath("/");
-                        deleteCookie.setMaxAge(0);
-                        deleteCookie.setHttpOnly(true);
-                        deleteCookie.setSecure(true);
-                        response.addCookie(deleteCookie);
-                    }
-                }
-                
-                // Clear any remaining session data
-                if (request.getSession(false) != null) {
-                    request.getSession().invalidate();
-                }
-                
-                // Clear Security Context
-                org.springframework.security.core.context.SecurityContextHolder.clearContext();
-                
-                // Always redirect to login page after logout
-                response.sendRedirect("/login-page?logout=true");
-            };
+                return (HttpServletRequest request, HttpServletResponse response,
+                                org.springframework.security.core.Authentication authentication) -> {
+                        // Clear all cookies again to be sure
+                        Cookie[] cookies = request.getCookies();
+                        if (cookies != null) {
+                                for (Cookie cookie : cookies) {
+                                        Cookie deleteCookie = new Cookie(cookie.getName(), null);
+                                        deleteCookie.setPath("/");
+                                        deleteCookie.setMaxAge(0);
+                                        deleteCookie.setHttpOnly(true);
+                                        deleteCookie.setSecure(true);
+                                        response.addCookie(deleteCookie);
+                                }
+                        }
+
+                        // Clear any remaining session data
+                        if (request.getSession(false) != null) {
+                                request.getSession().invalidate();
+                        }
+
+                        // Clear Security Context
+                        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+                        // Always redirect to login page after logout
+                        response.sendRedirect("/login-page?logout=true");
+                };
         }
 
         /**
@@ -322,25 +368,25 @@ public class SecurityConfig {
                 if (url == null || url.isEmpty()) {
                         return false;
                 }
-                
+
                 // Must be a relative URL starting with /
                 if (!url.startsWith("/")) {
                         return false;
                 }
-                
+
                 // Exclude system URLs, Chrome DevTools, favicons, API endpoints, etc.
                 String lowerUrl = url.toLowerCase();
                 return !lowerUrl.contains("/login-page") &&
-                       !lowerUrl.contains("/.well-known") &&
-                       !lowerUrl.contains("devtools") &&
-                       !lowerUrl.contains("favicon") &&
-                       !lowerUrl.contains(".ico") &&
-                       !lowerUrl.startsWith("/api/") &&
-                       !lowerUrl.startsWith("/v3/api-docs") &&
-                       !lowerUrl.startsWith("/swagger") &&
-                       !lowerUrl.startsWith("/webjars") &&
-                       !lowerUrl.startsWith("/css") &&
-                       !lowerUrl.startsWith("/js") &&
-                       !lowerUrl.startsWith("/images");
+                                !lowerUrl.contains("/.well-known") &&
+                                !lowerUrl.contains("devtools") &&
+                                !lowerUrl.contains("favicon") &&
+                                !lowerUrl.contains(".ico") &&
+                                !lowerUrl.startsWith("/api/") &&
+                                !lowerUrl.startsWith("/v3/api-docs") &&
+                                !lowerUrl.startsWith("/swagger") &&
+                                !lowerUrl.startsWith("/webjars") &&
+                                !lowerUrl.startsWith("/css") &&
+                                !lowerUrl.startsWith("/js") &&
+                                !lowerUrl.startsWith("/images");
         }
 }

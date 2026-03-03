@@ -62,17 +62,17 @@ public class CartItemService implements ICartItemService {
     @Override
     @Transactional
     public void updateItemQuantity(Long cartId, Long productId, int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
         Cart cart = cartService.getCart(cartId);
-        cart.getItems()
-                .stream()
-                .filter(item -> item.getProduct().getId().equals(productId))
+        CartItem item = cart.getItems().stream()
+                .filter(i -> i.getProduct().getId().equals(productId))
                 .findFirst()
-                .ifPresent(item -> {
-                    item.setQuantity(quantity);
-                    item.setUnitPrice(item.getProduct().getPrice());
-                    item.setTotalPrice();
-                });
-
+                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found for product id: " + productId));
+        item.setQuantity(quantity);
+        item.setUnitPrice(item.getProduct().getPrice());
+        item.setTotalPrice();
         recalculateCartTotal(cart);
         cartRepository.save(cart);
     }

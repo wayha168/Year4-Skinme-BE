@@ -38,6 +38,20 @@ public class ImageService implements IImageService {
     }
 
     @Override
+    public List<ImageDto> getImagesByProductId(Long productId) {
+        List<Image> images = imageRepository.findByProductId(productId);
+        List<ImageDto> dtos = new ArrayList<>();
+        for (Image img : images) {
+            ImageDto dto = new ImageDto();
+            dto.setImageId(img.getId());
+            dto.setFileName(img.getFileName());
+            dto.setDownloadUrl(img.getDownloadUrl());
+            dtos.add(dto);
+        }
+        return dtos;
+    }
+
+    @Override
     public void deleteImageById(Long id) {
         imageRepository.findById(id).ifPresentOrElse(imageRepository::delete, () -> {
             throw new ResourceNotFoundException("No image with this ID" + id);

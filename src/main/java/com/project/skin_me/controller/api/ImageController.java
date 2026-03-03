@@ -35,6 +35,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class ImageController {
     private final IImageService imageService;
 
+    @GetMapping("/product/{productId}")
+    public ResponseEntity<ApiResponse> getImagesByProductId(@PathVariable Long productId) {
+        try {
+            List<ImageDto> images = imageService.getImagesByProductId(productId);
+            return ResponseEntity.ok(new ApiResponse("OK", images));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Failed to load images", e.getMessage()));
+        }
+    }
+
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse> saveImages(@RequestParam List<MultipartFile> files,
@@ -67,9 +78,9 @@ public class ImageController {
     }
 
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @PutMapping("/image/{imageId}/update")
+    @PutMapping(value = "/image/{imageId}/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse> updateImage(@PathVariable Long imageId,
-            @RequestBody MultipartFile file) {
+            @RequestParam("file") MultipartFile file) {
         try {
             Image image = imageService.getImageById(imageId);
             if (image != null) {

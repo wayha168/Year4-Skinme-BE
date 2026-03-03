@@ -11,6 +11,8 @@ import com.project.skin_me.model.Image;
 public interface IImageService {
     Image getImageById(Long id);
 
+    List<ImageDto> getImagesByProductId(Long productId);
+
     void deleteImageById(Long id);
 
     List<ImageDto> saveImages(Long productId, List<MultipartFile> files);

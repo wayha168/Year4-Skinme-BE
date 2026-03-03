@@ -18,6 +18,10 @@ public class EmailService {
     @Value("${app.frontend.url:https://skinme.store}")
     private String frontendUrl;
 
+    /** Base URL for password reset link (e.g. https://backend.skinme.store). If set, reset emails use this for the link. */
+    @Value("${app.backend.url:}")
+    private String backendUrl;
+
     @Value("${spring.mail.username:noreply@skinme.store}")
     private String fromEmail;
 
@@ -31,7 +35,8 @@ public class EmailService {
             message.setTo(toEmail);
             message.setSubject("Password Reset Request - SkinMe");
             
-            String resetUrl = frontendUrl + "/reset-password?token=" + resetToken + "&email=" + toEmail;
+            String baseUrl = (backendUrl != null && !backendUrl.isBlank()) ? backendUrl.trim() : frontendUrl;
+            String resetUrl = baseUrl + "/reset-password?token=" + resetToken + "&email=" + java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
             String emailBody = buildPasswordResetEmailBody(resetUrl, resetToken);
             
             message.setText(emailBody);

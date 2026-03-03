@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -27,13 +28,14 @@ public class CartItemController {
     public ResponseEntity<ApiResponse> addItemToCart(@RequestParam Long productId,
                                                      @RequestParam Integer quantity) {
         try {
+            if (quantity == null || quantity < 1) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse("Quantity must be at least 1", null));
+            }
             User user = userService.getAuthenticatedUser();
-
             Cart cart = cartService.getUserActiveCart(user)
                     .orElseGet(() -> cartService.initializeNewCart(user));
-
             cartItemService.addItemToCart(cart, productId, quantity);
-
             return ResponseEntity.ok(new ApiResponse("Item added to cart successfully", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
@@ -44,26 +46,42 @@ public class CartItemController {
         }
     }
 
-    @DeleteMapping("/cart/{cartId}/item/{productId}/remove")
-    public ResponseEntity<ApiResponse> removeItemFromCart(@PathVariable Long cartId,
-                                                          @PathVariable Long productId) {
+    /** Remove item by product id from the current user's cart (no cartId needed). */
+    @DeleteMapping("/item/{productId}/remove")
+    public ResponseEntity<ApiResponse> removeItemFromCart(@PathVariable Long productId) {
         try {
-            cartItemService.removeItemFromCart(cartId, productId);
+            User user = userService.getAuthenticatedUser();
+            Cart cart = cartService.getUserActiveCart(user)
+                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
+            cartItemService.removeItemFromCart(cart.getId(), productId);
             return ResponseEntity.ok(new ApiResponse("Item removed successfully", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (JwtException e) {
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
         }
     }
 
-    @PutMapping("/cart/{cartId}/item/{productId}/update")
-    public ResponseEntity<ApiResponse> updateItemQuantity(@PathVariable Long cartId,
-                                                          @PathVariable Long productId,
+    /** Update item quantity by product id in the current user's cart (no cartId needed). */
+    @PutMapping("/item/{productId}/update")
+    public ResponseEntity<ApiResponse> updateItemQuantity(@PathVariable Long productId,
                                                           @RequestParam Integer quantity) {
         try {
-            cartItemService.updateItemQuantity(cartId, productId, quantity);
+            if (quantity == null || quantity < 1) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse("Quantity must be at least 1", null));
+            }
+            User user = userService.getAuthenticatedUser();
+            Cart cart = cartService.getUserActiveCart(user)
+                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
+            cartItemService.updateItemQuantity(cart.getId(), productId, quantity);
             return ResponseEntity.ok(new ApiResponse("Item updated successfully", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(BAD_REQUEST).body(new ApiResponse(e.getMessage(), null));
+        } catch (JwtException e) {
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
         }
     }
 }

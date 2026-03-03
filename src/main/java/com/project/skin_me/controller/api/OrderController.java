@@ -29,11 +29,15 @@ public class OrderController {
     private final IUserService userService;
 
     @PostMapping("/order")
-    public ResponseEntity<ApiResponse> createOrder(@RequestParam Long userId) {
+    public ResponseEntity<ApiResponse> createOrder() {
         try {
-            Order order = orderService.placeOrderItem(userId);
+            User user = userService.getAuthenticatedUser();
+            Order order = orderService.placeOrderItem(user.getId());
             OrderDto orderDto = orderService.convertToDto(order);
             return ResponseEntity.ok(new ApiResponse("Order successfully placed", orderDto));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND)
+                    .body(new ApiResponse(e.getMessage(), null));
         } catch (AlreadyExistsException e) {
             return ResponseEntity.status(CONFLICT)
                     .body(new ApiResponse(e.getMessage(), null));

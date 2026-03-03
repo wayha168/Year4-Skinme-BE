@@ -159,7 +159,7 @@ public class PaymentController {
     @GetMapping("/verify-success")
     public ResponseEntity<ApiResponse> verifyPaymentSuccess(@RequestParam Long orderId) {
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
                     .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
 
             OrderDto orderDto = orderService.convertToDto(order);
