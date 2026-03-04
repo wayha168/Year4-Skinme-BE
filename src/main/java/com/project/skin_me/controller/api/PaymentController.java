@@ -95,11 +95,12 @@ public class PaymentController {
             paymentRepository.save(payment);
 
             try {
-                notificationService.notifyUser(
+                notificationService.notifyUserWithAction(
                         order.getUser().getId().toString(),
                         "Payment Pending",
                         "Your payment for order #" + order.getId() + " is pending. Please complete the payment.",
-                        "PAYMENT");
+                        "PAYMENT",
+                        "/view/orders/" + order.getId());
 
                 RealTimeUpdateDto update = RealTimeUpdateDto.builder()
                         .entityType("PAYMENT")
@@ -269,13 +270,14 @@ public class PaymentController {
 
                 orderService.confirmOrderPayment(order);
 
-                // Send WebSocket notification for payment success
+                // Send WebSocket notification for payment success (shows in notification panel with link to order)
                 try {
-                    notificationService.notifyUser(
+                    notificationService.notifyUserWithAction(
                             order.getUser().getId().toString(),
                             "Payment Successful",
                             "Your payment for order #" + order.getId() + " has been confirmed successfully!",
-                            "PAYMENT");
+                            "PAYMENT",
+                            "/view/orders/" + order.getId());
 
                     RealTimeUpdateDto update = RealTimeUpdateDto.builder()
                             .entityType("PAYMENT")

@@ -5,6 +5,7 @@ import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.*;
 import com.project.skin_me.repository.*;
+import com.project.skin_me.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ public class FavoriteService implements IFavoriteService {
     private final FavoriteItemRepository favoriteItemRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -47,6 +49,17 @@ public class FavoriteService implements IFavoriteService {
 
         favoriteList.addItem(item);
         favoriteListRepository.save(favoriteList);
+
+        try {
+            notificationService.createAndNotifyUser(
+                    userId,
+                    "Product liked",
+                    product.getName() + " added to your favorites",
+                    "FAVORITE",
+                    "/products/" + productId);
+        } catch (Exception e) {
+            // Don't fail favorite add if notification fails
+        }
 
         return convertToDto(item);
     }

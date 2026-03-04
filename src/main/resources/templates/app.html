@@ -27,7 +27,7 @@
   </head>
   <body>
     <span id="msgLoggingOut" style="display:none" aria-hidden="true">Logging out...</span>
-    <div class="app-shell" id="appShell">
+    <div class="app-shell" id="appShell" th:attr="data-api-prefix=${api != null ? api.prefix : '/api/v1'}">
       <button type="button" class="btn-mobile-menu" id="btnMobileMenu" aria-label="Open menu" title="Open menu" style="display: none;">
         <i class="bi bi-list"></i>
       </button>
@@ -37,6 +37,24 @@
       </div>
       <div class="app-content">
         <th:block th:replace="${content}"></th:block>
+      </div>
+    </div>
+
+    <!-- Right-side notification panel (35% width), opened by header bell -->
+    <div class="notification-panel-overlay" id="notificationPanelOverlay" aria-hidden="true"></div>
+    <div class="notification-panel-right" id="notificationPanelRight" role="dialog" aria-label="Notifications">
+      <div class="notification-panel-header">
+        <h2 class="notification-panel-title">Notifications</h2>
+        <button type="button" class="notification-panel-close" id="notificationPanelClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="notification-panel-toolbar">
+        <button type="button" class="btn-notification-mark-all-panel" id="notificationPanelMarkAllRead">Mark all read</button>
+      </div>
+      <div class="notification-panel-list" id="notificationPanelList">
+        <div class="notification-panel-empty" id="notificationPanelEmpty">Loading...</div>
+      </div>
+      <div class="notification-panel-footer">
+        <a th:href="@{/views/chat}" class="notification-panel-link">Open Chat</a>
       </div>
     </div>
     
@@ -193,9 +211,10 @@
           // Subscribe to notifications
           window.webSocketClient.subscribeToNotifications(function(notification) {
             if (typeof showToast === 'function') {
-              showToast(notification.message, notification.type === 'ERROR' ? 'error' : 
+              showToast(notification.message, notification.type === 'ERROR' ? 'error' :
                        notification.type === 'SUCCESS' ? 'success' : 'info', 5000);
             }
+            document.dispatchEvent(new CustomEvent('skinme-notification', { detail: notification }));
           });
           
           // Subscribe to order updates
@@ -207,6 +226,136 @@
           });
         }
       });
+    </script>
+
+    <!-- Right-side notification panel (header bell): toggle, load list, update header badge, scroll lock -->
+    <script>
+      (function() {
+        var panel = document.getElementById('notificationPanelRight');
+        var overlay = document.getElementById('notificationPanelOverlay');
+        var listEl = document.getElementById('notificationPanelList');
+        var emptyEl = document.getElementById('notificationPanelEmpty');
+        var headerBadge = document.getElementById('headerNotificationBadge');
+        var appShell = document.getElementById('appShell');
+        if (!panel || !overlay || !listEl || !appShell) return;
+        var apiPrefix = (appShell.getAttribute('data-api-prefix') || '/api/v1').replace(/\/$/, '');
+
+        function esc(s) {
+          var d = document.createElement('div');
+          d.textContent = s;
+          return d.innerHTML;
+        }
+        function csrfHeaders() {
+          var h = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+          var c = document.querySelector('meta[name="_csrf"]');
+          var ch = document.querySelector('meta[name="_csrf_header"]');
+          if (c && ch) h[ch.getAttribute('content') || 'X-CSRF-TOKEN'] = c.getAttribute('content') || c.content;
+          return h;
+        }
+        function updateHeaderBadge(count) {
+          if (!headerBadge) return;
+          if (count !== undefined) headerBadge.textContent = count > 99 ? '99+' : String(count);
+          headerBadge.style.display = (headerBadge.textContent === '0' || headerBadge.textContent === '') ? 'none' : 'inline';
+        }
+        function openPanel() {
+          panel.classList.add('is-open');
+          overlay.classList.add('is-open');
+          overlay.setAttribute('aria-hidden', 'false');
+          document.documentElement.classList.add('notification-panel-open');
+          document.body.classList.add('notification-panel-open');
+        }
+        function closePanel() {
+          panel.classList.remove('is-open');
+          overlay.classList.remove('is-open');
+          overlay.setAttribute('aria-hidden', 'true');
+          document.documentElement.classList.remove('notification-panel-open');
+          document.body.classList.remove('notification-panel-open');
+        }
+        window.toggleNotificationPanel = function() {
+          if (panel.classList.contains('is-open')) closePanel(); else openPanel();
+        };
+
+        overlay.addEventListener('click', closePanel);
+        document.getElementById('notificationPanelClose').addEventListener('click', closePanel);
+
+        function renderPanelList(notifications, unreadCount) {
+          var items = listEl.querySelectorAll('.notification-panel-item');
+          items.forEach(function(n) { n.remove(); });
+          if (!notifications || notifications.length === 0) {
+            if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            notifications.forEach(function(n) {
+              var item = document.createElement('a');
+              item.href = n.actionUrl || '#';
+              item.className = 'notification-panel-item' + (n.status === 'UNREAD' ? ' unread' : '');
+              item.setAttribute('data-id', n.id);
+              if (!n.actionUrl) item.addEventListener('click', function(e) { e.preventDefault(); });
+              var timeStr = n.createdAt ? (String(n.createdAt).substring(0, 16).replace('T', ' ')) : '';
+              var unreadLabel = n.status === 'UNREAD' ? '<span class="notification-panel-unread-dot" aria-label="Unread"></span>' : '';
+              item.innerHTML = '<div class="notification-panel-item-title-row">' + unreadLabel + '<span class="notification-panel-item-title">' + esc(n.title || '') + '</span></div>' +
+                '<div class="notification-panel-item-message">' + esc((n.message || '').substring(0, 80)) + (n.message && n.message.length > 80 ? '...' : '') + '</div>' +
+                '<div class="notification-panel-item-meta">' + timeStr + (n.status === 'UNREAD' ? ' &middot; Unread' : '') + '</div>';
+              item.addEventListener('click', function() {
+                var id = this.getAttribute('data-id');
+                if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
+                this.classList.remove('unread');
+                var meta = this.querySelector('.notification-panel-item-meta');
+                if (meta) meta.textContent = meta.textContent.replace(/\s*·\s*Unread\s*$/, '').trim();
+                var dot = this.querySelector('.notification-panel-unread-dot');
+                if (dot) dot.remove();
+                updateHeaderBadge(Math.max(0, (parseInt(headerBadge && headerBadge.textContent, 10) || 0) - 1));
+              });
+              listEl.insertBefore(item, emptyEl);
+            });
+          }
+          updateHeaderBadge(unreadCount !== undefined ? unreadCount : null);
+        }
+        function loadPanel() {
+          fetch(apiPrefix + '/notifications?page=0&size=20', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(res) {
+              if (res && res.data) {
+                renderPanelList(res.data.notifications || [], res.data.unreadCount);
+              } else {
+                if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
+              }
+            })
+            .catch(function() { if (emptyEl) { emptyEl.textContent = 'Unable to load'; emptyEl.style.display = 'block'; } });
+        }
+        document.getElementById('notificationPanelMarkAllRead').addEventListener('click', function(e) {
+          e.preventDefault();
+          fetch(apiPrefix + '/notifications/read-all', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).then(function() { loadPanel(); });
+        });
+
+        loadPanel();
+        document.addEventListener('skinme-notification', function(e) {
+          var n = e.detail;
+          if (!listEl) return;
+          if (emptyEl) emptyEl.style.display = 'none';
+          var item = document.createElement('a');
+          item.href = n.actionUrl || '#';
+          item.className = 'notification-panel-item unread';
+          item.setAttribute('data-id', n.id || '');
+          if (!n.actionUrl) item.addEventListener('click', function(ev) { ev.preventDefault(); });
+          var timeStr = n.createdAt ? (String(n.createdAt).substring(0, 16).replace('T', ' ')) : '';
+          item.innerHTML = '<div class="notification-panel-item-title-row"><span class="notification-panel-unread-dot" aria-label="Unread"></span><span class="notification-panel-item-title">' + esc(n.title || '') + '</span></div>' +
+            '<div class="notification-panel-item-message">' + esc((n.message || '').substring(0, 80)) + (n.message && n.message.length > 80 ? '...' : '') + '</div>' +
+            '<div class="notification-panel-item-meta">' + timeStr + ' &middot; Unread</div>';
+          item.addEventListener('click', function() {
+            var id = this.getAttribute('data-id');
+            if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
+            this.classList.remove('unread');
+            var meta = this.querySelector('.notification-panel-item-meta');
+            if (meta) meta.textContent = meta.textContent.replace(' · Unread', '').trim();
+            var dot = this.querySelector('.notification-panel-unread-dot');
+            if (dot) dot.remove();
+            updateHeaderBadge(Math.max(0, (parseInt(headerBadge && headerBadge.textContent, 10) || 0) - 1));
+          });
+          listEl.insertBefore(item, listEl.firstChild);
+          if (headerBadge) updateHeaderBadge((parseInt(headerBadge.textContent, 10) || 0) + 1);
+        });
+      })();
     </script>
     
     <!-- Live Reload Script (Development Only) -->

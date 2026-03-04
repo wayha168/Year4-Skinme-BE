@@ -5,19 +5,42 @@
   }
 
   window.WebSocketClient = class WebSocketClient {
-    constructor(endpoint = "/ws-endpoint") {
-      this.endpoint = endpoint;
+    constructor(endpoint) {
+      this.endpoint = (typeof endpoint === "string" && endpoint) ? endpoint : (window.SKINME_WS_ENDPOINT || "/ws-endpoint");
       this.stompClient = null;
       this.isConnected = false;
       this.subscriptions = {};
-      this.messageHandlers = {};
+      this.subscriptionCallbacks = {};
       this.reconnectAttempts = 0;
       this.maxReconnectAttempts = 5;
       this.reconnectDelay = 3000;
     }
 
+  _doSubscribe(destination) {
+    const callbacks = this.subscriptionCallbacks[destination];
+    if (!callbacks || callbacks.length === 0 || !this.stompClient) return;
+    const sub = this.stompClient.subscribe(destination, (message) => {
+      try {
+        const data = typeof message.body === "string" ? JSON.parse(message.body) : message.body;
+        callbacks.forEach(function(cb) { try { cb(data); } catch (e) { console.error("WebSocket callback error:", e); } });
+      } catch (e) {
+        callbacks.forEach(function(cb) { try { cb(message.body); } catch (err) { console.error("WebSocket callback error:", err); } });
+      }
+    });
+    this.subscriptions[destination] = sub;
+  }
+
+  _applySubscriptions() {
+    const self = this;
+    Object.keys(self.subscriptionCallbacks).forEach(function(dest) {
+      if (self.subscriptionCallbacks[dest].length > 0 && !self.subscriptions[dest]) {
+        self._doSubscribe(dest);
+      }
+    });
+  }
+
   /**
-   * Initialize WebSocket connection
+   * Initialize WebSocket connection (uses same-origin; cookies sent for session auth)
    */
   connect(onConnect, onError) {
     if (typeof SockJS === "undefined" || typeof Stomp === "undefined") {
@@ -29,53 +52,41 @@
 
     const socket = new SockJS(this.endpoint);
     this.stompClient = Stomp.over(socket);
+    this.stompClient.debug = null;
 
+    const self = this;
     this.stompClient.connect(
       {},
-      (frame) => {
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
+      function(frame) {
+        self.isConnected = true;
+        self.reconnectAttempts = 0;
+        self._applySubscriptions();
         if (onConnect) onConnect(frame);
       },
-      (error) => {
+      function(error) {
         console.error("WebSocket Connection Error:", error);
-        this.handleConnectionError(onError);
+        self.handleConnectionError(onError);
       },
     );
   }
 
   /**
-   * Subscribe to a topic
+   * Subscribe to a topic (queued if not connected; applied when connection is ready)
    */
   subscribe(destination, callback) {
-    if (!this.isConnected) {
-      console.warn("WebSocket not connected. Attempting to reconnect...");
-      return;
+    if (!destination || typeof callback !== "function") return;
+    if (!this.subscriptionCallbacks[destination]) this.subscriptionCallbacks[destination] = [];
+    this.subscriptionCallbacks[destination].push(callback);
+    if (this.isConnected && this.stompClient && !this.subscriptions[destination]) {
+      this._doSubscribe(destination);
     }
-
-    const subscription = this.stompClient.subscribe(destination, (message) => {
-      try {
-        const data = JSON.parse(message.body);
-        callback(data);
-      } catch (e) {
-        console.error("Error parsing message:", e);
-        callback(message.body);
-      }
-    });
-
-    this.subscriptions[destination] = subscription;
   }
 
   /**
-   * Subscribe to user-specific messages
+   * Subscribe to user-specific messages (/user/queue/... or /user/topic/...)
    */
   subscribeToUser(destination, callback) {
-    if (!this.isConnected) {
-      console.warn("WebSocket not connected.");
-      return;
-    }
-
-    const userDestination = `/user${destination}`;
+    const userDestination = "/user" + (destination.startsWith("/") ? destination : "/" + destination);
     this.subscribe(userDestination, callback);
   }
 
@@ -93,13 +104,14 @@
   }
 
   /**
-   * Unsubscribe from a topic
+   * Unsubscribe from a topic (removes subscription and callbacks)
    */
   unsubscribe(destination) {
     if (this.subscriptions[destination]) {
       this.subscriptions[destination].unsubscribe();
       delete this.subscriptions[destination];
     }
+    delete this.subscriptionCallbacks[destination];
   }
 
   /**
@@ -115,15 +127,17 @@
   }
 
   /**
-   * Handle connection errors and attempt reconnect
+   * Handle connection errors and attempt reconnect (re-subscribes automatically)
    */
   handleConnectionError(onError) {
     this.isConnected = false;
+    this.subscriptions = {};
 
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      setTimeout(() => {
-        this.connect(null, onError);
+      const self = this;
+      setTimeout(function() {
+        self.connect(null, onError);
       }, this.reconnectDelay);
     } else {
       console.error("Max reconnection attempts reached");

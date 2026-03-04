@@ -195,11 +195,11 @@ public class PageController {
             model.addAttribute("newUsersThisWeek", newUsersThisWeek);
             model.addAttribute("newUsersThisMonth", newUsersThisMonth);
 
-            // Dashboard widgets: only last 10 orders and 10 payments (no full table load)
-            Pageable top10 = PageRequest.of(0, 10, Sort.by("orderId").descending());
-            model.addAttribute("userOrders", orderService.getAllUserOrders(top10).getContent());
-            Pageable top10Payments = PageRequest.of(0, 10, Sort.by("id").descending());
-            model.addAttribute("userPayments", paymentRepository.findAllWithOrderAndUser(top10Payments).getContent());
+            // Dashboard widgets: last 5 orders and 5 payments for card links
+            Pageable top5 = PageRequest.of(0, 5, Sort.by("orderId").descending());
+            model.addAttribute("recentOrders", orderService.getAllUserOrders(top5).getContent());
+            Pageable top5Payments = PageRequest.of(0, 5, Sort.by("id").descending());
+            model.addAttribute("recentPayments", paymentRepository.findAllWithOrderAndUser(top5Payments).getContent());
 
             // Recent favorites and popular: limit to 5 in memory (tables usually small)
             List<FavoriteItem> recentFavorites = favoriteItemRepository.findRecentFavoritesWithRelations();
@@ -217,8 +217,8 @@ public class PageController {
             model.addAttribute("newUsersThisMonth", 0);
             model.addAttribute("recentFavorites", List.<FavoriteItem>of());
             model.addAttribute("popularProducts", List.<PopularProduct>of());
-            model.addAttribute("userOrders", List.<OrderDto>of());
-            model.addAttribute("userPayments", List.<Payment>of());
+            model.addAttribute("recentOrders", List.<OrderDto>of());
+            model.addAttribute("recentPayments", List.<Payment>of());
             model.addAttribute("error", "Failed to load stats: " + e.getMessage());
         }
         model.addAttribute("pageTitle", "Admin Dashboard");

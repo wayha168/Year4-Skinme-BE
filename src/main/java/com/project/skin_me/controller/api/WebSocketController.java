@@ -7,6 +7,7 @@ import com.project.skin_me.model.ChatMessage;
 import com.project.skin_me.model.User;
 import com.project.skin_me.repository.ChatMessageRepository;
 import com.project.skin_me.service.chatAI.GeminiService;
+import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.user.IUserService;
 import com.project.skin_me.util.MarkdownCatalogLoader;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class WebSocketController {
     private final GeminiService geminiService;
     private final ChatMessageRepository chatMessageRepository;
     private final IUserService userService;
+    private final NotificationService notificationService;
 
     /**
      * Handle chat messages between users and admins
@@ -65,16 +67,29 @@ public class WebSocketController {
             message.setTimestamp(LocalDateTime.now());
             message.setType(senderType);
             
-            // Save to database
+            // Save to database (user message or admin reply; AI responses are saved in handleChatQuery)
             ChatMessage chatMessage = new ChatMessage();
             chatMessage.setUser(currentUser);
             chatMessage.setSender(message.getSender());
             chatMessage.setContent(message.getContent());
-            chatMessage.setType(senderType);
+            chatMessage.setType(senderType); // "user" or "admin"
             chatMessage.setTimestamp(message.getTimestamp());
             chatMessage.setConversationId(message.getConversationId());
-            chatMessage.setAiResponse(false);
+            chatMessage.setAiResponse(false); // human (user or admin), not AI
             chatMessageRepository.save(chatMessage);
+
+            if (currentUser != null) {
+                try {
+                    notificationService.createAndNotifyUser(
+                            currentUser.getId(),
+                            "New chat",
+                            "New message in chat",
+                            "CHAT",
+                            "/chat");
+                } catch (Exception e) {
+                    // Don't fail chat if notification fails
+                }
+            }
             
             // Broadcast to all subscribers
             return message;
@@ -162,7 +177,7 @@ public class WebSocketController {
                     .conversationId(message.getConversationId())
                     .build();
             
-            // Save AI response to database
+            // Save AI response to database (type=assistant, isAiResponse=true; distinct from admin replies in handleChatMessage)
             ChatMessage aiMessage = new ChatMessage();
             aiMessage.setUser(currentUser);
             aiMessage.setSender("assistant");
@@ -214,18 +229,29 @@ public class WebSocketController {
     }
 
     /**
-     * Send notification to specific user
-     * Internal service method - call from other services
+     * Send notification to specific user by principal name (e.g. email).
+     * Use this when the client subscribes via /user/topic/notifications (principal-based).
+     */
+    public void sendNotificationToPrincipal(String principalName, NotificationDto notification) {
+        if (notification.getId() == null) notification.setId(UUID.randomUUID().toString());
+        if (notification.getCreatedAt() == null) notification.setCreatedAt(LocalDateTime.now());
+        if (notification.getStatus() == null) notification.setStatus("UNREAD");
+
+        messagingTemplate.convertAndSendToUser(
+                principalName,
+                "/topic/notifications",
+                notification);
+    }
+
+    /**
+     * Send notification to specific user by userId (string).
+     * Prefer {@link #sendNotificationToPrincipal(String, NotificationDto)} when you have principal name.
      */
     public void sendUserNotification(String userId, NotificationDto notification) {
         notification.setId(UUID.randomUUID().toString());
         notification.setCreatedAt(LocalDateTime.now());
         notification.setStatus("UNREAD");
-
-        messagingTemplate.convertAndSendToUser(
-                userId,
-                "/topic/notifications",
-                notification);
+        messagingTemplate.convertAndSendToUser(userId, "/topic/notifications", notification);
     }
 
     /**

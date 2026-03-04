@@ -366,33 +366,43 @@
         let webSocketClient = null;
         let isAiMode = false;
         
-        // Initialize WebSocket
+        // Use global WebSocket client when available (one connection for app + chat); subscriptions are queued until connected
         function initWebSocket() {
           if (typeof window.WebSocketClient === 'undefined') {
             updateConnectionStatus('disconnected');
             return;
           }
-          
+          if (window.webSocketClient) {
+            webSocketClient = window.webSocketClient;
+            ensureChatSubscriptions();
+            if (webSocketClient.isConnected) {
+              updateConnectionStatus('connected');
+            } else {
+              const t = setInterval(function() {
+                if (webSocketClient.isConnected) {
+                  clearInterval(t);
+                  updateConnectionStatus('connected');
+                }
+              }, 300);
+              setTimeout(function() { clearInterval(t); }, 15000);
+            }
+            return;
+          }
           webSocketClient = new window.WebSocketClient('/ws-endpoint');
-          
           webSocketClient.connect(
             function(frame) {
               updateConnectionStatus('connected');
-              
-              // Subscribe to chat topic
-              webSocketClient.subscribe('/topic/chat', function(message) {
-                displayMessage(message);
-              });
-              
-              // Subscribe to user-specific messages
-              webSocketClient.subscribeToUser('/topic/chat', function(message) {
-                displayMessage(message);
-              });
+              ensureChatSubscriptions();
             },
             function(error) {
               updateConnectionStatus('disconnected');
             }
           );
+        }
+        function ensureChatSubscriptions() {
+          if (!webSocketClient) return;
+          webSocketClient.subscribe('/topic/chat', displayMessage);
+          webSocketClient.subscribeToUser('/topic/chat', displayMessage);
         }
         
         function updateConnectionStatus(status) {

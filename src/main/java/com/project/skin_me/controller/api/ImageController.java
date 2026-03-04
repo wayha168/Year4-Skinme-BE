@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import java.util.Map;
+
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("${api.prefix}/images")
@@ -59,6 +61,21 @@ public class ImageController {
                     .body(new ApiResponse("Upload failed", e.getMessage()));
         }
 
+    }
+
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PostMapping(value = "/upload-brand", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse> uploadBrandImage(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body(new ApiResponse("No file provided", null));
+            }
+            String downloadUrl = imageService.saveBrandImage(file);
+            return ResponseEntity.ok(new ApiResponse("Upload success", Map.of("downloadUrl", downloadUrl)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Upload failed: " + e.getMessage(), null));
+        }
     }
 
     @GetMapping("/image/download/{imageId}")

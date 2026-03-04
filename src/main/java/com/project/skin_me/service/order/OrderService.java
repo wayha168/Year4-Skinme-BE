@@ -61,13 +61,14 @@ public class OrderService implements IOrderService {
         order.setOrderTotalAmount(calculateTotalAmount(orderItemList));
         Order savedOrder = orderRepository.save(order);
         
-        // Send WebSocket notification for order creation
+        // Send WebSocket notification for order creation (persisted + user notification panel)
         try {
-            notificationService.notifyUser(
+            notificationService.notifyUserWithAction(
                 userId.toString(),
                 "Order Created",
                 "Your order #" + savedOrder.getId() + " has been created successfully. Please proceed to payment.",
-                "ORDER"
+                "ORDER",
+                "/view/orders/" + savedOrder.getId()
             );
             
             // Send real-time update

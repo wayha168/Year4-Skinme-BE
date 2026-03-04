@@ -31,7 +31,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Main WebSocket endpoint with SockJS fallback
+        // SockJS endpoint; handshake uses HTTP session so principal is available for /user destinations
         registry.addEndpoint("/ws-endpoint")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();

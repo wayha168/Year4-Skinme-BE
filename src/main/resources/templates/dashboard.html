@@ -278,6 +278,13 @@
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
+        a.favorite-card, a.order-card, a.payment-card, a.favorite-card-link {
+          display: block;
+          text-decoration: none;
+          color: inherit;
+          cursor: pointer;
+        }
+
         .favorite-card-content {
           display: flex;
           flex-direction: column;
@@ -605,78 +612,80 @@
       </div>
     </div>
 
-    <!-- User Orders & User Payments Tables -->
-    <div class="content-section">
-      <h2 class="section-title"><i class="bi bi-bag-check"></i> User Orders</h2>
-      <p class="section-subtitle" style="margin-top: -0.5rem; margin-bottom: 1rem;">All user orders with delivery and user data.</p>
-      <div class="table-responsive mb-4" style="background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden;">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>#</th>
-              <th><i class="bi bi-person"></i> User</th>
-              <th><i class="bi bi-calendar"></i> Date</th>
-              <th><i class="bi bi-currency-dollar"></i> Amount</th>
-              <th><i class="bi bi-tags"></i> Status</th>
-              <th><i class="bi bi-geo-alt"></i> Delivery Address</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr th:if="${#lists.isEmpty(userOrders)}">
-              <td colspan="6" class="text-muted text-center py-4">No orders yet.</td>
-            </tr>
-            <tr th:each="ord : ${userOrders}">
-              <td class="fw-semibold" th:text="${'#' + ord.orderId}">#1</td>
-              <td>
-                <span th:text="${ord.userName != null && !ord.userName.isBlank() ? ord.userName : ord.userEmail}">User</span>
-                <br><small class="text-muted" th:text="${ord.userEmail}">email</small>
-              </td>
-              <td th:text="${ord.orderDate != null ? #temporals.format(ord.orderDate, 'MMM dd, yyyy') : '-'}">-</td>
-              <td th:text="${ord.totalAmount != null ? '$' + #numbers.formatDecimal(ord.totalAmount, 1, 2) : '-'}">-</td>
-              <td><span class="badge bg-secondary" th:text="${ord.orderStatus}">Status</span></td>
-              <td>
-                <span th:if="${ord.deliveryAddressFull != null && !ord.deliveryAddressFull.isEmpty()}" th:text="${ord.deliveryAddressFull}">Address</span>
-                <span th:if="${ord.deliveryAddressFull == null || ord.deliveryAddressFull.isEmpty()}" class="text-muted">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Last 5 Orders & Last 5 Payments – card style with direct click to page -->
+    <div class="dashboard-two-column" style="margin-bottom: 2.5rem;">
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;"><i class="bi bi-bag-check"></i> Last 5 Orders</h2>
+            <p class="section-subtitle">Click an order to open its details.</p>
+          </div>
+          <a th:href="@{/views/orders}" class="view-all-link">View All →</a>
+        </div>
+        <div class="favorites-list">
+          <div th:if="${#lists.isEmpty(recentOrders)}" class="empty-state-small">
+            <i class="bi bi-inbox"></i>
+            <p>No orders yet</p>
+          </div>
+          <a th:each="ord : ${recentOrders}" th:href="@{/view/orders/{orderId}(orderId=${ord.orderId})}" class="favorite-card order-card">
+            <div class="favorite-card-content">
+              <div class="favorite-user-info">
+                <div class="favorite-avatar" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                  <span th:text="${'#' + ord.orderId}">#1</span>
+                </div>
+                <div class="favorite-user-details">
+                  <div class="favorite-user-name" th:text="${ord.userName != null && !ord.userName.isBlank() ? ord.userName : ord.userEmail}">User</div>
+                  <div class="favorite-user-email" th:text="${ord.userEmail}">email</div>
+                </div>
+              </div>
+              <div class="favorite-product-info">
+                <div class="favorite-product-name" th:text="${ord.orderDate != null ? #temporals.format(ord.orderDate, 'MMM dd, yyyy') : '-'}">Date</div>
+                <div class="favorite-product-brand" th:text="${ord.totalAmount != null ? '$' + #numbers.formatDecimal(ord.totalAmount, 1, 2) : '-'}">Amount</div>
+              </div>
+              <div class="favorite-meta">
+                <span class="badge bg-secondary" th:text="${ord.orderStatus}">Status</span>
+                <span class="favorite-time"><i class="bi bi-box-arrow-up-right"></i> View order</span>
+              </div>
+            </div>
+          </a>
+        </div>
       </div>
-
-      <h2 class="section-title"><i class="bi bi-receipt"></i> User Payments</h2>
-      <p class="section-subtitle" style="margin-top: -0.5rem; margin-bottom: 1rem;">Payment records with user and order info.</p>
-      <div class="table-responsive" style="background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden;">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>#</th>
-              <th><i class="bi bi-person"></i> User</th>
-              <th><i class="bi bi-bag"></i> Order</th>
-              <th><i class="bi bi-currency-dollar"></i> Amount</th>
-              <th><i class="bi bi-tags"></i> Status</th>
-              <th><i class="bi bi-clock"></i> Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr th:if="${#lists.isEmpty(userPayments)}">
-              <td colspan="6" class="text-muted text-center py-4">No payments yet.</td>
-            </tr>
-            <tr th:each="pay : ${userPayments}">
-              <td class="fw-semibold" th:text="${'#' + pay.id}">#1</td>
-              <td>
-                <span th:if="${pay.order != null && pay.order.user != null}">
-                  <span th:text="${pay.order.user.firstName != null ? pay.order.user.firstName + ' ' + (pay.order.user.lastName != null ? pay.order.user.lastName : '') : pay.order.user.email}">User</span>
-                  <br><small class="text-muted" th:text="${pay.order.user.email}">email</small>
-                </span>
-                <span th:unless="${pay.order != null && pay.order.user != null}" class="text-muted">—</span>
-              </td>
-              <td th:text="${pay.order != null ? '#' + pay.order.getId() : '—'}">—</td>
-              <td th:text="${pay.amount != null ? '$' + #numbers.formatDecimal(pay.amount, 1, 2) : '—'}">—</td>
-              <td><span class="badge bg-secondary" th:text="${pay.status}">Status</span></td>
-              <td th:text="${pay.transactionTime != null ? #temporals.format(pay.transactionTime, 'MMM dd, HH:mm') : '—'}">—</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;"><i class="bi bi-receipt"></i> Last 5 Payments</h2>
+            <p class="section-subtitle">Click a payment to open its details.</p>
+          </div>
+          <a th:href="@{/views/payments}" class="view-all-link">View All →</a>
+        </div>
+        <div class="favorites-list">
+          <div th:if="${#lists.isEmpty(recentPayments)}" class="empty-state-small">
+            <i class="bi bi-inbox"></i>
+            <p>No payments yet</p>
+          </div>
+          <a th:each="pay : ${recentPayments}" th:href="@{/view/payments/{paymentId}(paymentId=${pay.id})}" class="favorite-card payment-card">
+            <div class="favorite-card-content">
+              <div class="favorite-user-info">
+                <div class="favorite-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                  <span th:text="${'#' + pay.id}">#1</span>
+                </div>
+                <div class="favorite-user-details">
+                  <div class="favorite-user-name" th:if="${pay.order != null && pay.order.user != null}" th:text="${pay.order.user.firstName != null ? pay.order.user.firstName + ' ' + (pay.order.user.lastName != null ? pay.order.user.lastName : '') : pay.order.user.email}">User</div>
+                  <div class="favorite-user-name" th:unless="${pay.order != null && pay.order.user != null}">—</div>
+                  <div class="favorite-user-email" th:text="${pay.order != null ? 'Order #' + pay.order.getId() : '—'}">Order</div>
+                </div>
+              </div>
+              <div class="favorite-product-info">
+                <div class="favorite-product-name" th:text="${pay.amount != null ? '$' + #numbers.formatDecimal(pay.amount, 1, 2) : '—'}">Amount</div>
+                <div class="favorite-product-brand" th:text="${pay.transactionTime != null ? #temporals.format(pay.transactionTime, 'MMM dd, HH:mm') : '—'}">Time</div>
+              </div>
+              <div class="favorite-meta">
+                <span class="badge bg-secondary" th:text="${pay.status}">Status</span>
+                <span class="favorite-time"><i class="bi bi-box-arrow-up-right"></i> View payment</span>
+              </div>
+            </div>
+          </a>
+        </div>
       </div>
     </div>
 
@@ -700,7 +709,7 @@
             <p>No favorites yet</p>
           </div>
           
-          <div th:each="favorite : ${recentFavorites}" class="favorite-card">
+          <a th:each="favorite : ${recentFavorites}" th:href="@{/view/products/{id}(id=${favorite.product.id})}" class="favorite-card favorite-card-link">
             <div class="favorite-card-content">
               <div class="favorite-user-info">
                 <div class="favorite-avatar">
@@ -726,10 +735,10 @@
                 <span class="favorite-badge">
                   <i class="bi bi-heart-fill"></i> Favorite
                 </span>
-                <span class="favorite-time" >Recently</span>
+                <span class="favorite-time"><i class="bi bi-box-arrow-up-right"></i> View product</span>
               </div>
             </div>
-          </div>
+          </a>
         </div>
       </div>
 

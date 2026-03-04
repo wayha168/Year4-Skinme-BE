@@ -22,5 +22,10 @@ public interface IImageService {
      */
     String saveCategoryImage(MultipartFile file, Category category);
 
+    /**
+     * Save a single image file (e.g. for brand logo). Returns the download URL to store in brand.imageUrl.
+     */
+    String saveBrandImage(MultipartFile file);
+
     void updateImage(MultipartFile file, Long imageId);
 }

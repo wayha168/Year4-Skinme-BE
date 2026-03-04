@@ -8,7 +8,13 @@
         <p class="page-subtitle" th:if="${pageSubtitle != null}" th:text="${pageSubtitle}">Page subtitle</p>
       </div>
       
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-3">
+        <!-- Notification icon: click to open right-side panel (35%) -->
+        <button type="button" class="btn btn-icon btn-notification-header" id="headerNotificationBtn" th:if="${currentUser != null}"
+          aria-label="Notifications" title="Notifications" onclick="typeof window.toggleNotificationPanel === 'function' && window.toggleNotificationPanel();">
+          <i class="bi bi-bell"></i>
+          <span class="notification-badge-header" id="headerNotificationBadge" style="display: none;">0</span>
+        </button>
         <!-- Profile Dropdown -->
         <div class="dropdown" th:if="${currentUser != null}">
         <button 
@@ -58,5 +64,4 @@
     </div>
   </div>
 </div>
-
 
