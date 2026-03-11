@@ -7,19 +7,28 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.project.skin_me.enums.ActivityType;
 import com.project.skin_me.model.Activity;
+import com.project.skin_me.model.PhoneOtp;
+import com.project.skin_me.model.PhoneVerification;
 import com.project.skin_me.model.Role;
 import com.project.skin_me.model.User;
 import com.project.skin_me.repository.ActivityRepository;
+import com.project.skin_me.repository.PhoneOtpRepository;
+import com.project.skin_me.repository.PhoneVerificationRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
 import com.project.skin_me.request.LoginRequest;
+import com.project.skin_me.request.LoginWithPhoneRequest;
+import com.project.skin_me.request.RegisterWithPhoneRequest;
+import com.project.skin_me.request.SendOtpRequest;
 import com.project.skin_me.request.SignupRequest;
+import com.project.skin_me.request.VerifyPhoneRequest;
 import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.response.JwtResponse;
 import com.project.skin_me.security.jwt.JwtUtils;
 import com.project.skin_me.security.user.ShopUserDetails;
 import com.project.skin_me.service.email.EmailService;
 import com.project.skin_me.service.notification.NotificationService;
+import com.project.skin_me.service.sms.SmsService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,9 +46,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -60,12 +71,24 @@ public class AuthService implements IAuthService {
     private final ActivityRepository activityRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final PhoneOtpRepository phoneOtpRepository;
+    private final PhoneVerificationRepository phoneVerificationRepository;
+    private final SmsService smsService;
+
+    private static final int OTP_EXPIRY_MINUTES = 10;
+    private static final int PHONE_VERIFICATION_EXPIRY_MINUTES = 15;
+    private static final int OTP_LENGTH = 6;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @Value("${spring.security.oauth2.client.registration.google.client-id}")
     private String googleClientId;
 
     @Value("${spring.security.oauth2.client.registration.google.client-secret}")
     private String googleClientSecret;
+
+    /** When true, send-otp returns the OTP in response.data.otp when SMS delivery fails (dev/testing only). */
+    @Value("${app.sms.dev.return-otp-when-delivery-fails:false}")
+    private boolean returnOtpWhenDeliveryFails;
 
     @Value("${app.oauth.redirect-uri:https://skinme.store/oauth-callback}")
     private String googleRedirectUri;
@@ -493,6 +516,317 @@ public class AuthService implements IAuthService {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
         }
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse> sendOtp(SendOtpRequest request) {
+        try {
+            String phone = normalizePhone(request.getPhone());
+            if (phone.length() < 8) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.invalid", null));
+            }
+            String code = generateOtpCode();
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime expiresAt = now.plusMinutes(OTP_EXPIRY_MINUTES);
+
+            phoneOtpRepository.deleteByPhone(phone);
+            PhoneOtp otp = PhoneOtp.builder()
+                    .phone(phone)
+                    .code(code)
+                    .expiresAt(expiresAt)
+                    .createdAt(now)
+                    .build();
+            phoneOtpRepository.save(otp);
+
+            boolean sent = smsService.sendOtp(phone, code);
+            if (!sent) {
+                logger.warn("SMS delivery failed for phone: {} - OTP was logged above for testing", phone);
+                Object data = returnOtpWhenDeliveryFails ? Map.of("otp", code) : null;
+                return ResponseEntity.ok(ApiResponse.ofKey("api.auth.otp.sent.check.logs", data));
+            }
+            logger.info("OTP sent to phone: {} (expires in {} min)", phone, OTP_EXPIRY_MINUTES);
+            return ResponseEntity.ok(ApiResponse.ofKey("api.auth.otp.sent", null));
+        } catch (Exception e) {
+            logger.error("Send OTP failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse> loginWithPhone(LoginWithPhoneRequest request, HttpServletRequest req, HttpServletResponse resp) {
+        try {
+            String phone = normalizePhone(request.getPhone());
+            String code = request.getOtp().trim();
+
+            Optional<PhoneOtp> otpOpt = phoneOtpRepository.findByPhone(phone);
+            if (otpOpt.isEmpty()) {
+                logger.warn("Login with phone failed: No OTP found for phone: {}", phone);
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.otp.invalid", null));
+            }
+            PhoneOtp otp = otpOpt.get();
+            if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
+                phoneOtpRepository.delete(otp);
+                logger.warn("Login with phone failed: OTP expired for phone: {}", phone);
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.otp.expired", null));
+            }
+            if (!otp.getCode().equals(code)) {
+                logger.warn("Login with phone failed: Invalid OTP for phone: {}", phone);
+                return ResponseEntity.status(UNAUTHORIZED)
+                        .body(ApiResponse.ofKey("api.auth.otp.invalid", null));
+            }
+            phoneOtpRepository.delete(otp);
+
+            User user = userRepository.findByPhone(phone).orElseGet(() -> {
+                Role userRole = roleRepository.findByName("ROLE_USER")
+                        .orElseThrow(() -> new RuntimeException("Default role ROLE_USER not found."));
+                String phoneDigits = phone.replaceAll("[^0-9]", "");
+                String syntheticEmail = "phone_" + phoneDigits + "@skinme.phone";
+                if (userRepository.existsByEmail(syntheticEmail)) {
+                    throw new IllegalStateException("Phone user email collision: " + syntheticEmail);
+                }
+                String last5 = phoneDigits.length() >= 5
+                        ? phoneDigits.substring(phoneDigits.length() - 5)
+                        : phoneDigits;
+                String generatedName = "user" + last5;
+                User newUser = new User();
+                newUser.setPhone(phone);
+                newUser.setEmail(syntheticEmail);
+                newUser.setFirstName(generatedName);
+                newUser.setLastName("");
+                newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                newUser.setEnabled(true);
+                newUser.setRegistrationDate(LocalDateTime.now());
+                newUser.setIsOnline(false);
+                newUser.setRoles(new HashSet<>(Collections.singletonList(userRole)));
+                logger.info("Creating new user for phone login: {} (firstName: {})", phone, generatedName);
+                return registerUser(newUser);
+            });
+
+            if (!user.isEnabled()) {
+                return ResponseEntity.status(UNAUTHORIZED)
+                        .body(ApiResponse.ofKey("api.auth.account.disabled", null));
+            }
+
+            ShopUserDetails userDetails = ShopUserDetails.buildUserDetails(user);
+            Authentication authentication = new UsernamePasswordAuthenticationToken(
+                    userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtUtils.generateTokenForUser(authentication);
+
+            String ipAddress = getClientIpAddress(req);
+            recordLogin(user.getId(), ipAddress);
+
+            Set<String> roles = userDetails.getAuthorities().stream()
+                    .map(a -> a.getAuthority())
+                    .collect(Collectors.toSet());
+
+            Cookie cookie = new Cookie("token", jwt);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            cookie.setPath("/");
+            cookie.setMaxAge(7 * 24 * 60 * 60);
+            cookie.setAttribute("SameSite", "Strict");
+            resp.addCookie(cookie);
+
+            JwtResponse jwtResponse = new JwtResponse(userDetails.getId(), jwt, roles);
+            logger.info("User logged in with phone: {}", phone);
+
+            try {
+                notificationService.notifyUser(
+                        user.getId().toString(),
+                        "Welcome Back!",
+                        "You have successfully logged in with your phone.",
+                        "AUTH"
+                );
+            } catch (Exception e) {
+                logger.warn("Failed to send phone login notification: {}", e.getMessage());
+            }
+
+            return ResponseEntity.ok(ApiResponse.ofKey("api.auth.login.success", jwtResponse));
+        } catch (IllegalStateException e) {
+            logger.error("Phone login error: {}", e.getMessage());
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        } catch (Exception e) {
+            logger.error("Login with phone failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse> verifyPhone(VerifyPhoneRequest request) {
+        try {
+            String phone = normalizePhone(request.getPhone());
+            String code = request.getOtp().trim();
+
+            if (phone.length() < 8) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.invalid", null));
+            }
+
+            Optional<PhoneOtp> otpOpt = phoneOtpRepository.findByPhone(phone);
+            if (otpOpt.isEmpty()) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.otp.invalid", null));
+            }
+            PhoneOtp otp = otpOpt.get();
+            if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
+                phoneOtpRepository.delete(otp);
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.otp.expired", null));
+            }
+            if (!otp.getCode().equals(code)) {
+                return ResponseEntity.status(UNAUTHORIZED)
+                        .body(ApiResponse.ofKey("api.auth.otp.invalid", null));
+            }
+            phoneOtpRepository.delete(otp);
+
+            phoneVerificationRepository.deleteByPhone(phone);
+            String token = UUID.randomUUID().toString();
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime expiresAt = now.plusMinutes(PHONE_VERIFICATION_EXPIRY_MINUTES);
+            PhoneVerification pv = PhoneVerification.builder()
+                    .phone(phone)
+                    .token(token)
+                    .expiresAt(expiresAt)
+                    .createdAt(now)
+                    .build();
+            phoneVerificationRepository.save(pv);
+
+            Map<String, String> data = Map.of("phoneVerificationToken", token);
+            return ResponseEntity.ok(ApiResponse.ofKey("api.auth.phone.verified", data));
+        } catch (Exception e) {
+            logger.error("Verify phone failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse> registerWithPhone(RegisterWithPhoneRequest request, HttpServletRequest req, HttpServletResponse resp) {
+        try {
+            String phone = normalizePhone(request.getPhone());
+            if (phone.length() < 8) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.invalid", null));
+            }
+            if (request.getPassword() == null || request.getPassword().isBlank()) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.password.required", null));
+            }
+            if (request.getConfirmPassword() == null || !request.getPassword().equals(request.getConfirmPassword())) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.passwords.mismatch", null));
+            }
+
+            Optional<PhoneVerification> pvOpt = phoneVerificationRepository.findByToken(request.getPhoneVerificationToken());
+            if (pvOpt.isEmpty()) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.verification.token.invalid", null));
+            }
+            PhoneVerification pv = pvOpt.get();
+            if (pv.getExpiresAt().isBefore(LocalDateTime.now())) {
+                phoneVerificationRepository.delete(pv);
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.verification.expired", null));
+            }
+            if (!normalizePhone(pv.getPhone()).equals(phone)) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(ApiResponse.ofKey("api.auth.phone.mismatch", null));
+            }
+
+            if (userRepository.existsByPhone(phone)) {
+                return ResponseEntity.status(CONFLICT)
+                        .body(ApiResponse.ofKey("api.auth.phone.already.registered", null));
+            }
+            if (userRepository.existsByEmail(request.getEmail())) {
+                return ResponseEntity.status(CONFLICT)
+                        .body(ApiResponse.ofKey("api.auth.email.exists", null));
+            }
+
+            Role userRole = roleRepository.findByName("ROLE_USER")
+                    .orElseThrow(() -> new RuntimeException("Default role ROLE_USER not found."));
+
+            User newUser = new User();
+            newUser.setPhone(phone);
+            newUser.setFirstName(request.getFirstName() != null ? request.getFirstName().trim() : "");
+            newUser.setLastName(request.getLastName() != null ? request.getLastName().trim() : "");
+            newUser.setEmail(request.getEmail().trim());
+            newUser.setPassword(request.getPassword());
+            newUser.setConfirmPassword(request.getConfirmPassword());
+            newUser.setEnabled(true);
+            newUser.setRegistrationDate(LocalDateTime.now());
+            newUser.setIsOnline(false);
+            newUser.setRoles(new HashSet<>(Collections.singletonList(userRole)));
+
+            User savedUser = registerUser(newUser);
+            phoneVerificationRepository.delete(pv);
+
+            ShopUserDetails userDetails = ShopUserDetails.buildUserDetails(savedUser);
+            Authentication authentication = new UsernamePasswordAuthenticationToken(
+                    userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtUtils.generateTokenForUser(authentication);
+
+            String ipAddress = getClientIpAddress(req);
+            recordLogin(savedUser.getId(), ipAddress);
+
+            Set<String> roles = userDetails.getAuthorities().stream()
+                    .map(a -> a.getAuthority())
+                    .collect(Collectors.toSet());
+
+            Cookie cookie = new Cookie("token", jwt);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            cookie.setPath("/");
+            cookie.setMaxAge(7 * 24 * 60 * 60);
+            cookie.setAttribute("SameSite", "Strict");
+            resp.addCookie(cookie);
+
+            JwtResponse jwtResponse = new JwtResponse(userDetails.getId(), jwt, roles);
+            logger.info("User registered with phone and logged in: {}", phone);
+
+            try {
+                notificationService.notifyUser(
+                        savedUser.getId().toString(),
+                        "Welcome to SkinMe!",
+                        "Your account has been created successfully.",
+                        "AUTH"
+                );
+            } catch (Exception e) {
+                logger.warn("Failed to send signup notification: {}", e.getMessage());
+            }
+
+            return ResponseEntity.status(CREATED)
+                    .body(ApiResponse.ofKey("api.auth.register.with.phone.success", jwtResponse));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Register with phone validation: {}", e.getMessage());
+            return ResponseEntity.status(CONFLICT)
+                    .body(ApiResponse.ofKey("api.auth.email.exists", null));
+        } catch (Exception e) {
+            logger.error("Register with phone failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
+
+    private static String normalizePhone(String phone) {
+        if (phone == null) return "";
+        return phone.replaceAll("[\\s-]", "").trim();
+    }
+
+    private static String generateOtpCode() {
+        int n = (int) Math.pow(10, OTP_LENGTH - 1);
+        return String.valueOf(n + RANDOM.nextInt(9 * n));
     }
 
     @Transactional
