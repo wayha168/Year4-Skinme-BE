@@ -677,6 +677,41 @@
 }
 
 /* Ensure sidebar footer stays at bottom */
+.sidebar-lang-switcher {
+  /* padding: 10px 14px; */
+  /* border-top: 1px solid var(--gray-200); */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  /* gap: 4px; */
+}
+.sidebar-lang-switcher .lang-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--gray-600);
+  background: transparent;
+  transition: color 0.2s, background 0.2s;
+}
+.sidebar-lang-switcher .lang-btn:hover {
+  color: var(--primary);
+  background: rgba(201, 168, 108, 0.15);
+}
+.sidebar-lang-switcher .lang-btn-active {
+  color: var(--primary);
+  background: rgba(201, 168, 108, 0.2);
+}
+.sidebar-lang-switcher .lang-sep {
+  color: var(--gray-400);
+  font-size: 0.75rem;
+  user-select: none;
+}
+.sidebar.sidebar-collapsed .sidebar-lang-switcher .nav-link-text,
+.sidebar.sidebar-collapsed .sidebar-lang-switcher .lang-sep { display: none; }
+.sidebar.sidebar-collapsed .sidebar-lang-switcher { justify-content: center; }
+
 .sidebar-footer {
   margin-top: auto;
   padding: 8px 4px;

@@ -10,7 +10,9 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+    Optional<User> findByPhone(String phone);
     boolean existsByEmail(String email);
+    boolean existsByPhone(String phone);
     /** Count users registered after the given time (for dashboard stats without loading all users). */
     long countByRegistrationDateAfter(LocalDateTime dateTime);
 }

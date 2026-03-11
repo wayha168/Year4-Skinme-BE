@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -66,14 +67,18 @@ public class TelegramNotificationService {
         }
     }
 
+    /** Fired as soon as order is placed (before payment). Runs async so it never blocks order creation. */
+    @Async
     public void notifyNewOrder(Long orderId, String userInfo, String totalAmount) {
         String msg = String.format(
-                "<b>🛒 New Order</b>\nOrder #%d\nUser: %s\nTotal: %s",
+                "<b>🛒 New Order</b> <i>(pending payment)</i>\nOrder #%d\nUser: %s\nTotal: %s",
                 orderId, userInfo, totalAmount
         );
         sendAlert(msg);
     }
 
+    /** Fired when payment is confirmed. Runs async so it never blocks payment confirmation. */
+    @Async
     public void notifyPaymentCompleted(Long orderId, String userInfo, String totalAmount) {
         String msg = String.format(
                 "<b>💰 Payment Completed</b>\nOrder #%d\nUser: %s\nAmount: %s",
@@ -82,6 +87,7 @@ public class TelegramNotificationService {
         sendAlert(msg);
     }
 
+    @Async
     public void notifyDeliveryDone(Long orderId, String userInfo, String trackingNumber) {
         String tracking = (trackingNumber != null && !trackingNumber.isBlank()) ? "\nTracking: " + trackingNumber : "";
         String msg = String.format(

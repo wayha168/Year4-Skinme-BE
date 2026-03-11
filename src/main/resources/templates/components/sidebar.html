@@ -119,6 +119,15 @@
     </li>
   </ul>
 
+  <div class="sidebar-lang-switcher">
+    <span class="nav-link-text text-muted small me-2">Language</span>
+    <a th:href="@{/views/set-lang(lang='en')}" class="lang-btn" data-tooltip="English"
+       th:classappend="${currentLocale == 'en'} ? 'lang-btn-active' : ''">EN</a>
+    <span class="lang-sep">|</span>
+    <a th:href="@{/views/set-lang(lang='km')}" class="lang-btn" data-tooltip="Khmer"
+       th:classappend="${currentLocale == 'km'} ? 'lang-btn-active' : ''">KM</a>
+  </div>
+
   <div class="sidebar-footer">
     <a href="#" class="nav-link" data-tooltip="Logout" data-turbo="false" onclick="handleLogout(event);">
       <i class="bi bi-box-arrow-right"></i> <span class="nav-link-text">Logout</span>

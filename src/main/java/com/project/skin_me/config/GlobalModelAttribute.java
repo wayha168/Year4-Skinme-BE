@@ -9,6 +9,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.context.i18n.LocaleContextHolder;
+
+import java.util.Locale;
 
 @ControllerAdvice
 @RequiredArgsConstructor
@@ -23,6 +26,9 @@ public class GlobalModelAttribute {
     public void addGlobalAttributes(Model model) {
         // Add API prefix to all templates
         model.addAttribute("api", new ApiConfig(apiPrefix));
+        // Current locale for language switcher (e.g. "en", "km")
+        Locale locale = LocaleContextHolder.getLocale();
+        model.addAttribute("currentLocale", locale != null ? locale.getLanguage() : "en");
         
         // Add current user if authenticated
         try {

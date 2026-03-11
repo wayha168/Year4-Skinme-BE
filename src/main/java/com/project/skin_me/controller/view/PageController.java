@@ -225,6 +225,21 @@ public class PageController {
         return "dashboard";
     }
 
+    /** Switch language for dashboard; LocaleChangeInterceptor sets cookie from ?lang=. Redirects back to current page. */
+    @GetMapping("/views/set-lang")
+    public String setLang(@RequestParam String lang, HttpServletRequest request) {
+        String redirectTo = "/dashboard";
+        String referer = request.getHeader("Referer");
+        if (referer != null && !referer.isBlank()) {
+            try {
+                java.net.URL u = new java.net.URL(referer);
+                String path = u.getPath();
+                if (path != null && !path.isBlank()) redirectTo = path;
+            } catch (Exception ignored) { }
+        }
+        return "redirect:" + redirectTo;
+    }
+
     @GetMapping("/product")
     @PreAuthorize("hasRole('ADMIN')")
     public String productPage(Model model) {
@@ -519,21 +534,40 @@ public class PageController {
         }
     }
 
+    /** Allowed page sizes for product table. */
+    private static final int[] PRODUCT_PAGE_SIZES = { 10, 20, 50 };
+
     @GetMapping("/views/products")
     @PreAuthorize("hasRole('ADMIN')")
-    public String productsListPage(@RequestParam(defaultValue = "0") int page, Model model) {
+    public String productsListPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) Integer size,
+            Model model,
+            org.springframework.web.context.request.WebRequest webRequest) {
+        if (size == null && !webRequest.getParameterMap().containsKey("size")) {
+            return "redirect:/views/products?page=0&size=10";
+        }
+        int pageSize = normalizeProductPageSize(size != null ? size : 10);
         try {
-            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("id"));
+            Pageable pageable = PageRequest.of(page, pageSize, Sort.by("id"));
             var productPage = productService.getAllProducts(pageable);
-            List<Product> products = productPage.getContent();
-            List<Category> categories = categoryService.getAllCategories();
             int totalPages = productPage.getTotalPages();
             long totalItems = productPage.getTotalElements();
+            int safePage = totalPages > 0 ? Math.min(page, totalPages - 1) : 0;
+            if (safePage != page) {
+                pageable = PageRequest.of(safePage, pageSize, Sort.by("id"));
+                productPage = productService.getAllProducts(pageable);
+            }
+            List<Product> products = productPage.getContent();
+            List<Category> categories = categoryService.getAllCategories();
+            page = safePage;
             model.addAttribute("products", products);
             model.addAttribute("categories", categories);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("totalItems", totalItems);
+            model.addAttribute("pageSize", pageSize);
+            model.addAttribute("pageSizeOptions", PRODUCT_PAGE_SIZES);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
         } catch (Exception e) {
@@ -543,11 +577,20 @@ public class PageController {
             model.addAttribute("currentPage", 0);
             model.addAttribute("totalPages", 0);
             model.addAttribute("totalItems", 0);
+            model.addAttribute("pageSize", 10);
+            model.addAttribute("pageSizeOptions", PRODUCT_PAGE_SIZES);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
         }
         model.addAttribute("pageTitle", "Products Management");
         return "products";
+    }
+
+    private static int normalizeProductPageSize(int size) {
+        for (int allowed : PRODUCT_PAGE_SIZES) {
+            if (allowed == size) return size;
+        }
+        return 10;
     }
 
     // Product CRUD Endpoints
