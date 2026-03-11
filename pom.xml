@@ -201,6 +201,12 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.3.0</version>
         </dependency>
+        <!-- Twilio SMS for OTP (phone login). Optional: leave app.sms.twilio unset to use stub (log only). -->
+        <dependency>
+            <groupId>com.twilio.sdk</groupId>
+            <artifactId>twilio</artifactId>
+            <version>10.6.0</version>
+        </dependency>
     </dependencies>
 
     <build>
