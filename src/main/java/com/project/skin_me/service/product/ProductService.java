@@ -17,6 +17,7 @@ import com.project.skin_me.model.Brand;
 import com.project.skin_me.model.Image;
 import com.project.skin_me.model.Product;
 import com.project.skin_me.repository.BrandRepository;
+import com.project.skin_me.repository.FavoriteItemRepository;
 import com.project.skin_me.repository.ImageRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.AddProductRequest;
@@ -41,6 +42,7 @@ public class ProductService implements IProductService {
     private final ProductRepository productRepository;
     private final BrandRepository brandRepository;
     private final ImageRepository imageRepository;
+    private final FavoriteItemRepository favoriteItemRepository;
     private final ModelMapper modelMapper;
 
     @Autowired
@@ -247,6 +249,14 @@ public class ProductService implements IProductService {
 
         productDto.setImages(imageDtos);
         return productDto;
+    }
+
+    @Override
+    public ProductDto getProductDtoByIdWithFavoriteCount(Long productId) {
+        Product product = getProductById(productId);
+        ProductDto dto = convertToDto(product);
+        dto.setFavoriteCount(favoriteItemRepository.countByProduct_Id(productId));
+        return dto;
     }
 
     /** Display URL for API/templates: use /uploads/fileName so response is based on fileName, not DB downloadUrl. */

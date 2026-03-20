@@ -60,6 +60,7 @@ public class SecurityConfig {
         private final UserRepository userRepository;
 
         private static final String[] PUBLIC_API = {
+                        "/products/**",
                         "/api/v1/users/**", "/api/v1/products/**", "/api/v1/categories/**",
                         "/api/v1/images/**", "/api/v1/payment/webhook", "/api/v1/payment/verify-success",
                         "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/**", "/api/v1/lang",

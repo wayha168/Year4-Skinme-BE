@@ -51,6 +51,9 @@ public interface IProductService {
 
     ProductDto convertToDto(Product product);
 
+    /** Single product for API/detail views, including how many users favorited it. */
+    ProductDto getProductDtoByIdWithFavoriteCount(Long productId);
+
     List<ProductDto> getConvertedProducts(List<Product> products);
 
     List<Product> getPopularProducts();
