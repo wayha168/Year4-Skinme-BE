@@ -9,6 +9,7 @@ import com.project.skin_me.model.User;
 import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.ProductFeedbackRequest;
+import com.project.skin_me.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,7 @@ public class ProductFeedbackService implements IProductFeedbackService {
 
     private final ProductFeedbackRepository productFeedbackRepository;
     private final ProductRepository productRepository;
+    private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
@@ -67,6 +69,13 @@ public class ProductFeedbackService implements IProductFeedbackService {
                 .createdAtEpochMs(saved.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
                 .build();
         messagingTemplate.convertAndSend("/topic/feedback", event);
+
+        try {
+            notificationService.notifyAdminsNewProductFeedback(
+                    product.getName(), saved.getRating(), saved.getComment(), user.getEmail());
+        } catch (Exception ignored) {
+            // feedback already saved; notification is best-effort
+        }
 
         return toDto(saved);
     }
