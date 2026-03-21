@@ -33,7 +33,7 @@
         <p class="text-muted mb-3">
           All customer reviews in the database (paginated). Each row shows <strong>On storefront</strong> or <strong>Hidden</strong> and a switch—turn on to include that review in
           <code>GET /api/v1/feedback/product/{id}</code>; turn off to remove it from the public API.
-          New submissions notify this dashboard via WebSocket (<code>/topic/feedback</code>).
+          New submissions notify admins via the notification bell (and toast), with product name, rating, and comment.
         </p>
 
         <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -61,7 +61,7 @@
             <i class="bi bi-inbox"></i>
             <h5>No feedback yet</h5>
             <p th:if="${totalFeedbackCount == null or totalFeedbackCount == 0}">
-              Feedback appears when customers submit reviews for delivered orders.
+              Feedback appears when signed-in customers submit reviews for products (API: <code>POST /api/v1/feedback</code>).
             </p>
             <p th:unless="${totalFeedbackCount == null or totalFeedbackCount == 0}">
               No rows match this page. Try another page or refresh.

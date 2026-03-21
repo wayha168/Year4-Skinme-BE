@@ -20,6 +20,6 @@ public class ProductFeedbackRequest {
 
     private String comment;
 
-    /** Optional: tie feedback to a specific delivered order for verification. */
+    /** Optional; ignored by the server (kept for client compatibility). */
     private Long orderId;
 }

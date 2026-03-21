@@ -224,18 +224,7 @@
               showToast(message, 'info', 5000);
             }
           });
-
-          window.webSocketClient.subscribeToFeedback(function(evt) {
-            if (typeof showToast !== 'function') return;
-            var name = evt.productName || 'Product';
-            var r = evt.rating != null ? String(evt.rating) : '';
-            var msg = 'New feedback: ' + name + (r ? ' (' + r + '★)' : '');
-            if (evt.commentPreview) {
-              msg += ' — ' + evt.commentPreview;
-            }
-            showToast(msg, 'info', 6000);
-            document.dispatchEvent(new CustomEvent('skinme-feedback', { detail: evt }));
-          });
+          /* New feedback: persisted notifications + /user/topic/notifications (toast + bell); optional /topic/feedback for other clients */
         }
       });
     </script>

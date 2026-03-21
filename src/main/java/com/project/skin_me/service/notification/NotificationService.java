@@ -8,18 +8,21 @@ import com.project.skin_me.repository.NotificationRepository;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -139,6 +142,36 @@ public class NotificationService {
 
     public void notifyPromotion(String userId, String title, String message, String promoUrl) {
         notifyUserWithAction(userId, title, message, "PROMOTION", promoUrl);
+    }
+
+    /**
+     * Persist a notification per admin and push each over {@code /user/topic/notifications} so the bell panel,
+     * badge, and toast show product name, rating, comment, and reviewer.
+     */
+    @Transactional
+    public void notifyAdminsNewProductFeedback(String productName, BigDecimal rating,
+            String comment, String reviewerEmail) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String r = rating != null ? rating.stripTrailingZeros().toPlainString() : "?";
+        String commentPart = (comment != null && !comment.isBlank()) ? comment.trim() : "(no comment)";
+        if (commentPart.length() > 400) {
+            commentPart = commentPart.substring(0, 397) + "...";
+        }
+        String reviewer = (reviewerEmail != null && !reviewerEmail.isBlank()) ? reviewerEmail : "Customer";
+        String pname = (productName != null && !productName.isBlank()) ? productName : "Product";
+        String message = pname + " · " + r + "★ — " + commentPart + " · " + reviewer;
+        String title = "New product review";
+        String actionUrl = "/views/user-feedback";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), title, message, "FEEDBACK", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of new product feedback: {}", admin.getId(), e.getMessage());
+            }
+        }
     }
 
     /**

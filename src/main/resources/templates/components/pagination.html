@@ -71,6 +71,67 @@
   </div>
 </div>
 
+<!-- Pagination when basePath already includes filter query (?userId=…); uses &page= for additional params. -->
+<div th:fragment="paginationFiltered(basePath, currentPage, totalPages, hasNext, hasPrev)" class="pagination-container mt-4">
+  <th:block th:with="pageSep=${basePath != null and #strings.contains(basePath, '?')} ? '&' : '?'">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="pagination-info text-muted">
+      <span th:if="${totalPages > 0}">
+        Page <span th:text="${currentPage + 1}">1</span> of <span th:text="${totalPages}">1</span>
+      </span>
+      <span th:unless="${totalPages > 0}">No pages</span>
+    </div>
+    <nav th:if="${totalPages > 1}">
+      <ul class="pagination mb-0">
+        <li class="page-item" th:classappend="${!hasPrev} ? 'disabled'">
+          <a class="page-link" data-turbo="false"
+             th:href="${hasPrev} ? (${basePath} + ${pageSep} + 'page=' + (${currentPage} - 1)) : '#'"
+             th:attr="onclick=${hasPrev} ? null : 'return false;'">
+            <i class="bi bi-chevron-left"></i> Previous
+          </a>
+        </li>
+        <th:block th:if="${totalPages <= 7}">
+          <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" data-turbo="false" th:href="${basePath} + ${pageSep} + 'page=' + ${i}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+        </th:block>
+        <th:block th:if="${totalPages > 7}">
+          <li class="page-item" th:classappend="${currentPage == 0} ? 'active'">
+            <a class="page-link" data-turbo="false" th:href="${basePath} + ${pageSep} + 'page=0'" th:text="1">1</a>
+          </li>
+          <th:block th:if="${currentPage > 2}">
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          </th:block>
+          <th:block th:each="i : ${#numbers.sequence(
+            (currentPage > 1 ? currentPage - 1 : 1),
+            (currentPage < totalPages - 2 ? currentPage + 1 : totalPages - 2)
+          )}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" data-turbo="false" th:href="${basePath} + ${pageSep} + 'page=' + ${i}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+          <th:block th:if="${currentPage < totalPages - 3}">
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          </th:block>
+          <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'active'">
+            <a class="page-link" data-turbo="false" th:href="${basePath} + ${pageSep} + 'page=' + (${totalPages} - 1)" th:text="${totalPages}">1</a>
+          </li>
+        </th:block>
+        <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+          <a class="page-link" data-turbo="false"
+             th:href="${hasNext} ? (${basePath} + ${pageSep} + 'page=' + (${currentPage} + 1)) : '#'"
+             th:attr="onclick=${hasNext} ? null : 'return false;'">
+            Next <i class="bi bi-chevron-right"></i>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  </th:block>
+</div>
+
 <style>
   .pagination-container {
     padding: 16px 0;

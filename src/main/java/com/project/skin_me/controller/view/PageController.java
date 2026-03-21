@@ -80,6 +80,8 @@ public class PageController {
     /** Number of items per page; only this many are loaded from DB per request. */
     private static final int PAGE_SIZE = 25;
 
+    private static final int AUDIT_LOG_PAGE_SIZE = 20;
+
     private final ICategoryService categoryService;
     private final IBrandService brandService;
     private final IProductService productService;
@@ -1787,38 +1789,71 @@ public class PageController {
     @GetMapping("/views/audit-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public String auditLogsPage(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String activityType,
             Model model) {
         try {
-            List<Activity> activities;
+            Pageable pageable = PageRequest.of(page, AUDIT_LOG_PAGE_SIZE,
+                    Sort.by(Sort.Direction.DESC, "timestamp"));
+            Page<Activity> activityPage;
 
             if (userId != null) {
-                activities = activityRepository.findByUserIdWithUserOrderByTimestampDesc(userId);
+                activityPage = activityRepository.findByUser_IdOrderByTimestampDesc(userId, pageable);
             } else if (activityType != null && !activityType.isEmpty()) {
                 try {
                     com.project.skin_me.enums.ActivityType type = com.project.skin_me.enums.ActivityType
                             .valueOf(activityType.toUpperCase());
-                    activities = activityRepository.findByActivityTypeWithUserOrderByTimestampDesc(type);
+                    activityPage = activityRepository.findByActivityTypeOrderByTimestampDesc(type, pageable);
                 } catch (IllegalArgumentException e) {
-                    activities = activityRepository.findAllWithUserOrderByTimestampDesc();
+                    activityPage = activityRepository.findAllByOrderByTimestampDesc(pageable);
                 }
             } else {
-                activities = activityRepository.findAllWithUserOrderByTimestampDesc();
+                activityPage = activityRepository.findAllByOrderByTimestampDesc(pageable);
             }
 
-            model.addAttribute("activities", activities);
-            model.addAttribute("totalActivities", activities.size());
+            model.addAttribute("activities", activityPage.getContent());
+            model.addAttribute("currentPage", activityPage.getNumber());
+            model.addAttribute("totalPages", activityPage.getTotalPages());
+            model.addAttribute("totalActivities", activityPage.getTotalElements());
+            model.addAttribute("hasNext", activityPage.hasNext());
+            model.addAttribute("hasPrev", activityPage.hasPrevious());
+            model.addAttribute("auditPageSize", AUDIT_LOG_PAGE_SIZE);
             model.addAttribute("pageTitle", "Audit Log Management");
+            model.addAttribute("filterUserId", userId);
+            model.addAttribute("filterActivityType",
+                    activityType != null && !activityType.isBlank() ? activityType : null);
 
-            // Get filter options
-            List<User> allUsers = userRepository.findAll();
-            model.addAttribute("allUsers", allUsers);
+            StringBuilder paginationBase = new StringBuilder("/views/audit-logs");
+            boolean firstQuery = true;
+            if (userId != null) {
+                paginationBase.append(firstQuery ? "?" : "&").append("userId=").append(userId);
+                firstQuery = false;
+            }
+            if (activityType != null && !activityType.isEmpty()) {
+                paginationBase.append(firstQuery ? "?" : "&").append("activityType=").append(activityType);
+            }
+            model.addAttribute("auditLogsPaginationBase", paginationBase.toString());
+
+            model.addAttribute("allUsers", userRepository.findAll());
 
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load audit logs: " + e.getMessage());
             model.addAttribute("activities", List.<Activity>of());
-            model.addAttribute("totalActivities", 0);
+            model.addAttribute("totalActivities", 0L);
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
+            model.addAttribute("auditPageSize", AUDIT_LOG_PAGE_SIZE);
+            model.addAttribute("auditLogsPaginationBase", "/views/audit-logs");
+            model.addAttribute("filterUserId", null);
+            model.addAttribute("filterActivityType", null);
+            try {
+                model.addAttribute("allUsers", userRepository.findAll());
+            } catch (Exception ignored) {
+                model.addAttribute("allUsers", List.<User>of());
+            }
         }
         return "audit-logs";
     }
