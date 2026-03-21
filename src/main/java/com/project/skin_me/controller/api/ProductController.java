@@ -78,8 +78,7 @@ public class ProductController {
     @GetMapping("product/{productId}/product")
     public ResponseEntity<ApiResponse> getProductById(@PathVariable Long productId) {
         try {
-            Product products = productService.getProductById(productId);
-            ProductDto productDto = productService.convertToDto(products);
+            ProductDto productDto = productService.getProductDtoByIdWithFavoriteCount(productId);
 
             return ResponseEntity.ok(new ApiResponse("sucsess", productDto));
         } catch (ResourceNotFoundException e) {

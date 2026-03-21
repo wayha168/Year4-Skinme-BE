@@ -31,4 +31,7 @@ public class OrderDto {
     private String deliveryAddressFull;
     private Double deliveryLatitude;
     private Double deliveryLongitude;
+
+    /** VET, JNT (J&T), DHL — set at checkout or when marking delivered. */
+    private String logisticCompany;
 }

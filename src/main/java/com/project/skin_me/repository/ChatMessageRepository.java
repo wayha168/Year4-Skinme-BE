@@ -5,26 +5,37 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
-    
+
     List<ChatMessage> findByUserIdOrderByTimestampAsc(Long userId);
-    
+
     Page<ChatMessage> findByUserIdOrderByTimestampDesc(Long userId, Pageable pageable);
-    
+
     List<ChatMessage> findByConversationIdOrderByTimestampAsc(String conversationId);
-    
+
     @Query("SELECT cm FROM ChatMessage cm WHERE cm.type = 'assistant' OR cm.isAiResponse = true ORDER BY cm.timestamp DESC")
     List<ChatMessage> findAllAiResponses();
-    
+
     @Query("SELECT cm FROM ChatMessage cm WHERE cm.type IN ('user', 'admin') ORDER BY cm.timestamp DESC")
     List<ChatMessage> findAllUserAdminChats();
-    
+
     List<ChatMessage> findAllByOrderByTimestampDesc();
-    
+
     Page<ChatMessage> findAllByOrderByTimestampDesc(Pageable pageable);
+
+    /**
+     * For admin chat activity view: load messages with user (left join for null
+     * user_id).
+     */
+    @Query(value = "SELECT DISTINCT cm FROM ChatMessage cm LEFT JOIN FETCH cm.user ORDER BY cm.timestamp DESC", countQuery = "SELECT COUNT(DISTINCT cm) FROM ChatMessage cm")
+    Page<ChatMessage> findAllWithUserOrderByTimestampDesc(Pageable pageable);
+
+    @Query(value = "SELECT DISTINCT cm FROM ChatMessage cm LEFT JOIN FETCH cm.user WHERE cm.user.id = :userId ORDER BY cm.timestamp DESC", countQuery = "SELECT COUNT(cm) FROM ChatMessage cm WHERE cm.user.id = :userId")
+    Page<ChatMessage> findByUserIdWithUserOrderByTimestampDesc(@Param("userId") Long userId, Pageable pageable);
 }

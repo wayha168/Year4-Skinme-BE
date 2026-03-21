@@ -9,7 +9,7 @@
     <nav th:if="${totalPages > 1}">
       <ul class="pagination mb-0">
         <li class="page-item" th:classappend="${!hasPrev} ? 'disabled'">
-          <a class="page-link" 
+          <a class="page-link" data-turbo="false"
              th:href="${hasPrev} ? (${baseUrl} + '?page=' + (${currentPage} - 1)) : '#'"
              th:attr="onclick=${hasPrev} ? null : 'return false;'">
             <i class="bi bi-chevron-left"></i> Previous
@@ -20,7 +20,7 @@
           <!-- Show all pages if 7 or fewer -->
           <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
             <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
-              <a class="page-link" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
+              <a class="page-link" data-turbo="false" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
             </li>
           </th:block>
         </th:block>
@@ -28,7 +28,7 @@
         <th:block th:if="${totalPages > 7}">
           <!-- Show first page -->
           <li class="page-item" th:classappend="${currentPage == 0} ? 'active'">
-            <a class="page-link" th:href="${baseUrl} + '?page=0'" th:text="1">1</a>
+            <a class="page-link" data-turbo="false" th:href="${baseUrl} + '?page=0'" th:text="1">1</a>
           </li>
           
           <!-- Show ellipsis and pages around current -->
@@ -43,7 +43,7 @@
             (currentPage < totalPages - 2 ? currentPage + 1 : totalPages - 2)
           )}">
             <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
-              <a class="page-link" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
+              <a class="page-link" data-turbo="false" th:href="${baseUrl} + '?page=' + ${i}" th:text="${i + 1}">1</a>
             </li>
           </th:block>
           
@@ -55,12 +55,12 @@
           
           <!-- Show last page -->
           <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'active'">
-            <a class="page-link" th:href="${baseUrl} + '?page=' + (${totalPages} - 1)" th:text="${totalPages}">1</a>
+            <a class="page-link" data-turbo="false" th:href="${baseUrl} + '?page=' + (${totalPages} - 1)" th:text="${totalPages}">1</a>
           </li>
         </th:block>
         
         <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
-          <a class="page-link" 
+          <a class="page-link" data-turbo="false"
              th:href="${hasNext} ? (${baseUrl} + '?page=' + (${currentPage} + 1)) : '#'"
              th:attr="onclick=${hasNext} ? null : 'return false;'">
             Next <i class="bi bi-chevron-right"></i>
@@ -112,3 +112,63 @@
     font-size: 0.9rem;
   }
 </style>
+
+<!-- Same as pagination but appends &size=pageSize to every link (for product table 10/20/50 per page). -->
+<!-- data-turbo="false" on links forces full page load so page 2 and Prev work correctly. -->
+<!-- Use ${baseUrl} (not baseUrl) so Thymeleaf resolves the fragment parameter and does not output literal "baseUrl". -->
+<div th:fragment="paginationWithSize(baseUrl, currentPage, totalPages, hasNext, hasPrev, pageSize)" class="pagination-container mt-4" th:with="sizeSuffix=${'&size=' + pageSize}">
+  <div class="d-flex justify-content-end align-items-center flex-wrap gap-3">
+    <div class="pagination-info text-muted me-3">
+      <span th:if="${totalPages > 0}">
+        Page <span th:text="${currentPage + 1}">1</span> of <span th:text="${totalPages}">1</span>
+      </span>
+      <span th:unless="${totalPages > 0}">No pages</span>
+    </div>
+    <nav th:if="${totalPages >= 1}" class="d-flex" aria-label="Pagination">
+      <ul class="pagination mb-0">
+        <li class="page-item" th:classappend="${!hasPrev} ? 'disabled'">
+          <a class="page-link" data-turbo="false"
+             th:href="${hasPrev ? baseUrl + '?page=' + (currentPage - 1) + sizeSuffix : '#'}"
+             th:attr="onclick=${hasPrev} ? null : 'return false;'"
+             aria-label="Previous page">
+            <i class="bi bi-chevron-left"></i> Previous
+          </a>
+        </li>
+        <th:block th:if="${totalPages <= 7 and totalPages > 0}">
+          <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" data-turbo="false" th:href="${baseUrl + '?page=' + i + sizeSuffix}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+        </th:block>
+        <th:block th:if="${totalPages > 7}">
+          <li class="page-item" th:classappend="${currentPage == 0} ? 'active'">
+            <a class="page-link" data-turbo="false" th:href="${baseUrl + '?page=0' + sizeSuffix}" th:text="1">1</a>
+          </li>
+          <th:block th:if="${currentPage > 2}">
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          </th:block>
+          <th:block th:each="i : ${#numbers.sequence((currentPage > 1 ? currentPage - 1 : 1), (currentPage < totalPages - 2 ? currentPage + 1 : totalPages - 2))}">
+            <li class="page-item" th:classappend="${i == currentPage} ? 'active'">
+              <a class="page-link" data-turbo="false" th:href="${baseUrl + '?page=' + i + sizeSuffix}" th:text="${i + 1}">1</a>
+            </li>
+          </th:block>
+          <th:block th:if="${currentPage < totalPages - 3}">
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          </th:block>
+          <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'active'">
+            <a class="page-link" data-turbo="false" th:href="${baseUrl + '?page=' + (totalPages - 1) + sizeSuffix}" th:text="${totalPages}">1</a>
+          </li>
+        </th:block>
+        <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+          <a class="page-link" data-turbo="false"
+             th:href="${hasNext ? baseUrl + '?page=' + (currentPage + 1) + sizeSuffix : '#'}"
+             th:attr="onclick=${hasNext} ? null : 'return false;'"
+             aria-label="Next page">
+            Next <i class="bi bi-chevron-right"></i>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>

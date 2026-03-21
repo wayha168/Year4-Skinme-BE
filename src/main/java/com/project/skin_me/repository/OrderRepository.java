@@ -52,4 +52,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query(value = "SELECT YEAR(o.order_date) AS y, MONTH(o.order_date) AS m, COALESCE(SUM(o.order_total_amount), 0) FROM orders o WHERE o.order_date >= :since GROUP BY YEAR(o.order_date), MONTH(o.order_date) ORDER BY y, m", nativeQuery = true)
     List<Object[]> sumRevenueByMonthSince(@Param("since") java.sql.Date since);
+
+    @Query("SELECT COUNT(o) > 0 FROM Order o JOIN o.orderItems oi WHERE o.user.id = :userId AND oi.product.id = :productId AND o.orderStatus = :status")
+    boolean existsDeliveredOrderWithProduct(@Param("userId") Long userId, @Param("productId") Long productId,
+            @Param("status") OrderStatus status);
+
+    @Query("SELECT COUNT(o) > 0 FROM Order o JOIN o.orderItems oi WHERE o.orderId = :orderId AND o.user.id = :userId AND oi.product.id = :productId AND o.orderStatus = :status")
+    boolean isDeliveredOrderWithProductForUser(@Param("orderId") Long orderId, @Param("userId") Long userId,
+            @Param("productId") Long productId, @Param("status") OrderStatus status);
 }

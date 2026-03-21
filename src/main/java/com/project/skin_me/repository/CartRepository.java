@@ -1,7 +1,6 @@
 package com.project.skin_me.repository;
 
 import com.project.skin_me.model.Cart;
-import com.project.skin_me.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

@@ -62,6 +62,7 @@
                   <th><i class="bi bi-calendar"></i> Order Date</th>
                   <th><i class="bi bi-geo-alt"></i> Delivery Address</th>
                   <th><i class="bi bi-truck"></i> Tracking Number</th>
+                  <th><i class="bi bi-building"></i> Courier</th>
                   <th style="width: 120px;"><i class="bi bi-tags"></i> Status</th>
                   <th><i class="bi bi-calendar-check"></i> Shipped Date</th>
                   <th><i class="bi bi-check-circle"></i> Delivered Date</th>
@@ -84,6 +85,11 @@
                   <td>
                     <span th:if="${delivery.trackingNumber != null and !delivery.trackingNumber.isEmpty()}" class="text-dark" th:text="${delivery.trackingNumber}">TRK-123</span>
                     <span th:unless="${delivery.trackingNumber != null and !delivery.trackingNumber.isEmpty()}" class="text-muted">Not assigned</span>
+                  </td>
+                  <td>
+                    <span th:if="${delivery.logisticCompany != null}"
+                          th:text="${delivery.logisticCompany.name() == 'JNT' ? 'J&T' : delivery.logisticCompany.name()}">VET</span>
+                    <span th:if="${delivery.logisticCompany == null}" class="text-muted">—</span>
                   </td>
                   <td>
                     <span th:if="${delivery.orderStatus?.toString() == 'DELIVERED' || delivery.orderStatus?.toString() == 'COMPLETED'}" class="status-badge-active">
@@ -158,11 +164,10 @@
             form.action = '/views/delivery/' + orderId + '/delete';
             
             const csrfToken = document.querySelector('meta[name="_csrf"]');
-            const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
             if (csrfToken) {
               const csrfInput = document.createElement('input');
               csrfInput.type = 'hidden';
-              csrfInput.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
+              csrfInput.name = '_csrf';
               csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
               form.appendChild(csrfInput);
             }

@@ -30,5 +30,7 @@ public class ProductDto {
     private String brandName;
     /** Category name for API responses (use instead of category entity to avoid proxy serialization). */
     private String categoryName;
+    /** How many users have this product in a favorites list. */
+    private long favoriteCount;
     private List<ImageDto> images;
 }

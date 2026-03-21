@@ -8,6 +8,7 @@
   <head>
     <th:block th:fragment="style">
       <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
       <style>
         /* Modern Concept Style Dashboard */
         .main-content {
@@ -52,6 +53,7 @@
         .dashboard-grid .stat-card:nth-child(2)::before { background: #10b981; }
         .dashboard-grid .stat-card:nth-child(3)::before { background: #3b82f6; }
         .dashboard-grid .stat-card:nth-child(4)::before { background: #8b5cf6; }
+        .dashboard-grid .stat-card:nth-child(5)::before { background: #eab308; }
 
         .dashboard-grid .stat-card:hover {
           transform: translateY(-4px);
@@ -562,6 +564,14 @@
           <div class="stat-label" >Total Revenue</div>
         </div>
       </div>
+
+      <div class="stat-card">
+        <div class="stat-icon"><i class="bi bi-stars"></i></div>
+        <div style="flex: 1;">
+          <div class="stat-value" th:text="${totalFeedback ?: 0}">0</div>
+          <div class="stat-label">Product feedback</div>
+        </div>
+      </div>
     </div>
 
     <!-- New Registrations Block -->
@@ -609,6 +619,159 @@
         <a href="/views/promotions" class="btn-primary" sec:authorize="hasRole('ADMIN')"> <i class="bi bi-tag"></i> View Promotions </a>
         <a href="/views/orders" class="btn-primary"> <i class="bi bi-bag-check"></i> View Orders </a>
         <a href="/views/payments" class="btn-primary"> <i class="bi bi-receipt"></i> View Payments </a>
+        <a href="/views/chat" class="btn-primary"> <i class="bi bi-chat-dots"></i> Open Chat </a>
+        <a href="/views/user-feedback" class="btn-primary"> <i class="bi bi-stars"></i> User feedback </a>
+      </div>
+    </div>
+
+    <!-- User product feedback: latest rows + visibility for storefront -->
+    <div class="content-section">
+      <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+        <div>
+          <h2 class="section-title" style="margin-bottom: 0.35rem;"><i class="bi bi-stars"></i> User product feedback</h2>
+          <p class="section-subtitle mb-0">
+            Latest reviews (newest first). Each row has <strong>On storefront</strong> / <strong>Hidden</strong> and a switch.
+            Turn the switch on to show that review on the public product page via <code class="small">GET /api/v1/feedback/product/{id}</code>; turn off to hide it from that API.
+          </p>
+        </div>
+        <a th:href="@{/views/user-feedback}" class="view-all-link">Manage all →</a>
+      </div>
+      <div th:if="${#lists.isEmpty(dashboardFeedbackList)}" class="empty-state-small" style="padding: 1.5rem; background: #fff; border-radius: 12px;">
+        <i class="bi bi-inbox"></i>
+        <p class="mb-0">No feedback yet</p>
+      </div>
+      <div th:unless="${#lists.isEmpty(dashboardFeedbackList)}" class="table-responsive" style="background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+        <table class="table table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Product</th>
+              <th>User</th>
+              <th>Rating</th>
+              <th>Comment</th>
+              <th>Show on storefront</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="fb : ${dashboardFeedbackList}">
+              <td class="text-muted" th:text="${fb.id}">1</td>
+              <td>
+                <span th:text="${fb.productName}">Product</span>
+                <span class="text-muted small" th:text="${'(#' + fb.productId + ')'}"></span>
+              </td>
+              <td th:text="${fb.userDisplayName}">Name</td>
+              <td class="text-nowrap" th:text="${fb.rating}">5.00</td>
+              <td style="max-width: 280px;">
+                <span th:text="${fb.comment != null and !fb.comment.isEmpty() ? fb.comment : '—'}">—</span>
+              </td>
+              <td style="min-width: 220px;">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span class="badge rounded-pill"
+                        th:id="${'fb-dash-badge-' + fb.id}"
+                        th:classappend="${fb.visibleOnFrontend} ? ' text-bg-success' : ' text-bg-secondary'"
+                        th:text="${fb.visibleOnFrontend} ? 'On storefront' : 'Hidden'">Hidden</span>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input dashboard-fb-visible-toggle" type="checkbox" role="switch"
+                           th:id="${'fb-dash-sw-' + fb.id}"
+                           th:checked="${fb.visibleOnFrontend}"
+                           th:attr="data-id=${fb.id}"
+                           th:aria-label="${fb.visibleOnFrontend} ? 'Turn off: hide from public product API' : 'Turn on: show on public product API'" />
+                  </div>
+                </div>
+              </td>
+              <td class="text-nowrap text-muted small">
+                <span th:if="${fb.createdAt != null}" th:text="${#temporals.format(fb.createdAt, 'MMM dd, yyyy HH:mm')}">—</span>
+                <span th:if="${fb.createdAt == null}">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Chat activity + KHQR / bank merchant summary (merged row) -->
+    <div class="dashboard-two-column" style="margin-bottom: 2.5rem;">
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;">
+              <i class="bi bi-chat-dots"></i> Recent chat activity
+            </h2>
+            <p class="section-subtitle">Latest user, admin, and assistant messages.</p>
+          </div>
+          <a th:href="@{/views/chat}" class="view-all-link">Open chat →</a>
+        </div>
+        <div class="favorites-list">
+          <div th:if="${#lists.isEmpty(recentChatMessages)}" class="empty-state-small">
+            <i class="bi bi-chat"></i>
+            <p>No messages yet</p>
+          </div>
+          <div
+            th:each="msg : ${recentChatMessages}"
+            class="favorite-card"
+            style="border-left-color: #6366f1; cursor: default"
+          >
+            <div class="favorite-card-content">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+                <span
+                  class="badge"
+                  th:classappend="${msg.type == 'assistant'} ? ' bg-info' : (${msg.type == 'admin'} ? ' bg-primary' : ' bg-secondary')"
+                  th:text="${msg.type != null ? msg.type : 'message'}"
+                  >type</span
+                >
+                <span
+                  class="favorite-time"
+                  th:text="${msg.timestamp != null ? #temporals.format(msg.timestamp, 'MMM dd, yyyy HH:mm') : '—'}"
+                  >time</span
+                >
+              </div>
+              <div class="small text-muted" th:text="${msg.sender}">sender</div>
+              <p
+                class="mb-0 mt-1 small"
+                style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden"
+                th:text="${msg.content}"
+              >
+                content
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dashboard-column">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;">
+              <i class="bi bi-bank2"></i> KHQR &amp; bank merchant accounts
+            </h2>
+            <p class="section-subtitle">
+              Values from configuration (checkout / KHQR). Change in
+              <code class="small">application.properties</code> or env.
+            </p>
+          </div>
+        </div>
+        <div class="px-1">
+          <div class="mb-4 pb-3 border-bottom">
+            <div class="text-muted small mb-1">ABA Mobile (aba.khqr)</div>
+            <div class="fw-semibold" th:text="${abaKhqrMerchantName}">Merchant name</div>
+            <div
+              class="font-monospace small mt-1 text-break"
+              th:text="${abaKhqrMerchantAccount != null && !#strings.isEmpty(abaKhqrMerchantAccount)} ? ${abaKhqrMerchantAccount} : '— not set (test account may be used)'"
+            >
+              account
+            </div>
+          </div>
+          <div>
+            <div class="text-muted small mb-1">KHQR any bank (khqr.merchant)</div>
+            <div class="fw-semibold" th:text="${genericKhqrMerchantName}">Merchant name</div>
+            <div
+              class="font-monospace small mt-1 text-break"
+              th:text="${genericKhqrMerchantAccount != null && !#strings.isEmpty(genericKhqrMerchantAccount)} ? ${genericKhqrMerchantAccount} : '— not set (test account may be used)'"
+            >
+              account
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -814,7 +977,6 @@
           }
         }
 
-        // Initialize WebSocket for notifications
         document.addEventListener("DOMContentLoaded", () => {
           if (typeof webSocketClient !== "undefined") {
             webSocketClient.connect(() => {
@@ -823,6 +985,44 @@
               });
             });
           }
+          var API_PREFIX = document.getElementById("appShell")?.getAttribute("data-api-prefix")?.replace(/\/$/, "") || "/api/v1";
+          document.querySelectorAll(".dashboard-fb-visible-toggle").forEach((el) => {
+            el.addEventListener("change", function () {
+              var id = el.getAttribute("data-id");
+              var visible = el.checked;
+              el.disabled = true;
+              fetch(API_PREFIX + "/admin/feedback/" + id + "/visibility", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ visibleOnFrontend: visible }),
+              })
+                .then((r) => {
+                  if (!r.ok) throw new Error("Request failed");
+                  return r.json();
+                })
+                .then(() => {
+                  var badge = document.getElementById("fb-dash-badge-" + id);
+                  if (badge) {
+                    badge.textContent = visible ? "On storefront" : "Hidden";
+                    badge.className =
+                      "badge rounded-pill " + (visible ? "text-bg-success" : "text-bg-secondary");
+                  }
+                  el.setAttribute(
+                    "aria-label",
+                    visible ? "Turn off: hide from public product API" : "Turn on: show on public product API"
+                  );
+                  if (typeof showToast === "function") showToast("Visibility updated", "success");
+                })
+                .catch(() => {
+                  el.checked = !visible;
+                  if (typeof showToast === "function") showToast("Could not update visibility", "error");
+                })
+                .finally(() => {
+                  el.disabled = false;
+                });
+            });
+          });
         });
 
         function showNotification(notification) {

@@ -49,6 +49,10 @@ public class User {
     @Column(name = "google_id")
     private String googleId;
 
+    /** Phone number (E.164 or national). Used for phone login. Unique when set. */
+    @Column(unique = true)
+    private String phone;
+
     private boolean enabled = true;
 
     @Column(name = "registration_date", nullable = false)

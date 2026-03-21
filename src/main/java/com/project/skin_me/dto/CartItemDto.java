@@ -47,6 +47,7 @@ public class CartItemDto {
                     null,
                     brandName,
                     categoryName,
+                    0L,
                     images
             );
         }

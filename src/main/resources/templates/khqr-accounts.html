@@ -1,0 +1,134 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'KHQR Bank Accounts'}">KHQR Bank Accounts</title>
+  </head>
+  <body>
+  <th:block th:fragment="main">
+  <div class="main-content">
+    <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-bank'"></div>
+
+    <div class="container-fluid px-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0" style="font-weight: 700; color: #111827;">
+          <i class="bi bi-qr-code"></i> KHQR Bank Accounts
+        </h2>
+        <a th:href="@{/views/khqr-accounts/create}" class="btn btn-primary">
+          <i class="bi bi-plus-circle"></i> Add Bank Account
+        </a>
+      </div>
+      <p class="text-muted">Manage bank account details used for KHQR/ABA payment QR codes. Customers scan these to pay. One active account per gateway (aba / khqr) is used when generating QR.</p>
+
+      <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <div th:if="${#lists.isEmpty(accounts)}" class="card mt-4">
+        <div class="empty-state">
+          <i class="bi bi-bank"></i>
+          <h5>No Bank Accounts</h5>
+          <p>Add a KHQR or ABA bank account so customers can pay via QR. You can add one for ABA and one for generic KHQR.</p>
+          <a th:href="@{/views/khqr-accounts/create}" class="btn btn-primary mt-2"><i class="bi bi-plus-circle"></i> Add Bank Account</a>
+        </div>
+      </div>
+
+      <div th:unless="${#lists.isEmpty(accounts)}" class="data-table mt-4">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th><i class="bi bi-bank"></i> Gateway</th>
+                <th><i class="bi bi-person-badge"></i> Merchant Name</th>
+                <th><i class="bi bi-upc"></i> Account</th>
+                <th><i class="bi bi-geo"></i> City</th>
+                <th><i class="bi bi-toggle-on"></i> Active</th>
+                <th style="width: 140px;"><i class="bi bi-gear"></i> Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr th:each="acc : ${accounts}">
+                <td class="text-muted fw-semibold" th:text="${acc.id}">1</td>
+                <td>
+                  <span class="badge bg-primary" th:text="${acc.gateway}">aba</span>
+                </td>
+                <td th:text="${acc.merchantName}">SkinMe Store</td>
+                <td>
+                  <span th:text="${acc.account != null and !acc.account.isEmpty() ? acc.account : '(test)'}">(test)</span>
+                </td>
+                <td th:text="${acc.city}">Phnom Penh</td>
+                <td>
+                  <span th:if="${acc.active}" class="badge bg-success">Active</span>
+                  <span th:unless="${acc.active}" class="badge bg-secondary">Inactive</span>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <a th:href="@{/views/khqr-accounts/{id}(id=${acc.id})}" class="btn-action" title="View details">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a th:href="@{/views/khqr-accounts/{id}/edit(id=${acc.id})}" class="btn-action" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <button type="button"
+                            class="btn-action btn-delete-khqr"
+                            title="Delete"
+                            th:attr="data-id=${acc.id}, data-label=${acc.gateway + ' - ' + acc.merchantName}">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  </th:block>
+  <th:block th:fragment="script">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:inline="javascript">
+      document.querySelectorAll('.btn-delete-khqr').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = this.getAttribute('data-id');
+          var label = this.getAttribute('data-label') || 'this account';
+          if (confirm('Delete bank account "' + label + '"?')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/views/khqr-accounts/' + id + '/delete';
+            var csrf = document.querySelector('meta[name="_csrf"]');
+            if (csrf) {
+              var input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = '_csrf';
+              input.value = csrf.getAttribute('content') || csrf.content;
+              form.appendChild(input);
+            }
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      });
+    </script>
+  </th:block>
+</html>

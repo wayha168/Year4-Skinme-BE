@@ -181,6 +181,13 @@
   }
 
   /**
+   * Subscribe to new product feedback events (admin dashboard).
+   */
+  subscribeToFeedback(callback) {
+    this.subscribe("/topic/feedback", callback);
+  }
+
+  /**
    * Send chat message
    */
   sendChatMessage(sender, content, conversationId) {

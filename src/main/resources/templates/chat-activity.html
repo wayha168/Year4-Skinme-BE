@@ -1,0 +1,190 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+      <style>
+        .sender-badge { display: inline-flex; align-items: center; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 500; font-size: 0.85rem; background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color: #3730a3; }
+        .type-user { background-color: #dbeafe; color: #1e40af; }
+        .type-admin { background-color: #e0e7ff; color: #3730a3; }
+        .type-assistant { background-color: #d1fae5; color: #065f46; }
+        .type-notification { background-color: #fef3c7; color: #92400e; }
+        .content-preview { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .user-info { display: flex; align-items: center; gap: 0.75rem; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8rem; flex-shrink: 0; }
+        .table-section { margin-bottom: 2.5rem; }
+      </style>
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle ?: 'Chat Activity'}">Chat Activity</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+    <div class="main-content">
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-chat-square-text'"></div>
+
+      <div class="container-fluid px-4">
+        <div th:if="${param.success}" class="alert alert-success alert-dismissible fade show" role="alert">
+          <i class="bi bi-check-circle"></i> <span th:text="${param.success[0]}">Success</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${param.error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${param.error[0]}">Error</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+          <h6 class="mb-3"><i class="bi bi-funnel"></i> Filters</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">User (chat_messages)</label>
+              <select class="form-select" id="userFilter" onchange="applyFilters()">
+                <option value="">All users</option>
+                <option th:each="user : ${allUsers}" th:value="${user.id}" th:text="${(user.firstName != null ? user.firstName + ' ' : '') + (user.lastName != null ? user.lastName + ' ' : '') + '(' + user.email + ')'}" th:selected="${selectedUserId != null and selectedUserId == user.id}">User</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Session (chat_ai)</label>
+              <select class="form-select" id="sessionFilter" onchange="applyFilters()">
+                <option value="">All sessions</option>
+                <option th:each="s : ${distinctSessions}" th:value="${s}" th:text="${s}" th:selected="${selectedSession != null and selectedSession == s}">Session</option>
+              </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button class="btn btn-outline-secondary w-100" onclick="clearFilters()"><i class="bi bi-x-circle"></i> Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table 1: chat_messages -->
+        <div class="table-section">
+          <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white;">
+              <h6 class="mb-0"><i class="bi bi-chat-text"></i> chat_messages</h6>
+            </div>
+            <div th:if="${#lists.isEmpty(chatMessages)}" class="card-body text-center text-muted py-4">
+              <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+              <p class="mt-2 mb-0">No records</p>
+            </div>
+            <div th:unless="${#lists.isEmpty(chatMessages)}" class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">#</th>
+                    <th><i class="bi bi-person"></i> User</th>
+                    <th><i class="bi bi-chat-left-text"></i> Sender / Type</th>
+                    <th><i class="bi bi-chat-dots"></i> Content</th>
+                    <th style="width: 180px;"><i class="bi bi-calendar"></i> Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="msg, iterStat : ${chatMessages}">
+                    <td class="text-muted fw-semibold" th:text="${iterStat.count + (currentPageMsg * 25)}">1</td>
+                    <td>
+                      <div th:if="${msg.user != null}" class="user-info">
+                        <div class="user-avatar" th:text="${msg.user.firstName != null ? #strings.substring(msg.user.firstName, 0, 1).toUpperCase() : #strings.substring(msg.user.email, 0, 1).toUpperCase()}">U</div>
+                        <div><span class="d-block" th:text="${msg.user.email}">email</span></div>
+                      </div>
+                      <span th:if="${msg.user == null}" class="text-muted">—</span>
+                    </td>
+                    <td>
+                      <span class="sender-badge" th:text="${msg.sender}">sender</span>
+                      <span class="badge ms-1" th:classappend="'type-' + ${msg.type}" th:text="${msg.type}">type</span>
+                    </td>
+                    <td><div class="content-preview" th:text="${#strings.abbreviate(msg.content, 80)}">Content</div></td>
+                    <td><span class="text-muted" th:text="${#temporals.format(msg.timestamp, 'MMM dd, yyyy HH:mm')}">Time</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div th:if="${totalPagesMsg > 1}" class="card-footer">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Page <span th:text="${currentPageMsg + 1}">1</span> of <span th:text="${totalPagesMsg}">1</span> (<span th:text="${totalItemsMsg}">0</span> total)</span>
+                <nav>
+                  <a class="btn btn-sm btn-outline-primary me-1" th:href="${hasPrevMsg ? paginationBaseMsg + 'pageMsg=' + (currentPageMsg - 1) : '#'}" th:attr="onclick=${hasPrevMsg} ? null : 'return false;'">Previous</a>
+                  <a class="btn btn-sm btn-outline-primary" th:href="${hasNextMsg ? paginationBaseMsg + 'pageMsg=' + (currentPageMsg + 1) : '#'}" th:attr="onclick=${hasNextMsg} ? null : 'return false;'">Next</a>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table 2: chat_ai -->
+        <div class="table-section">
+          <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white;">
+              <h6 class="mb-0"><i class="bi bi-robot"></i> chat_ai</h6>
+            </div>
+            <div th:if="${#lists.isEmpty(chatAiList)}" class="card-body text-center text-muted py-4">
+              <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+              <p class="mt-2 mb-0">No records</p>
+            </div>
+            <div th:unless="${#lists.isEmpty(chatAiList)}" class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">#</th>
+                    <th><i class="bi bi-person-badge"></i> Sender (session)</th>
+                    <th><i class="bi bi-chat-dots"></i> Content</th>
+                    <th style="width: 180px;"><i class="bi bi-calendar"></i> Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="row, iterStat : ${chatAiList}">
+                    <td class="text-muted fw-semibold" th:text="${iterStat.count + (currentPageAi * 25)}">1</td>
+                    <td><span class="sender-badge" th:text="${row.session != null ? row.session : '—'}">session</span></td>
+                    <td><div class="content-preview" th:text="${#strings.abbreviate(row.content, 120)}">Content</div></td>
+                    <td><span class="text-muted" th:text="${#temporals.format(row.timestamp, 'MMM dd, yyyy HH:mm')}">Time</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div th:if="${totalPagesAi > 1}" class="card-footer">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Page <span th:text="${currentPageAi + 1}">1</span> of <span th:text="${totalPagesAi}">1</span> (<span th:text="${totalItemsAi}">0</span> total)</span>
+                <nav>
+                  <a class="btn btn-sm btn-outline-primary me-1" th:href="${hasPrevAi ? paginationBaseAi + 'pageAi=' + (currentPageAi - 1) : '#'}" th:attr="onclick=${hasPrevAi} ? null : 'return false;'">Previous</a>
+                  <a class="btn btn-sm btn-outline-primary" th:href="${hasNextAi ? paginationBaseAi + 'pageAi=' + (currentPageAi + 1) : '#'}" th:attr="onclick=${hasNextAi} ? null : 'return false;'">Next</a>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-5 text-muted small">
+          <span th:text="'chat_messages: ' + ${totalItemsMsg} + ' records'">chat_messages: 0</span>
+          <span class="ms-3" th:text="'chat_ai: ' + ${totalItemsAi} + ' records'">chat_ai: 0</span>
+        </div>
+      </div>
+    </div>
+    </th:block>
+    <th:block th:fragment="script">
+      <script>
+        function applyFilters() {
+          var userId = document.getElementById('userFilter').value;
+          var session = document.getElementById('sessionFilter').value;
+          var url = '/views/chat-activity?';
+          if (userId) url += 'userId=' + userId + '&';
+          if (session) url += 'session=' + encodeURIComponent(session) + '&';
+          window.location.href = url.replace(/[?&]$/, '') || '/views/chat-activity';
+        }
+        function clearFilters() {
+          window.location.href = '/views/chat-activity';
+        }
+      </script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </th:block>
+  </body>
+</html>

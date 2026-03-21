@@ -224,6 +224,18 @@
               showToast(message, 'info', 5000);
             }
           });
+
+          window.webSocketClient.subscribeToFeedback(function(evt) {
+            if (typeof showToast !== 'function') return;
+            var name = evt.productName || 'Product';
+            var r = evt.rating != null ? String(evt.rating) : '';
+            var msg = 'New feedback: ' + name + (r ? ' (' + r + '★)' : '');
+            if (evt.commentPreview) {
+              msg += ' — ' + evt.commentPreview;
+            }
+            showToast(msg, 'info', 6000);
+            document.dispatchEvent(new CustomEvent('skinme-feedback', { detail: evt }));
+          });
         }
       });
     </script>
@@ -244,6 +256,28 @@
           var d = document.createElement('div');
           d.textContent = s;
           return d.innerHTML;
+        }
+        /** Map REST URLs to Thymeleaf pages so notification clicks show HTML, not JSON. */
+        function normalizeNotificationHref(url) {
+          if (!url || url === '#') return url || '#';
+          try {
+            var u = String(url).trim();
+            if (u.indexOf('http://') === 0 || u.indexOf('https://') === 0) {
+              var parsed = new URL(u);
+              u = parsed.pathname + (parsed.search || '');
+            }
+            if (u.charAt(0) !== '/') u = '/' + u;
+            var mo = u.match(/^\/api\/v\d+\/orders\/(\d+)/);
+            if (mo) return '/view/orders/' + mo[1];
+            var mp = u.match(/^\/api\/v\d+\/products\/product\/(\d+)\/product/);
+            if (mp) return '/view/products/' + mp[1];
+            var mpub = u.match(/^\/products\/(\d+)(?:\/.*)?$/);
+            if (mpub) return '/view/products/' + mpub[1];
+            if (u === '/chat' || u.indexOf('/chat?') === 0) {
+              return u.indexOf('/chat?') === 0 ? '/views/chat' + u.substring('/chat'.length()) : '/views/chat';
+            }
+            return u;
+          } catch (e) { return url; }
         }
         function csrfHeaders() {
           var h = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
@@ -287,7 +321,7 @@
             if (emptyEl) emptyEl.style.display = 'none';
             notifications.forEach(function(n) {
               var item = document.createElement('a');
-              item.href = n.actionUrl || '#';
+              item.href = normalizeNotificationHref(n.actionUrl) || '#';
               item.className = 'notification-panel-item' + (n.status === 'UNREAD' ? ' unread' : '');
               item.setAttribute('data-id', n.id);
               if (!n.actionUrl) item.addEventListener('click', function(e) { e.preventDefault(); });
@@ -334,7 +368,7 @@
           if (!listEl) return;
           if (emptyEl) emptyEl.style.display = 'none';
           var item = document.createElement('a');
-          item.href = n.actionUrl || '#';
+          item.href = normalizeNotificationHref(n.actionUrl) || '#';
           item.className = 'notification-panel-item unread';
           item.setAttribute('data-id', n.id || '');
           if (!n.actionUrl) item.addEventListener('click', function(ev) { ev.preventDefault(); });
@@ -511,11 +545,10 @@
         if (!csrfInput) {
           // Try to get from meta tag
           const csrfMeta = document.querySelector('meta[name="_csrf"]');
-          const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
           if (csrfMeta) {
             csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
-            csrfInput.name = csrfHeaderMeta ? csrfHeaderMeta.getAttribute('content') : '_csrf';
+            csrfInput.name = '_csrf';
             csrfInput.value = csrfMeta.getAttribute('content') || csrfMeta.content;
             logoutForm.appendChild(csrfInput);
           }

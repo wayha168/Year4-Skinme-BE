@@ -61,8 +61,10 @@ public class SecurityConfig {
 
         private static final String[] PUBLIC_API = {
                         "/api/v1/users/**", "/api/v1/products/**", "/api/v1/categories/**",
-                        "/api/v1/images/**", "/api/v1/payment/webhook", "/api/v1/payment/verify-success",
-                        "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/**", "/v3/api-docs/**",
+                        "/api/v1/images/**", "/api/v1/payment/webhook", "/api/v1/payment/webhook/payway",
+                        "/api/v1/payment/verify-success",
+                        "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/**", "/api/v1/lang",
+                        "/v3/api-docs/**",
                         "/swagger-ui/**", "/swagger-ui.html", "/swagger-resources/**",
                         "/webjars/**", "/login-page", "/signup", "/reset-password", "/logout",
                         "/css/**", "/js/**", "/ws-endpoint/**", "/sockjs-node/**", "/",
@@ -72,7 +74,7 @@ public class SecurityConfig {
         private static final String[] SECURED_API = {
                         "/api/v1/carts/**", "/api/v1/favorites/**", "/api/v1/cartItems/**",
                         "/api/v1/payment/**", "/api/v1/orders/**", "/api/v1/popular/user/**",
-                        "/api/v1/notifications/**"
+                        "/api/v1/notifications/**", "/api/v1/feedback"
         };
 
         private static final String[] ADMIN_URLS = {
@@ -107,10 +109,15 @@ public class SecurityConfig {
                                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                                 .requestCache(cache -> cache.requestCache(requestCache))
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**",
+                                                // Static and uploads: no login (images at /uploads/** are public for
+                                                // scraping, FE, embedding)
+                                                .requestMatchers("/css/**", "/js/**", "/images/**", "/uploads/**",
+                                                                "/webjars/**",
                                                                 "/favicon.ico")
                                                 .permitAll()
                                                 .requestMatchers(PUBLIC_API).permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/feedback/product/**")
+                                                .permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(ADMIN_URLS).hasRole("ADMIN")
                                                 .requestMatchers(SECURED_API).authenticated()
@@ -167,10 +174,10 @@ public class SecurityConfig {
 
                 http.addFilterBefore(corsHeadersFilter(), UsernamePasswordAuthenticationFilter.class);
                 http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-                
+
                 // Add user activity filter after authentication
-                http.addFilterAfter(new UserActivityFilter(userRepository), 
-                        UsernamePasswordAuthenticationFilter.class);
+                http.addFilterAfter(new UserActivityFilter(userRepository),
+                                UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
         }
@@ -246,7 +253,8 @@ public class SecurityConfig {
                 CorsConfiguration config = new CorsConfiguration();
                 config.setAllowedOrigins(CORS_ALLOWED_ORIGINS);
                 config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-                config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+                config.setAllowedHeaders(
+                                List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
                 config.setExposedHeaders(List.of("Authorization"));
                 config.setAllowCredentials(true);
                 config.setMaxAge(3600L);
@@ -258,8 +266,10 @@ public class SecurityConfig {
 
         /**
          * Ensures CORS headers are added to every response (including redirects).
-         * Spring's default CORS filter may not add headers to 302 responses, which causes
-         * "No 'Access-Control-Allow-Origin' header" when the frontend is redirected to login-page.
+         * Spring's default CORS filter may not add headers to 302 responses, which
+         * causes
+         * "No 'Access-Control-Allow-Origin' header" when the frontend is redirected to
+         * login-page.
          */
         @Bean
         public OncePerRequestFilter corsHeadersFilter() {
@@ -274,8 +284,10 @@ public class SecurityConfig {
                                         response.setHeader("Access-Control-Expose-Headers", "Authorization");
                                 }
                                 if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-                                        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-                                        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, X-Requested-With, Origin");
+                                        response.setHeader("Access-Control-Allow-Methods",
+                                                        "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+                                        response.setHeader("Access-Control-Allow-Headers",
+                                                        "Authorization, Content-Type, Accept, X-Requested-With, Origin");
                                         response.setHeader("Access-Control-Max-Age", "3600");
                                 }
                                 filterChain.doFilter(request, response);
