@@ -2,12 +2,10 @@ package com.project.skin_me.service.feedback;
 
 import com.project.skin_me.dto.ProductFeedbackDto;
 import com.project.skin_me.dto.ProductFeedbackEventDto;
-import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Product;
 import com.project.skin_me.model.ProductFeedback;
 import com.project.skin_me.model.User;
-import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.ProductFeedbackRequest;
@@ -29,7 +27,6 @@ public class ProductFeedbackService implements IProductFeedbackService {
 
     private final ProductFeedbackRepository productFeedbackRepository;
     private final ProductRepository productRepository;
-    private final OrderRepository orderRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
@@ -40,11 +37,6 @@ public class ProductFeedbackService implements IProductFeedbackService {
 
         if (productFeedbackRepository.findByUser_IdAndProduct_Id(user.getId(), product.getId()).isPresent()) {
             throw new IllegalStateException("You have already submitted feedback for this product.");
-        }
-
-        if (!isEligibleToReview(user.getId(), product.getId(), request.getOrderId())) {
-            throw new IllegalStateException(
-                    "You can only review products from orders that have been delivered to you.");
         }
 
         BigDecimal rating = request.getRating().setScale(2, RoundingMode.HALF_UP);
@@ -77,14 +69,6 @@ public class ProductFeedbackService implements IProductFeedbackService {
         messagingTemplate.convertAndSend("/topic/feedback", event);
 
         return toDto(saved);
-    }
-
-    private boolean isEligibleToReview(Long userId, Long productId, Long orderId) {
-        if (orderId != null) {
-            return orderRepository.isDeliveredOrderWithProductForUser(orderId, userId, productId,
-                    OrderStatus.DELIVERED);
-        }
-        return orderRepository.existsDeliveredOrderWithProduct(userId, productId, OrderStatus.DELIVERED);
     }
 
     @Override

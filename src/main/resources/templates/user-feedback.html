@@ -61,7 +61,7 @@
             <i class="bi bi-inbox"></i>
             <h5>No feedback yet</h5>
             <p th:if="${totalFeedbackCount == null or totalFeedbackCount == 0}">
-              Feedback appears when customers submit reviews for delivered orders.
+              Feedback appears when signed-in customers submit reviews for products (API: <code>POST /api/v1/feedback</code>).
             </p>
             <p th:unless="${totalFeedbackCount == null or totalFeedbackCount == 0}">
               No rows match this page. Try another page or refresh.
