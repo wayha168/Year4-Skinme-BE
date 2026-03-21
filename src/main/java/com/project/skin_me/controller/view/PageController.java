@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.ProductFeedbackDto;
 import com.project.skin_me.dto.OrderStatusCountDto;
 import com.project.skin_me.dto.ProductDto;
 import com.project.skin_me.dto.SalesMonthDto;
@@ -42,11 +44,13 @@ import com.project.skin_me.model.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.skin_me.repository.ActivityRepository;
+import com.project.skin_me.repository.ChatAiRepository;
 import com.project.skin_me.repository.ChatMessageRepository;
 import com.project.skin_me.repository.FavoriteItemRepository;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.PaymentRepository;
 import com.project.skin_me.repository.PopularProductRepository;
+import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
@@ -60,7 +64,11 @@ import com.project.skin_me.service.image.IImageService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
 import com.project.skin_me.service.product.IProductService;
+import com.project.skin_me.service.feedback.IProductFeedbackService;
 import com.project.skin_me.service.user.IUserService;
+import com.project.skin_me.service.payment.IBakongKhqrService;
+import com.project.skin_me.model.ChatAi;
+import com.project.skin_me.model.KhqrBankAccount;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -77,6 +85,7 @@ public class PageController {
     private final IProductService productService;
     private final IImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatAiRepository chatAiRepository;
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -90,6 +99,9 @@ public class PageController {
     private final FavoriteItemRepository favoriteItemRepository;
     private final PopularProductRepository popularProductRepository;
     private final ObjectMapper objectMapper;
+    private final IBakongKhqrService bakongKhqrService;
+    private final IProductFeedbackService productFeedbackService;
+    private final ProductFeedbackRepository productFeedbackRepository;
 
     @org.springframework.beans.factory.annotation.Value("${stripe.public.key}")
     private String stripePublicKey;
@@ -113,7 +125,8 @@ public class PageController {
             if (isAdmin) {
                 return "redirect:/dashboard";
             }
-            // Authenticated but not admin: show error and stay on login (they must sign in as admin)
+            // Authenticated but not admin: show error and stay on login (they must sign in
+            // as admin)
             model.addAttribute("error", "Invalid credentials. Only administrators can access the dashboard.");
         }
 
@@ -207,6 +220,12 @@ public class PageController {
             List<PopularProduct> popularProducts = popularProductRepository.findTopPopularProductsWithRelations();
             model.addAttribute("popularProducts", popularProducts.stream().limit(5).toList());
 
+            long totalFeedback = productFeedbackRepository.count();
+            Pageable feedbackTop = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            model.addAttribute("totalFeedback", totalFeedback);
+            model.addAttribute("dashboardFeedbackList",
+                    productFeedbackService.listAllForAdmin(feedbackTop).getContent());
+
         } catch (Exception e) {
             model.addAttribute("totalProducts", 0);
             model.addAttribute("totalOrders", 0);
@@ -219,13 +238,18 @@ public class PageController {
             model.addAttribute("popularProducts", List.<PopularProduct>of());
             model.addAttribute("recentOrders", List.<OrderDto>of());
             model.addAttribute("recentPayments", List.<Payment>of());
+            model.addAttribute("totalFeedback", 0L);
+            model.addAttribute("dashboardFeedbackList", List.<ProductFeedbackDto>of());
             model.addAttribute("error", "Failed to load stats: " + e.getMessage());
         }
         model.addAttribute("pageTitle", "Admin Dashboard");
         return "dashboard";
     }
 
-    /** Switch language for dashboard; LocaleChangeInterceptor sets cookie from ?lang=. Redirects back to current page. */
+    /**
+     * Switch language for dashboard; LocaleChangeInterceptor sets cookie from
+     * ?lang=. Redirects back to current page.
+     */
     @GetMapping("/views/set-lang")
     public String setLang(@RequestParam String lang, HttpServletRequest request) {
         String redirectTo = "/dashboard";
@@ -234,8 +258,10 @@ public class PageController {
             try {
                 java.net.URL u = new java.net.URL(referer);
                 String path = u.getPath();
-                if (path != null && !path.isBlank()) redirectTo = path;
-            } catch (Exception ignored) { }
+                if (path != null && !path.isBlank())
+                    redirectTo = path;
+            } catch (Exception ignored) {
+            }
         }
         return "redirect:" + redirectTo;
     }
@@ -588,7 +614,8 @@ public class PageController {
 
     private static int normalizeProductPageSize(int size) {
         for (int allowed : PRODUCT_PAGE_SIZES) {
-            if (allowed == size) return size;
+            if (allowed == size)
+                return size;
         }
         return 10;
     }
@@ -760,6 +787,7 @@ public class PageController {
             List<Category> categories = categoryService.getAllCategories();
             model.addAttribute("product", product);
             model.addAttribute("categories", categories);
+            model.addAttribute("favoriteCount", productService.countFavoriteUsersByProductId(productId));
             model.addAttribute("pageTitle", "Product Details");
         } catch (Exception e) {
             model.addAttribute("error", "Product not found: " + e.getMessage());
@@ -829,6 +857,7 @@ public class PageController {
         try {
             Product product = productService.getProductById(productId);
             model.addAttribute("product", product);
+            model.addAttribute("favoriteCount", productService.countFavoriteUsersByProductId(productId));
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load product details: " + e.getMessage());
         }
@@ -878,18 +907,20 @@ public class PageController {
     }
 
     /** Status colors for order charts (could be moved to DB/settings later). */
-    private static final Map<OrderStatus, String> ORDER_STATUS_COLORS = new LinkedHashMap<>() {{
-        put(OrderStatus.DELIVERED, "#10b981");
-        put(OrderStatus.PAID, "#10b981");
-        put(OrderStatus.SUCCESS, "#10b981");
-        put(OrderStatus.PENDING, "#f59e0b");
-        put(OrderStatus.PROCESSING, "#f59e0b");
-        put(OrderStatus.PAYMENT_PENDING, "#f97316");
-        put(OrderStatus.PAYMENT, "#f97316");
-        put(OrderStatus.SHIPPED, "#3b82f6");
-        put(OrderStatus.CANCELLED, "#ef4444");
-        put(OrderStatus.FAILED, "#ef4444");
-    }};
+    private static final Map<OrderStatus, String> ORDER_STATUS_COLORS = new LinkedHashMap<>() {
+        {
+            put(OrderStatus.DELIVERED, "#10b981");
+            put(OrderStatus.PAID, "#10b981");
+            put(OrderStatus.SUCCESS, "#10b981");
+            put(OrderStatus.PENDING, "#f59e0b");
+            put(OrderStatus.PROCESSING, "#f59e0b");
+            put(OrderStatus.PAYMENT_PENDING, "#f97316");
+            put(OrderStatus.PAYMENT, "#f97316");
+            put(OrderStatus.SHIPPED, "#3b82f6");
+            put(OrderStatus.CANCELLED, "#ef4444");
+            put(OrderStatus.FAILED, "#ef4444");
+        }
+    };
 
     private static final String DEFAULT_STATUS_COLOR = "#6b7280";
 
@@ -906,7 +937,8 @@ public class PageController {
             int totalPages = orderPage.getTotalPages();
 
             BigDecimal totalRevenue = orderRepository.sumOrderTotalAmount();
-            if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
+            if (totalRevenue == null)
+                totalRevenue = BigDecimal.ZERO;
             model.addAttribute("totalRevenue", totalRevenue);
 
             List<OrderStatusCountDto> orderStatusCounts = new ArrayList<>();
@@ -928,7 +960,8 @@ public class PageController {
                 int m = ((Number) row[1]).intValue();
                 BigDecimal sum = BigDecimal.ZERO;
                 if (row[2] != null) {
-                    sum = row[2] instanceof BigDecimal ? (BigDecimal) row[2] : BigDecimal.valueOf(((Number) row[2]).doubleValue());
+                    sum = row[2] instanceof BigDecimal ? (BigDecimal) row[2]
+                            : BigDecimal.valueOf(((Number) row[2]).doubleValue());
                 }
                 String key = y + "-" + m;
                 monthToRevenue.put(key, sum);
@@ -937,7 +970,8 @@ public class PageController {
             for (int i = 0; i < 12; i++) {
                 LocalDate d = since.plusMonths(i);
                 String key = d.getYear() + "-" + d.getMonthValue();
-                String label = d.getMonth().name().substring(0, 1) + d.getMonth().name().substring(1).toLowerCase() + " " + d.getYear();
+                String label = d.getMonth().name().substring(0, 1) + d.getMonth().name().substring(1).toLowerCase()
+                        + " " + d.getYear();
                 BigDecimal rev = monthToRevenue.getOrDefault(key, BigDecimal.ZERO);
                 salesByMonth.add(new SalesMonthDto(label, rev));
             }
@@ -1177,7 +1211,8 @@ public class PageController {
                 model.addAttribute("pageSubtitle", "Payment Record");
                 return "my-payments";
             }
-            // Load all user payments in one query (same as Payment Record pattern) then paginate in memory
+            // Load all user payments in one query (same as Payment Record pattern) then
+            // paginate in memory
             // to avoid JOIN FETCH + Pageable issues and ensure data always displays
             List<Payment> allPayments = paymentRepository.findByOrderUserIdWithOrderAndUser(user.getId());
             int total = allPayments != null ? allPayments.size() : 0;
@@ -1185,7 +1220,8 @@ public class PageController {
             int from = Math.min(page * PAGE_SIZE, total);
             int to = Math.min(from + PAGE_SIZE, total);
             List<Payment> payments = (allPayments != null && from < allPayments.size())
-                    ? allPayments.subList(from, to) : List.<Payment>of();
+                    ? allPayments.subList(from, to)
+                    : List.<Payment>of();
 
             java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
             double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
@@ -1258,6 +1294,95 @@ public class PageController {
         return "chat";
     }
 
+    /** Admin-only: view all chat tables - chat_messages and chat_ai. */
+    @GetMapping("/views/chat-activity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String chatActivityPage(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String session,
+            @RequestParam(defaultValue = "0") int pageMsg,
+            @RequestParam(defaultValue = "0") int pageAi,
+            Model model) {
+        try {
+            // --- chat_messages ---
+            Pageable pageableMsg = PageRequest.of(pageMsg, PAGE_SIZE, Sort.by("timestamp").descending());
+            org.springframework.data.domain.Page<com.project.skin_me.model.ChatMessage> msgPage;
+            if (userId != null) {
+                msgPage = chatMessageRepository.findByUserIdWithUserOrderByTimestampDesc(userId, pageableMsg);
+            } else {
+                msgPage = chatMessageRepository.findAllWithUserOrderByTimestampDesc(pageableMsg);
+            }
+            List<com.project.skin_me.model.ChatMessage> chatMessages = msgPage.getContent();
+            int totalPagesMsg = msgPage.getTotalPages();
+            long totalItemsMsg = msgPage.getTotalElements();
+
+            // --- chat_ai ---
+            Pageable pageableAi = PageRequest.of(pageAi, PAGE_SIZE, Sort.by("timestamp").descending());
+            org.springframework.data.domain.Page<ChatAi> chatPage;
+            if (session != null && !session.isBlank()) {
+                chatPage = chatAiRepository.findBySessionOrderByTimestampDesc(session.trim(), pageableAi);
+            } else {
+                chatPage = chatAiRepository.findAllByOrderByTimestampDesc(pageableAi);
+            }
+            List<ChatAi> chatAiList = chatPage.getContent();
+            int totalPagesAi = chatPage.getTotalPages();
+            long totalItemsAi = chatPage.getTotalElements();
+            List<String> distinctSessions = chatAiRepository.findDistinctSessions();
+
+            String encSession = (session != null && !session.isBlank())
+                    ? java.net.URLEncoder.encode(session.trim(), java.nio.charset.StandardCharsets.UTF_8).replace("+",
+                            "%20")
+                    : null;
+
+            model.addAttribute("chatMessages", chatMessages);
+            model.addAttribute("totalPagesMsg", totalPagesMsg);
+            model.addAttribute("currentPageMsg", pageMsg);
+            model.addAttribute("totalItemsMsg", totalItemsMsg);
+            model.addAttribute("hasNextMsg", pageMsg < totalPagesMsg - 1);
+            model.addAttribute("hasPrevMsg", pageMsg > 0);
+            model.addAttribute("chatAiList", chatAiList);
+            model.addAttribute("distinctSessions", distinctSessions != null ? distinctSessions : List.<String>of());
+            model.addAttribute("selectedSession", session != null && !session.isBlank() ? session.trim() : null);
+            model.addAttribute("totalPagesAi", totalPagesAi);
+            model.addAttribute("currentPageAi", pageAi);
+            model.addAttribute("totalItemsAi", totalItemsAi);
+            model.addAttribute("hasNextAi", pageAi < totalPagesAi - 1);
+            model.addAttribute("hasPrevAi", pageAi > 0);
+            model.addAttribute("allUsers", userRepository.findAll());
+            model.addAttribute("selectedUserId", userId);
+
+            StringBuilder base = new StringBuilder("/views/chat-activity?");
+            if (userId != null)
+                base.append("userId=").append(userId).append("&");
+            if (encSession != null)
+                base.append("session=").append(encSession).append("&");
+            model.addAttribute("paginationBaseMsg", base.toString() + "pageAi=" + pageAi + "&");
+            model.addAttribute("paginationBaseAi", base.toString() + "pageMsg=" + pageMsg + "&");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load chat activity: " + e.getMessage());
+            model.addAttribute("chatMessages", List.<com.project.skin_me.model.ChatMessage>of());
+            model.addAttribute("chatAiList", List.<ChatAi>of());
+            model.addAttribute("distinctSessions", List.<String>of());
+            model.addAttribute("allUsers", List.<User>of());
+            model.addAttribute("selectedUserId", null);
+            model.addAttribute("selectedSession", null);
+            model.addAttribute("totalPagesMsg", 0);
+            model.addAttribute("currentPageMsg", 0);
+            model.addAttribute("totalItemsMsg", 0L);
+            model.addAttribute("hasNextMsg", false);
+            model.addAttribute("hasPrevMsg", false);
+            model.addAttribute("totalPagesAi", 0);
+            model.addAttribute("currentPageAi", 0);
+            model.addAttribute("totalItemsAi", 0L);
+            model.addAttribute("hasNextAi", false);
+            model.addAttribute("hasPrevAi", false);
+            model.addAttribute("paginationBaseMsg", "/views/chat-activity?pageAi=0&");
+            model.addAttribute("paginationBaseAi", "/views/chat-activity?pageMsg=0&");
+        }
+        model.addAttribute("pageTitle", "Chat Activity");
+        return "chat-activity";
+    }
+
     @GetMapping("/views/delivery")
     @PreAuthorize("isAuthenticated()")
     public String deliveryListPage(@RequestParam(defaultValue = "0") int page, Model model) {
@@ -1294,6 +1419,38 @@ public class PageController {
             model.addAttribute("hasPrev", false);
         }
         return "delivery";
+    }
+
+    @GetMapping("/views/user-feedback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String userFeedbackPage(@RequestParam(defaultValue = "0") int page, Model model) {
+        try {
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<ProductFeedbackDto> feedbackPage = productFeedbackService.listAllForAdmin(pageable);
+            long totalInDb = productFeedbackRepository.count();
+            long visibleCount = productFeedbackRepository.countByVisibleOnFrontendTrue();
+            model.addAttribute("feedbackList", feedbackPage.getContent());
+            model.addAttribute("currentPage", feedbackPage.getNumber());
+            model.addAttribute("totalPages", feedbackPage.getTotalPages());
+            model.addAttribute("totalElements", feedbackPage.getTotalElements());
+            model.addAttribute("totalFeedbackCount", totalInDb);
+            model.addAttribute("visibleOnStorefrontCount", visibleCount);
+            model.addAttribute("hasNext", feedbackPage.hasNext());
+            model.addAttribute("hasPrev", feedbackPage.hasPrevious());
+            model.addAttribute("pageTitle", "User Feedback");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load feedback: " + e.getMessage());
+            model.addAttribute("feedbackList", List.<ProductFeedbackDto>of());
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("totalElements", 0L);
+            model.addAttribute("totalFeedbackCount", 0L);
+            model.addAttribute("visibleOnStorefrontCount", 0L);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
+            model.addAttribute("pageTitle", "User Feedback");
+        }
+        return "user-feedback";
     }
 
     @GetMapping("/views/users")
@@ -1458,6 +1615,171 @@ public class PageController {
             return "redirect:/views/users/" + userId + "?success=Role removed successfully";
         } catch (Exception e) {
             return "redirect:/views/users/" + userId + "?error=Failed to remove role: " + e.getMessage();
+        }
+    }
+
+    // KHQR Bank Accounts (admin)
+    @GetMapping("/views/khqr-accounts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountsListPage(Model model) {
+        try {
+            List<KhqrBankAccount> accounts = bakongKhqrService.findAll();
+            model.addAttribute("accounts", accounts);
+            model.addAttribute("pageTitle", "KHQR Bank Accounts");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load bank accounts: " + e.getMessage());
+            model.addAttribute("accounts", List.<KhqrBankAccount>of());
+            model.addAttribute("pageTitle", "KHQR Bank Accounts");
+        }
+        return "khqr-accounts";
+    }
+
+    @GetMapping("/views/khqr-accounts/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountCreatePage(Model model) {
+        model.addAttribute("account", null);
+        model.addAttribute("pageTitle", "Add KHQR Bank Account");
+        return "khqr-account-form";
+    }
+
+    @GetMapping("/views/khqr-accounts/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountDetailPage(@PathVariable Long id, Model model) {
+        try {
+            KhqrBankAccount account = bakongKhqrService.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            model.addAttribute("account", account);
+            model.addAttribute("pageTitle", "Bank Account Details");
+            return "khqr-account-details";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=Account not found";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountCreate(
+            @RequestParam String gateway,
+            @RequestParam String account,
+            @RequestParam String merchantName,
+            @RequestParam String city,
+            @RequestParam(required = false) String categoryCode,
+            @RequestParam(required = false) String testAccountUsd,
+            @RequestParam(required = false) String testAccountKhr,
+            @RequestParam(defaultValue = "false") boolean useTestWhenEmpty,
+            @RequestParam(defaultValue = "true") boolean active,
+            @RequestParam(defaultValue = "0") int displayOrder,
+            @RequestParam(required = false) String bakongToken,
+            @RequestParam(required = false) String telegramChatId,
+            @RequestParam(required = false) String paywayMerchantId,
+            @RequestParam(required = false) String paywayPublicKey,
+            @RequestParam(required = false) String paywayApiUrl,
+            Model model) {
+        try {
+            KhqrBankAccount entity = KhqrBankAccount.builder()
+                    .gateway(gateway != null ? gateway.trim().toLowerCase() : "khqr")
+                    .account(account != null ? account.trim() : null)
+                    .merchantName(merchantName != null ? merchantName.trim() : "")
+                    .city(city != null ? city.trim() : "")
+                    .categoryCode(categoryCode != null && !categoryCode.isBlank() ? categoryCode.trim() : "5999")
+                    .testAccountUsd(testAccountUsd != null && !testAccountUsd.isBlank() ? testAccountUsd.trim() : null)
+                    .testAccountKhr(testAccountKhr != null && !testAccountKhr.isBlank() ? testAccountKhr.trim() : null)
+                    .useTestWhenEmpty(useTestWhenEmpty)
+                    .active(active)
+                    .displayOrder(displayOrder)
+                    .bakongToken(bakongToken != null && !bakongToken.isBlank() ? bakongToken.trim() : null)
+                    .telegramChatId(telegramChatId != null && !telegramChatId.isBlank() ? telegramChatId.trim() : null)
+                    .paywayMerchantId(
+                            paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
+                    .paywayPublicKey(
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                    .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
+                    .build();
+            bakongKhqrService.create(entity);
+            return "redirect:/views/khqr-accounts?success=Bank account created successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to create: " + e.getMessage());
+            model.addAttribute("account", null);
+            model.addAttribute("pageTitle", "Add KHQR Bank Account");
+            return "khqr-account-form";
+        }
+    }
+
+    @GetMapping("/views/khqr-accounts/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountEditPage(@PathVariable Long id, Model model) {
+        try {
+            KhqrBankAccount account = bakongKhqrService.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            model.addAttribute("account", account);
+            model.addAttribute("pageTitle", "Edit KHQR Bank Account");
+            return "khqr-account-form";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=Account not found";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountUpdate(
+            @PathVariable Long id,
+            @RequestParam String gateway,
+            @RequestParam String account,
+            @RequestParam String merchantName,
+            @RequestParam String city,
+            @RequestParam(required = false) String categoryCode,
+            @RequestParam(required = false) String testAccountUsd,
+            @RequestParam(required = false) String testAccountKhr,
+            @RequestParam(defaultValue = "false") boolean useTestWhenEmpty,
+            @RequestParam(defaultValue = "true") boolean active,
+            @RequestParam(defaultValue = "0") int displayOrder,
+            @RequestParam(required = false) String bakongToken,
+            @RequestParam(required = false) String telegramChatId,
+            @RequestParam(required = false) String paywayMerchantId,
+            @RequestParam(required = false) String paywayPublicKey,
+            @RequestParam(required = false) String paywayApiUrl,
+            Model model) {
+        try {
+            KhqrBankAccount entity = KhqrBankAccount.builder()
+                    .gateway(gateway != null ? gateway.trim().toLowerCase() : "khqr")
+                    .account(account != null ? account.trim() : null)
+                    .merchantName(merchantName != null ? merchantName.trim() : "")
+                    .city(city != null ? city.trim() : "")
+                    .categoryCode(categoryCode != null && !categoryCode.isBlank() ? categoryCode.trim() : "5999")
+                    .testAccountUsd(testAccountUsd != null && !testAccountUsd.isBlank() ? testAccountUsd.trim() : null)
+                    .testAccountKhr(testAccountKhr != null && !testAccountKhr.isBlank() ? testAccountKhr.trim() : null)
+                    .useTestWhenEmpty(useTestWhenEmpty)
+                    .active(active)
+                    .displayOrder(displayOrder)
+                    .bakongToken(bakongToken != null && !bakongToken.isBlank() ? bakongToken.trim() : null)
+                    .telegramChatId(telegramChatId != null && !telegramChatId.isBlank() ? telegramChatId.trim() : null)
+                    .paywayMerchantId(
+                            paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
+                    .paywayPublicKey(
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                    .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
+                    .build();
+            bakongKhqrService.update(id, entity);
+            return "redirect:/views/khqr-accounts?success=Bank account updated successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to update: " + e.getMessage());
+            try {
+                model.addAttribute("account", bakongKhqrService.findById(id).orElse(null));
+            } catch (Exception ignored) {
+            }
+            model.addAttribute("pageTitle", "Edit KHQR Bank Account");
+            return "khqr-account-form";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/{id}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountDelete(@PathVariable Long id) {
+        try {
+            bakongKhqrService.deleteById(id);
+            return "redirect:/views/khqr-accounts?success=Bank account deleted successfully";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=Failed to delete: " + e.getMessage();
         }
     }
 

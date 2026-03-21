@@ -17,10 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
+
+    private static final Pattern API_ORDER_PATH = Pattern.compile("/api/v\\d+/orders/(\\d+)(?:/.*)?");
+    private static final Pattern API_PRODUCT_DETAIL = Pattern.compile("/api/v\\d+/products/product/(\\d+)/product.*");
+    /** Public JSON product at {@code /products/{id}} (ProductPublicController) — map to Thymeleaf details. */
+    private static final Pattern PUBLIC_PRODUCT_JSON = Pattern.compile("/products/(\\d+)(?:/.*)?");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -28,12 +35,14 @@ public class NotificationService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * Persist notification and send to user via WebSocket (using principal name = email).
+     * Persist notification and send to user via WebSocket (using principal name =
+     * email).
      */
     @Transactional
     public void createAndNotifyUser(Long userId, String title, String message, String type, String actionUrl) {
         User user = userRepository.findById(userId).orElse(null);
-        if (user == null) return;
+        if (user == null)
+            return;
 
         Notification n = new Notification();
         n.setUser(user);
@@ -41,7 +50,7 @@ public class NotificationService {
         n.setMessage(message);
         n.setType(type != null ? type : "INFO");
         n.setStatus("UNREAD");
-        n.setActionUrl(actionUrl);
+        n.setActionUrl(normalizeActionUrlForWebApp(actionUrl));
         n.setCreatedAt(LocalDateTime.now());
         n = notificationRepository.save(n);
 
@@ -50,14 +59,18 @@ public class NotificationService {
     }
 
     private void sendToPrincipal(String principalName, NotificationDto dto) {
-        if (dto.getId() == null) dto.setId(UUID.randomUUID().toString());
-        if (dto.getCreatedAt() == null) dto.setCreatedAt(LocalDateTime.now());
-        if (dto.getStatus() == null) dto.setStatus("UNREAD");
+        if (dto.getId() == null)
+            dto.setId(UUID.randomUUID().toString());
+        if (dto.getCreatedAt() == null)
+            dto.setCreatedAt(LocalDateTime.now());
+        if (dto.getStatus() == null)
+            dto.setStatus("UNREAD");
         messagingTemplate.convertAndSendToUser(principalName, "/topic/notifications", dto);
     }
 
     /**
-     * Send notification to specific user via WebSocket (persisted when user exists).
+     * Send notification to specific user via WebSocket (persisted when user
+     * exists).
      */
     public void notifyUser(String userId, String title, String message, String type) {
         User user = userRepository.findById(Long.parseLong(userId)).orElse(null);
@@ -75,7 +88,8 @@ public class NotificationService {
     }
 
     /**
-     * Send notification to specific user with action URL (persisted when user exists).
+     * Send notification to specific user with action URL (persisted when user
+     * exists).
      */
     public void notifyUserWithAction(String userId, String title, String message,
             String type, String actionUrl) {
@@ -86,7 +100,7 @@ public class NotificationService {
                     .title(title)
                     .message(message)
                     .type(type)
-                    .actionUrl(actionUrl)
+                    .actionUrl(normalizeActionUrlForWebApp(actionUrl))
                     .build();
             messagingTemplate.convertAndSendToUser(userId, "/topic/notifications", notification);
             return;
@@ -120,7 +134,7 @@ public class NotificationService {
 
     public void notifyProductAvailability(String userId, String productId, String productName) {
         String message = productName + " is now back in stock!";
-        notifyUserWithAction(userId, "Product Available", message, "PRODUCT", "/products/" + productId);
+        notifyUserWithAction(userId, "Product Available", message, "PRODUCT", "/view/products/" + productId);
     }
 
     public void notifyPromotion(String userId, String title, String message, String promoUrl) {
@@ -128,7 +142,8 @@ public class NotificationService {
     }
 
     /**
-     * Ensures the user has a notification for each of their existing orders (backfill for orders
+     * Ensures the user has a notification for each of their existing orders
+     * (backfill for orders
      * created before notifications were implemented, or missed events).
      */
     @Transactional
@@ -136,7 +151,8 @@ public class NotificationService {
         List<Order> orders = orderRepository.findByUserId(user.getId());
         for (Order order : orders) {
             String actionUrl = "/view/orders/" + order.getOrderId();
-            if (notificationRepository.existsByUserAndActionUrl(user, actionUrl)) continue;
+            if (notificationRepository.existsByUserAndActionUrl(user, actionUrl))
+                continue;
             String statusStr = order.getOrderStatus() != null ? order.getOrderStatus().name() : "CREATED";
             String title = "Order #" + order.getOrderId();
             String message = "Order #" + order.getOrderId() + " – " + statusStr
@@ -186,7 +202,50 @@ public class NotificationService {
                 .type(n.getType())
                 .status(n.getStatus())
                 .createdAt(n.getCreatedAt())
-                .actionUrl(n.getActionUrl())
+                .actionUrl(normalizeActionUrlForWebApp(n.getActionUrl()))
                 .build();
+    }
+
+    /**
+     * Ensures notification links open server-rendered pages, not REST JSON.
+     * Handles legacy/ mistaken URLs like {@code /api/v1/orders/1} or {@code /chat}.
+     */
+    public static String normalizeActionUrlForWebApp(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String u = url.trim();
+        try {
+            if (u.startsWith("http://") || u.startsWith("https://")) {
+                int schemeEnd = u.indexOf("://") + 3;
+                int pathStart = u.indexOf('/', schemeEnd);
+                if (pathStart >= 0) {
+                    u = u.substring(pathStart);
+                } else {
+                    u = "/";
+                }
+            }
+        } catch (Exception ignored) {
+            // keep u as-is
+        }
+        if (!u.startsWith("/")) {
+            u = "/" + u;
+        }
+        Matcher mOrder = API_ORDER_PATH.matcher(u);
+        if (mOrder.matches()) {
+            return "/view/orders/" + mOrder.group(1);
+        }
+        Matcher mProduct = API_PRODUCT_DETAIL.matcher(u);
+        if (mProduct.matches()) {
+            return "/view/products/" + mProduct.group(1);
+        }
+        Matcher mPublicProduct = PUBLIC_PRODUCT_JSON.matcher(u);
+        if (mPublicProduct.matches()) {
+            return "/view/products/" + mPublicProduct.group(1);
+        }
+        if ("/chat".equals(u) || u.startsWith("/chat?")) {
+            return u.startsWith("/chat?") ? "/views/chat" + u.substring("/chat".length()) : "/views/chat";
+        }
+        return u;
     }
 }

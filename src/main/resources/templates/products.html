@@ -332,11 +332,10 @@
 
           // Add CSRF token if available
           const csrfToken = document.querySelector('meta[name="_csrf"]');
-          const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
           if (csrfToken) {
             const csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
-            csrfInput.name = csrfHeader ? csrfHeader.getAttribute('content') : '_csrf';
+            csrfInput.name = '_csrf';
             csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
             form.appendChild(csrfInput);
           }

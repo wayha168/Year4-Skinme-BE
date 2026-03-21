@@ -255,8 +255,13 @@ public class ProductService implements IProductService {
     public ProductDto getProductDtoByIdWithFavoriteCount(Long productId) {
         Product product = getProductById(productId);
         ProductDto dto = convertToDto(product);
-        dto.setFavoriteCount(favoriteItemRepository.countByProduct_Id(productId));
+        dto.setFavoriteCount(countFavoriteUsersByProductId(productId));
         return dto;
+    }
+
+    @Override
+    public long countFavoriteUsersByProductId(Long productId) {
+        return favoriteItemRepository.countUsersWhoFavoritedProduct(productId);
     }
 
     /** Display URL for API/templates: use /uploads/fileName so response is based on fileName, not DB downloadUrl. */

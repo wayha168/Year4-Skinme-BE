@@ -1,7 +1,8 @@
 <div th:fragment="sidebar" class="sidebar" id="sidebar">
   <div class="sidebar-top-col">
     <div class="sidebar-toggle-row">
-      <button type="button" class="btn-sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+      <button type="button" class="btn-sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar"
+        title="Collapse sidebar">
         <i class="bi bi-layout-sidebar sidebar-toggle-icon text-black" aria-hidden="true"></i>
       </button>
     </div>
@@ -17,7 +18,7 @@
 
   <ul class="nav sidebar-nav" id="sidebar-nav">
     <li class="nav-item">
-      <a th:href="@{/dashboard}" class="nav-link" data-tooltip="Dashboard">
+      <a th:href="@{/dashboard}" class="nav-link" data-tooltip="Dashboard" data-turbo="false">
         <i class="bi bi-house-door"></i>
         <span class="nav-link-text">Dashboard</span>
       </a>
@@ -26,27 +27,27 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#stockMenu" role="button"
-        aria-expanded="false" aria-controls="stockMenu" data-tooltip="Stock Management">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#stockMenu" role="button"
+        aria-expanded="false" aria-controls="stockMenu" data-tooltip="Stock Management" data-turbo="false">
         <i class="bi bi-grid-3x3-gap"></i>
         <span class="nav-link-text">Stock Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="stockMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/categories}" class="nav-link sub-nav-link" data-tooltip="Categories">
+        <a th:href="@{/views/categories}" class="nav-link sub-nav-link" data-tooltip="Categories" data-turbo="false">
           <i class="bi bi-card-checklist"></i>
           <span class="nav-link-text">Categories</span>
         </a>
-        <a th:href="@{/views/brands}" class="nav-link sub-nav-link" data-tooltip="Brands">
+        <a th:href="@{/views/brands}" class="nav-link sub-nav-link" data-tooltip="Brands" data-turbo="false">
           <i class="bi bi-award"></i>
           <span class="nav-link-text">Brands</span>
         </a>
-        <a th:href="@{/views/products}" class="nav-link sub-nav-link" data-tooltip="Products">
+        <a th:href="@{/views/products}" class="nav-link sub-nav-link" data-tooltip="Products" data-turbo="false">
           <i class="bi bi-box-seam"></i>
           <span class="nav-link-text">Products</span>
         </a>
         <a th:href="@{/views/promotions}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
-          data-tooltip="Promotions">
+          data-tooltip="Promotions" data-turbo="false">
           <i class="bi bi-percent"></i>
           <span class="nav-link-text">Promotions</span>
         </a>
@@ -56,22 +57,27 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#saleMenu" role="button" aria-expanded="false"
-        aria-controls="saleMenu" data-tooltip="Sales Management">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#saleMenu" role="button" aria-expanded="false"
+        aria-controls="saleMenu" data-tooltip="Sales Management" data-turbo="false">
         <i class="bi bi-cart-check"></i>
         <span class="nav-link-text">Sales Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="saleMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record">
+        <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record" data-turbo="false">
           <i class="bi bi-bag-check"></i>
           <span class="nav-link-text">Orders Record</span>
         </a>
-        <a th:href="@{/views/payments}" class="nav-link sub-nav-link" data-tooltip="Payment Record">
+        <a th:href="@{/views/payments}" class="nav-link sub-nav-link" data-tooltip="Payment Record" data-turbo="false">
           <i class="bi bi-receipt-cutoff"></i>
           <span class="nav-link-text">Payment Record</span>
         </a>
-        <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record">
+        <a th:href="@{/views/khqr-accounts}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+          data-tooltip="KHQR Bank Accounts" data-turbo="false">
+          <i class="bi bi-qr-code"></i>
+          <span class="nav-link-text">KHQR Bank Accounts</span>
+        </a>
+        <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record" data-turbo="false">
           <i class="bi bi-truck"></i>
           <span class="nav-link-text">Delivery Record</span>
         </a>
@@ -79,53 +85,65 @@
     </li>
 
     <li class="nav-separator"></li>
-
     <li class="nav-item">
-      <a th:href="@{/views/chat}" class="nav-link" data-tooltip="Chat">
-        <i class="bi bi-chat-square-text"></i>
-        <span class="nav-link-text">Chat</span>
-      </a>
-    </li>
-
-    <li class="nav-separator"></li>
-
-    <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#userMenu" role="button" aria-expanded="false"
-        aria-controls="userMenu" data-tooltip="User Menu">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#userMenu" role="button" aria-expanded="false"
+        aria-controls="userMenu" data-tooltip="User Menu" data-turbo="false">
         <i class="bi bi-person-badge"></i>
         <span class="nav-link-text">User Menu</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
       <div class="collapse" id="userMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/my-orders}" class="nav-link sub-nav-link" data-tooltip="User Orders">
+        <a th:href="@{/views/my-orders}" class="nav-link sub-nav-link" data-tooltip="User Orders" data-turbo="false">
           <i class="bi bi-bag"></i>
           <span class="nav-link-text">User Orders</span>
         </a>
-        <a th:href="@{/views/my-payments}" class="nav-link sub-nav-link" data-tooltip="User Payments">
-          <i class="bi bi-wallet2"></i>
-          <span class="nav-link-text">User Payments</span>
+        <a th:href="@{/views/user-feedback}" class="nav-link sub-nav-link" data-tooltip="User Feedback" data-turbo="false">
+          <i class="bi bi-stars"></i>
+          <span class="nav-link-text">User Feedback</span>
         </a>
         <a th:href="@{/views/users}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
-          data-tooltip="User Management">
+          data-tooltip="User Management" data-turbo="false">
           <i class="bi bi-people"></i>
           <span class="nav-link-text">User Management</span>
         </a>
         <a th:href="@{/views/audit-logs}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
-          data-tooltip="Audit Log">
+          data-tooltip="Audit Log" data-turbo="false">
           <i class="bi bi-journal-text"></i>
           <span class="nav-link-text">Audit Log</span>
         </a>
       </div>
     </li>
+
+    <li class="nav-separator"></li>
+    <li class="nav-item">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#chatMenu" role="button" aria-expanded="false"
+        aria-controls="chatMenu" data-tooltip="Chat" data-turbo="false">
+        <i class="bi bi-chat-square-text"></i>
+        <span class="nav-link-text">Chat</span>
+        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
+      </a>
+      <div class="collapse" id="chatMenu" data-bs-parent="#sidebar-nav">
+        <a th:href="@{/views/chat}" class="nav-link sub-nav-link" data-tooltip="Chat" data-turbo="false">
+          <i class="bi bi-chat-square-text"></i>
+          <span class="nav-link-text">Chat</span>
+        </a>
+        <a th:href="@{/views/chat-activity}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+          data-tooltip="Chat Activity" data-turbo="false">
+          <i class="bi bi-chat-dots"></i>
+          <span class="nav-link-text">Chat Activity</span>
+        </a>
+      </div>
+    </li>
+    <li class="nav-separator"></li>
   </ul>
 
   <div class="sidebar-lang-switcher">
     <span class="nav-link-text text-muted small me-2">Language</span>
-    <a th:href="@{/views/set-lang(lang='en')}" class="lang-btn" data-tooltip="English"
-       th:classappend="${currentLocale == 'en'} ? 'lang-btn-active' : ''">EN</a>
+    <a th:href="@{/views/set-lang(lang='en')}" class="lang-btn" data-tooltip="English" data-turbo="false"
+      th:classappend="${currentLocale == 'en'} ? 'lang-btn-active' : ''">EN</a>
     <span class="lang-sep">|</span>
-    <a th:href="@{/views/set-lang(lang='km')}" class="lang-btn" data-tooltip="Khmer"
-       th:classappend="${currentLocale == 'km'} ? 'lang-btn-active' : ''">KM</a>
+    <a th:href="@{/views/set-lang(lang='km')}" class="lang-btn" data-tooltip="Khmer" data-turbo="false"
+      th:classappend="${currentLocale == 'km'} ? 'lang-btn-active' : ''">KM</a>
   </div>
 
   <div class="sidebar-footer">
@@ -160,7 +178,7 @@
             }
             // Fallback: manually hide
             collapse.classList.remove('show');
-            const otherToggle = sidebarNav.querySelector('[href="#' + collapse.id + '"]');
+            const otherToggle = sidebarNav.querySelector('[aria-controls="' + collapse.id + '"]');
             if (otherToggle) {
               otherToggle.setAttribute('aria-expanded', 'false');
             }
@@ -170,8 +188,11 @@
 
       toggleLinks.forEach(function (toggleLink) {
         toggleLink.addEventListener('click', function (e) {
-          const targetId = this.getAttribute('href');
-          const targetCollapse = document.querySelector(targetId);
+          var targetSel = this.getAttribute('data-bs-target');
+          if (!targetSel) {
+            targetSel = this.getAttribute('href');
+          }
+          const targetCollapse = targetSel ? document.querySelector(targetSel) : null;
 
           if (!targetCollapse) return;
 
@@ -189,14 +210,14 @@
       if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
         collapseElements.forEach(function (collapse) {
           collapse.addEventListener('show.bs.collapse', function () {
-            const toggle = sidebarNav.querySelector('[href="#' + this.id + '"]');
+            const toggle = sidebarNav.querySelector('[aria-controls="' + this.id + '"]');
             if (toggle) {
               toggle.setAttribute('aria-expanded', 'true');
             }
           });
 
           collapse.addEventListener('hide.bs.collapse', function () {
-            const toggle = sidebarNav.querySelector('[href="#' + this.id + '"]');
+            const toggle = sidebarNav.querySelector('[aria-controls="' + this.id + '"]');
             if (toggle) {
               toggle.setAttribute('aria-expanded', 'false');
             }

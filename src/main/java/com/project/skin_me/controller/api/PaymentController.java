@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +23,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.PayWayWebhookDto;
 import com.project.skin_me.dto.RealTimeUpdateDto;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.enums.PaymentMethod;
 import com.project.skin_me.exception.ResourceNotFoundException;
@@ -34,7 +37,7 @@ import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.service.checkout.ICheckoutService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
-import com.project.skin_me.service.payment.KhqrService;
+import com.project.skin_me.service.payment.IBakongKhqrService;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
@@ -53,7 +56,7 @@ public class PaymentController {
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final KhqrService khqrService;
+    private final IBakongKhqrService bakongKhqrService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -83,7 +86,7 @@ public class PaymentController {
             order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
             orderService.updateOrder(order);
 
-            // Save initial payment record
+            // Save initial payment record (transactionRef = session id so webhooks can find by session)
             Payment payment = Payment.builder()
                     .order(order)
                     .amount(order.getOrderTotalAmount())
@@ -146,6 +149,17 @@ public class PaymentController {
         if (body.get("deliveryLongitude") != null) {
             Object v = body.get("deliveryLongitude");
             if (v instanceof Number) order.setDeliveryLongitude(((Number) v).doubleValue());
+        }
+        if (body.containsKey("logisticCompany")) {
+            Object lc = body.get("logisticCompany");
+            if (lc == null) {
+                order.setLogisticCompany(null);
+            } else {
+                LogisticCompany parsed = LogisticCompany.fromString(lc.toString());
+                if (parsed != null) {
+                    order.setLogisticCompany(parsed);
+                }
+            }
         }
     }
 
@@ -483,24 +497,103 @@ public class PaymentController {
     }
 
     private void processPaymentIntentSucceeded(String paymentIntentId, Map<String, Object> processedEvents) {
-        paymentRepository.findByPaymentIntentId(paymentIntentId)
-                .or(() -> paymentRepository.findByTransactionRef(paymentIntentId))
-                .ifPresentOrElse(
-                        payment -> {
-                            Order order = payment.getOrder();
-                            if (order.getOrderStatus() != OrderStatus.PAID) {
-                                payment.setPaymentIntentId(paymentIntentId);
-                                payment.setStatus(OrderStatus.SUCCESS);
-                                payment.setTransactionTime(LocalDateTime.now());
-                                paymentRepository.save(payment);
-                                orderService.confirmOrderPayment(order);
-                                log.info("Webhook: payment_intent.succeeded processed for pi {} order {}",
-                                        paymentIntentId, order.getId());
-                            }
-                            processedEvents.put("payment_intent", paymentIntentId);
-                            processedEvents.put("order_id", order.getId());
-                        },
-                        () -> log.warn("Webhook: payment not found for paymentIntentId {}", paymentIntentId));
+        Optional<Payment> paymentOpt = paymentRepository.findByPaymentIntentId(paymentIntentId)
+                .or(() -> paymentRepository.findByTransactionRef(paymentIntentId));
+
+        if (paymentOpt.isEmpty()) {
+            // Fallback: PaymentIntent has metadata order_id (set when creating Checkout Session)
+            try {
+                PaymentIntent pi = PaymentIntent.retrieve(paymentIntentId);
+                if (pi.getMetadata() != null && pi.getMetadata().containsKey("order_id")) {
+                    String orderIdStr = pi.getMetadata().get("order_id");
+                    try {
+                        Long orderId = Long.parseLong(orderIdStr);
+                        Order order = orderRepository.findById(orderId).orElse(null);
+                        if (order != null) {
+                            paymentOpt = paymentRepository.findByOrder(order);
+                        }
+                    } catch (NumberFormatException ignored) { }
+                }
+            } catch (StripeException e) {
+                log.warn("Webhook: could not retrieve PaymentIntent {} for metadata fallback: {}", paymentIntentId, e.getMessage());
+            }
+        }
+
+        paymentOpt.ifPresentOrElse(
+                payment -> {
+                    Order order = payment.getOrder();
+                    if (order.getOrderStatus() != OrderStatus.PAID) {
+                        payment.setPaymentIntentId(paymentIntentId);
+                        payment.setStatus(OrderStatus.SUCCESS);
+                        payment.setTransactionTime(LocalDateTime.now());
+                        paymentRepository.save(payment);
+                        orderService.confirmOrderPayment(order);
+                        log.info("Webhook: payment_intent.succeeded processed for pi {} order {}",
+                                paymentIntentId, order.getId());
+                    }
+                    processedEvents.put("payment_intent", paymentIntentId);
+                    processedEvents.put("order_id", order.getId());
+                },
+                () -> log.warn("Webhook: payment not found for paymentIntentId {}", paymentIntentId));
+    }
+
+    /**
+     * PayWay (ABA / KHQR) webhook. POST, HTTPS.
+     * status=0 means success. merchant_ref = from QR subtag 62.01 – we match by order ID or transactionRef.
+     */
+    @PostMapping("/webhook/payway")
+    public ResponseEntity<ApiResponse> handlePayWayWebhook(@RequestBody PayWayWebhookDto payload) {
+        if (payload == null) {
+            return ResponseEntity.badRequest().body(new ApiResponse("Missing payload", null));
+        }
+        String merchantRef = payload.getMerchant_ref();
+        if (merchantRef == null || merchantRef.isBlank()) {
+            log.warn("PayWay webhook: missing merchant_ref");
+            return ResponseEntity.badRequest().body(new ApiResponse("Missing merchant_ref", null));
+        }
+        Integer status = payload.getStatus();
+        if (status == null) {
+            log.warn("PayWay webhook: missing status");
+            return ResponseEntity.badRequest().body(new ApiResponse("Missing status", null));
+        }
+        Optional<Payment> paymentOpt = Optional.empty();
+        try {
+            Long orderId = Long.parseLong(merchantRef.trim());
+            paymentOpt = orderRepository.findById(orderId).flatMap(paymentRepository::findByOrder);
+        } catch (NumberFormatException ignored) {
+            paymentOpt = paymentRepository.findByTransactionRef(merchantRef.trim());
+        }
+        if (paymentOpt.isEmpty()) {
+            log.warn("PayWay webhook: no payment found for merchant_ref={}", merchantRef);
+            return ResponseEntity.ok(new ApiResponse("No matching order/payment for merchant_ref", Map.of("merchant_ref", merchantRef)));
+        }
+        Payment payment = paymentOpt.get();
+        if (payment.getMethod() != PaymentMethod.KHQR) {
+            payment.setMethod(PaymentMethod.KHQR);
+        }
+        if (status.intValue() == 0) {
+            if (payment.getStatus() != OrderStatus.SUCCESS) {
+                payment.setStatus(OrderStatus.SUCCESS);
+                payment.setTransactionTime(LocalDateTime.now());
+                if (payload.getTransaction_id() != null) {
+                    payment.setMessage("PayWay: " + payload.getTransaction_id());
+                }
+                if (payload.getPayer_account() != null) {
+                    payment.setPayerAccount(payload.getPayer_account());
+                }
+                paymentRepository.save(payment);
+                orderService.confirmOrderPayment(payment.getOrder());
+                log.info("PayWay webhook: payment confirmed for order {} transaction_id={}", payment.getOrder().getId(), payload.getTransaction_id());
+            }
+        } else {
+            log.debug("PayWay webhook: status not success (status={}) for merchant_ref={}", status, merchantRef);
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("transaction_id", payload.getTransaction_id());
+        data.put("merchant_ref", merchantRef);
+        data.put("status", status);
+        data.put("processed", status != null && status.intValue() == 0);
+        return ResponseEntity.ok(new ApiResponse("Webhook received", data));
     }
 
     @GetMapping("/generate-khqr")
@@ -518,7 +611,7 @@ public class PaymentController {
             }
 
             BigDecimal amountDecimal = BigDecimal.valueOf(amount);
-            Map<String, String> khqrData = khqrService.generateKhqrForOrder(amountDecimal, currency, gateway);
+            Map<String, String> khqrData = bakongKhqrService.generateKhqrForOrder(amountDecimal, currency, gateway, orderId);
 
             // Create or update payment record for KHQR
             Payment payment = paymentRepository.findByOrder(order).orElse(null);
@@ -570,22 +663,21 @@ public class PaymentController {
                         .body(new ApiResponse("Payment method is not KHQR", null));
             }
 
-            // Update and persist payment record so it appears in user payment table with latest state
+            // Mark payment as received and confirm order (order -> PAID, Telegram + in-app notifications)
             payment.setTransactionTime(LocalDateTime.now());
-            payment.setMessage("User confirmed payment; pending bank verification");
+            payment.setMessage("KHQR payment confirmed");
+            payment.setStatus(OrderStatus.SUCCESS);
             paymentRepository.save(payment);
 
-            // In production you would verify with bank/KHQR API and then:
-            // payment.setStatus(OrderStatus.SUCCESS); orderService.confirmOrderPayment(order);
+            orderService.confirmOrderPayment(order);
 
             Map<String, Object> data = new HashMap<>();
             data.put("orderId", orderId);
             data.put("paymentId", payment.getId());
             data.put("status", payment.getStatus().toString());
-            data.put("message",
-                    "Payment verification initiated. Your payment record has been updated.");
+            data.put("message", "Payment confirmed. Order is now paid. Telegram and in-app notifications have been sent.");
 
-            return ResponseEntity.ok(new ApiResponse("KHQR payment verification initiated", data));
+            return ResponseEntity.ok(new ApiResponse("KHQR payment verified successfully", data));
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error verifying KHQR payment: " + e.getMessage(), null));

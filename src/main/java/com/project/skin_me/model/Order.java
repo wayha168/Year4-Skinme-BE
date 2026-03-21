@@ -1,6 +1,7 @@
 package com.project.skin_me.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -38,6 +39,10 @@ public class Order {
     private String trackingNumber;
     private LocalDateTime shippedAt;
     private LocalDateTime deliveredAt;
+
+    /** Preferred courier: set at checkout (before payment) via delivery API; optional override when marking delivered. */
+    @Enumerated(EnumType.STRING)
+    private LogisticCompany logisticCompany;
 
     // Delivery address fields
     @Column(name = "delivery_street", length = 500)

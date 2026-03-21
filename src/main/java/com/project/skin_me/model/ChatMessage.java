@@ -8,6 +8,11 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Chat message (user, admin, assistant) from the SkinMe AI chatbot project.
+ * Data is produced by the chatbot at https://chatbot.skinme.store.
+ * Table: chat_messages
+ */
 @Entity
 @Table(name = "chat_messages")
 @Getter

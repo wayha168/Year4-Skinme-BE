@@ -22,6 +22,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final ShopUserDetailsService userDetailsService;
 
+    /** Paths that never require JWT (public assets, login, etc.). /uploads = product images, public for scraping/embedding. */
     private static final List<String> SKIP_PATHS = List.of(
             "/v3/api-docs",
             "/swagger",
@@ -34,6 +35,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             "/logout",
             "/css",
             "/js",
+            "/images",
+            "/uploads",
             "/.well-known"
     );
 

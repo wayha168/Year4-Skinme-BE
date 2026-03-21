@@ -19,6 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 "/topic/orders", // For order updates
                 "/topic/products", // For product updates
                 "/topic/inventory", // For inventory updates
+                "/topic/feedback", // New product feedback (admin toast)
                 "/user" // For user-specific messages
         );
 

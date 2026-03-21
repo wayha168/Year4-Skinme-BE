@@ -3,6 +3,7 @@ package com.project.skin_me.service.order;
 import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.dto.OrderItemDto;
 import com.project.skin_me.dto.RealTimeUpdateDto;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.*;
@@ -14,6 +15,7 @@ import com.project.skin_me.model.Activity;
 import com.project.skin_me.repository.ActivityRepository;
 import com.project.skin_me.service.cart.ICartService;
 import com.project.skin_me.service.notification.NotificationService;
+import com.project.skin_me.service.payment.IBakongKhqrService;
 import com.project.skin_me.service.popularProduct.IPopularProductService;
 import com.project.skin_me.service.telegram.TelegramNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ public class OrderService implements IOrderService {
     private final IPopularProductService popularProductService;
     private final NotificationService notificationService;
     private final TelegramNotificationService telegramNotificationService;
+    private final IBakongKhqrService bakongKhqrService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ActivityRepository activityRepository;
 
@@ -90,11 +93,12 @@ public class OrderService implements IOrderService {
             System.err.println("Failed to send order notification: " + e.getMessage());
         }
 
-        // Telegram alert: new order
+        // Telegram alert: new order (default chat + owner chat if set on KHQR account)
         try {
             String userInfo = savedOrder.getUser() != null ? savedOrder.getUser().getEmail() : "N/A";
             String total = savedOrder.getOrderTotalAmount() != null ? "$" + savedOrder.getOrderTotalAmount() : "N/A";
-            telegramNotificationService.notifyNewOrder(savedOrder.getId(), userInfo, total);
+            String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
+            telegramNotificationService.notifyNewOrder(savedOrder.getId(), userInfo, total, ownerChatId);
         } catch (Exception e) {
             System.err.println("Failed to send Telegram new-order alert: " + e.getMessage());
         }
@@ -208,6 +212,7 @@ public class OrderService implements IOrderService {
         dto.setDeliveryAddressFull(order.getDeliveryAddressFull());
         dto.setDeliveryLatitude(order.getDeliveryLatitude());
         dto.setDeliveryLongitude(order.getDeliveryLongitude());
+        dto.setLogisticCompany(order.getLogisticCompany() != null ? order.getLogisticCompany().name() : null);
 
         List<OrderItemDto> itemDtos = new ArrayList<>();
         if (order.getOrderItems() != null) {
@@ -350,11 +355,12 @@ public class OrderService implements IOrderService {
             System.err.println("Failed to send payment confirmation notification: " + e.getMessage());
         }
 
-        // Telegram alert: payment completed
+        // Telegram alert: payment completed (default chat + owner chat if set on KHQR account)
         try {
             String userInfo = managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : "N/A";
             String total = managedOrder.getOrderTotalAmount() != null ? "$" + managedOrder.getOrderTotalAmount() : "N/A";
-            telegramNotificationService.notifyPaymentCompleted(managedOrder.getId(), userInfo, total);
+            String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
+            telegramNotificationService.notifyPaymentCompleted(managedOrder.getId(), userInfo, total, ownerChatId);
         } catch (Exception e) {
             System.err.println("Failed to send Telegram payment alert: " + e.getMessage());
         }
@@ -405,12 +411,15 @@ public class OrderService implements IOrderService {
 
     @Override
     @Transactional
-    public Order markAsDelivered(Long orderId) {
+    public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
+        if (logisticCompany != null) {
+            order.setLogisticCompany(logisticCompany);
+        }
         Order savedOrder = orderRepository.save(order);
         
         // Send WebSocket notification for delivery
@@ -439,10 +448,11 @@ public class OrderService implements IOrderService {
             System.err.println("Failed to send delivery notification: " + e.getMessage());
         }
 
-        // Telegram alert: delivery done
+        // Telegram alert: delivery done (default chat + owner chat if set on KHQR account)
         try {
             String userInfo = order.getUser() != null ? order.getUser().getEmail() : "N/A";
-            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber());
+            String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
+            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber(), ownerChatId);
         } catch (Exception e) {
             System.err.println("Failed to send Telegram delivery alert: " + e.getMessage());
         }

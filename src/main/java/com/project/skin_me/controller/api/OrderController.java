@@ -1,6 +1,7 @@
 package com.project.skin_me.controller.api;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
@@ -19,9 +20,9 @@ import java.util.Map;
 
 import static org.springframework.http.HttpStatus.*;
 
-@RequiredArgsConstructor
 @RestController
 @RequestMapping("${api.prefix}/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
     private final IOrderService orderService;
@@ -29,10 +30,17 @@ public class OrderController {
     private final IUserService userService;
 
     @PostMapping("/order")
-    public ResponseEntity<ApiResponse> createOrder() {
+    public ResponseEntity<ApiResponse> createOrder(@RequestBody(required = false) Map<String, Object> body) {
         try {
             User user = userService.getAuthenticatedUser();
             Order order = orderService.placeOrderItem(user.getId());
+            if (body != null && body.get("logisticCompany") != null) {
+                LogisticCompany lc = LogisticCompany.fromString(String.valueOf(body.get("logisticCompany")));
+                if (lc != null) {
+                    order.setLogisticCompany(lc);
+                    orderService.updateOrder(order);
+                }
+            }
             OrderDto orderDto = orderService.convertToDto(order);
             return ResponseEntity.ok(new ApiResponse("Order successfully placed", orderDto));
         } catch (ResourceNotFoundException e) {
@@ -108,9 +116,11 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/deliver")
-    public ResponseEntity<ApiResponse> markAsDelivered(@PathVariable Long orderId) {
+    public ResponseEntity<ApiResponse> markAsDelivered(
+            @PathVariable Long orderId,
+            @RequestParam(required = false) LogisticCompany logisticCompany) {
         try {
-            Order order = orderService.markAsDelivered(orderId);
+            Order order = orderService.markAsDelivered(orderId, logisticCompany);
             OrderDto orderDto = orderService.convertToDto(order);
             return ResponseEntity.ok(new ApiResponse("Order marked as delivered", orderDto));
         } catch (ResourceNotFoundException e) {

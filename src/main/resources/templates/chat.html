@@ -278,11 +278,18 @@
                   <span id="connection-status" class="badge bg-secondary">Connecting...</span>
                 </div>
               </div>
+
+              <div class="chat-tabs px-3 py-2 bg-white border-bottom" role="tablist" aria-label="Filter messages">
+                <button type="button" class="chat-tab active" data-chat-filter="all" id="tab-filter-all">All</button>
+                <button type="button" class="chat-tab" data-chat-filter="human" id="tab-filter-human">User &amp; Admin</button>
+                <button type="button" class="chat-tab" data-chat-filter="ai" id="tab-filter-ai">AI only</button>
+              </div>
               
               <div class="chat-messages" id="chat-messages">
                 <!-- Chat messages will be loaded here -->
                 <div th:each="message : ${chatHistory}" 
                      th:classappend="'message ' + ${message.type} + (isAdmin and message.type == 'user' ? ' message--from-customer' : '')"
+                     th:attr="data-message-kind=${message.type == 'assistant' ? 'ai' : 'human'}"
                      class="message">
                   <!-- From-customer (user messaging admin): profile icon + online -->
                   <div th:if="${isAdmin and message.type == 'user'}" class="message-meta">
@@ -418,12 +425,28 @@
           }
         }
         
+        let chatFilter = 'all';
+
+        function applyChatFilter() {
+          const container = document.getElementById('chat-messages');
+          if (!container) return;
+          container.querySelectorAll('.message').forEach(function (el) {
+            const kind = el.getAttribute('data-message-kind') || 'human';
+            let show = true;
+            if (chatFilter === 'human') show = kind === 'human';
+            if (chatFilter === 'ai') show = kind === 'ai';
+            el.style.display = show ? '' : 'none';
+          });
+        }
+
         function displayMessage(message) {
           const messagesContainer = document.getElementById('chat-messages');
           const messageDiv = document.createElement('div');
           const type = message.type || 'user';
           const fromCustomer = IS_ADMIN && type === 'user';
           messageDiv.className = 'message ' + type + (fromCustomer ? ' message--from-customer' : '');
+          const kind = type === 'assistant' ? 'ai' : 'human';
+          messageDiv.setAttribute('data-message-kind', kind);
           
           const sender = message.sender || 'Unknown';
           const content = message.content || '';
@@ -441,6 +464,7 @@
           `;
           
           messagesContainer.appendChild(messageDiv);
+          applyChatFilter();
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
@@ -510,9 +534,17 @@
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+          document.querySelectorAll('.chat-tab[data-chat-filter]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              chatFilter = btn.getAttribute('data-chat-filter') || 'all';
+              document.querySelectorAll('.chat-tab[data-chat-filter]').forEach(function (b) {
+                b.classList.toggle('active', b === btn);
+              });
+              applyChatFilter();
+            });
+          });
           initWebSocket();
-          
-          // Scroll to bottom
+          applyChatFilter();
           const messagesContainer = document.getElementById('chat-messages');
           if (messagesContainer) {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Public product detail path used by notification {@code actionUrl} ({@code /products/{id}}).
+ * Public JSON product detail at {@code /products/{id}}. Notifications use {@code /view/products/{id}} for the admin UI.
  * Same payload as the versioned API, including {@link ProductDto#getFavoriteCount()}.
  */
 @RestController

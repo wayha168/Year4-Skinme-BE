@@ -1,9 +1,11 @@
 package com.project.skin_me.service.delivery;
 
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
 import com.project.skin_me.repository.OrderRepository;
+import com.project.skin_me.service.payment.IBakongKhqrService;
 import com.project.skin_me.service.telegram.TelegramNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -15,6 +17,11 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Delivery lifecycle: address updates, create shipment, mark delivered.
+ * Connected to payment: only orders with confirmed payment (PAID) can be shipped;
+ * Telegram alerts use KHQR account owner chat ID from {@link IBakongKhqrService}.
+ */
 @Service
 @RequiredArgsConstructor
 public class DeliveryService implements IDeliveryService {
@@ -22,12 +29,17 @@ public class DeliveryService implements IDeliveryService {
     private static final Logger logger = LoggerFactory.getLogger(DeliveryService.class);
     private final OrderRepository orderRepository;
     private final TelegramNotificationService telegramNotificationService;
+    private final IBakongKhqrService bakongKhqrService;
 
     @Override
     @Transactional
     public Order createShipment(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (order.getOrderStatus() != OrderStatus.PAID && order.getOrderStatus() != OrderStatus.SUCCESS) {
+            throw new IllegalStateException(
+                    "Order must be paid before creating shipment. Current status: " + order.getOrderStatus());
+        }
         order.setOrderStatus(OrderStatus.SHIPPED);
         order.setTrackingNumber("TRK-" + UUID.randomUUID());
         order.setShippedAt(LocalDateTime.now());
@@ -37,16 +49,24 @@ public class DeliveryService implements IDeliveryService {
 
     @Override
     @Transactional
-    public Order markAsDelivered(Long orderId) {
+    public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (order.getOrderStatus() != OrderStatus.SHIPPED) {
+            throw new IllegalStateException(
+                    "Order must be shipped before marking as delivered. Current status: " + order.getOrderStatus());
+        }
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
+        if (logisticCompany != null) {
+            order.setLogisticCompany(logisticCompany);
+        }
         Order savedOrder = orderRepository.save(order);
         logger.info("Order marked as delivered: {}", orderId);
         try {
             String userInfo = order.getUser() != null ? order.getUser().getEmail() : "N/A";
-            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber());
+            String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
+            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber(), ownerChatId);
         } catch (Exception e) {
             logger.warn("Failed to send Telegram delivery alert: {}", e.getMessage());
         }
@@ -113,6 +133,25 @@ public class DeliveryService implements IDeliveryService {
         if (addressData.containsKey("deliveryAddressFull")) {
             order.setDeliveryAddressFull(addressData.get("deliveryAddressFull") != null ? 
                 addressData.get("deliveryAddressFull").toString() : null);
+        }
+
+        if (addressData.containsKey("logisticCompany")) {
+            Object lcObj = addressData.get("logisticCompany");
+            if (lcObj == null) {
+                order.setLogisticCompany(null);
+            } else {
+                String str = lcObj.toString().trim();
+                if (str.isEmpty()) {
+                    order.setLogisticCompany(null);
+                } else {
+                    LogisticCompany parsed = LogisticCompany.fromString(str);
+                    if (parsed != null) {
+                        order.setLogisticCompany(parsed);
+                    } else {
+                        logger.warn("Ignoring unknown logisticCompany value: {}", lcObj);
+                    }
+                }
+            }
         }
 
         Order savedOrder = orderRepository.save(order);
