@@ -38,6 +38,29 @@
           background: rgba(220, 53, 69, 0.9); color: white; border: none; border-radius: 50%;
           width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;
         }
+        .promo-type-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 0.75rem;
+        }
+        .promo-type-card {
+          border: 2px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 0.85rem 1rem;
+          cursor: pointer;
+          transition: border-color 0.15s ease, background 0.15s ease;
+          background: #fff;
+        }
+        .promo-type-card:hover { border-color: var(--primary, #6366f1); }
+        .promo-type-card.selected {
+          border-color: var(--primary, #6366f1);
+          background: #f5f7ff;
+        }
+        .promo-type-card h6 { margin: 0 0 0.35rem 0; font-size: 0.95rem; font-weight: 600; color: #0f172a; }
+        .promo-type-card p { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.35; }
+        .promo-type-card input { position: absolute; opacity: 0; pointer-events: none; }
+        .promo-section { display: none; }
+        .promo-section.is-visible { display: block; }
       </style>
     </th:block>
     <meta charset="UTF-8" />
@@ -69,10 +92,32 @@
                     <input type="text" class="form-control" id="title" required maxlength="200" placeholder="Promotion title" th:value="${promotion?.title}" />
                   </div>
                 </div>
-                <div class="form-row">
+                <div class="form-row form-row--full">
+                  <span class="form-label"><i class="bi bi-sliders"></i> Promotion type *</span>
+                  <div class="form-control-wrap">
+                    <div class="promo-type-grid" role="radiogroup" aria-label="Promotion type">
+                      <label class="promo-type-card" data-type="PRODUCT_DISCOUNT">
+                        <input type="radio" name="promotion-type" value="PRODUCT_DISCOUNT" />
+                        <h6><i class="bi bi-box-seam"></i> Product discount</h6>
+                        <p>Percentage off one product you select.</p>
+                      </label>
+                      <label class="promo-type-card" data-type="FREE_DELIVERY">
+                        <input type="radio" name="promotion-type" value="FREE_DELIVERY" />
+                        <h6><i class="bi bi-truck"></i> Free delivery</h6>
+                        <p>Optional minimum cart total before it applies.</p>
+                      </label>
+                      <label class="promo-type-card" data-type="MIN_ORDER_SPEND">
+                        <input type="radio" name="promotion-type" value="MIN_ORDER_SPEND" />
+                        <h6><i class="bi bi-cart-check"></i> Minimum order discount</h6>
+                        <p>Order-wide % off when spend reaches a limit.</p>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div id="section-product" class="promo-section form-row">
                   <label for="product-select" class="form-label"><i class="bi bi-box"></i> Product *</label>
                   <div class="form-control-wrap">
-                    <select class="form-select" id="product-select" required>
+                    <select class="form-select" id="product-select">
                       <option value="">Select a product</option>
                       <option th:each="product : ${products}" th:value="${product.id}"
                               th:text="${product.name + ' - $' + #numbers.formatDecimal(product.price, 1, 2)}"
@@ -86,10 +131,34 @@
                     <textarea class="form-control" id="description" rows="3" placeholder="Promotion description" th:text="${promotion?.description}"></textarea>
                   </div>
                 </div>
-                <div class="form-row">
-                  <label for="discount-percentage" class="form-label"><i class="bi bi-percent"></i> Discount (%) *</label>
+                <div id="section-discount-product" class="promo-section form-row">
+                  <label for="discount-percentage" class="form-label"><i class="bi bi-percent"></i> Discount on product (%) *</label>
                   <div class="form-control-wrap">
-                    <input type="number" class="form-control" id="discount-percentage" required min="0.01" max="100" step="0.01" placeholder="0.00" th:value="${promotion?.discountPercentage}" />
+                    <input type="number" class="form-control" id="discount-percentage" min="0.01" max="100" step="0.01" placeholder="0.00"
+                           th:value="${promotion != null and promotion.promotionType == 'PRODUCT_DISCOUNT' ? promotion.discountPercentage : ''}" />
+                  </div>
+                </div>
+                <div id="section-min-order" class="promo-section form-row">
+                  <label for="minimum-order-amount" class="form-label"><i class="bi bi-currency-dollar"></i> Minimum spend ($) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="minimum-order-amount" min="0.01" step="0.01" placeholder="50.00"
+                           th:value="${promotion != null and promotion.promotionType == 'MIN_ORDER_SPEND' ? promotion.minimumOrderAmount : ''}" />
+                    <small class="form-text text-muted">Cart subtotal must reach this to get the order discount.</small>
+                  </div>
+                </div>
+                <div id="section-discount-order" class="promo-section form-row">
+                  <label for="order-discount-percentage" class="form-label"><i class="bi bi-percent"></i> Discount on whole order (%) *</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="order-discount-percentage" min="0.01" max="100" step="0.01" placeholder="10"
+                           th:value="${promotion != null and promotion.promotionType == 'MIN_ORDER_SPEND' ? promotion.discountPercentage : ''}" />
+                  </div>
+                </div>
+                <div id="section-free-min" class="promo-section form-row">
+                  <label for="free-delivery-min" class="form-label"><i class="bi bi-bag"></i> Minimum spend for free delivery ($)</label>
+                  <div class="form-control-wrap">
+                    <input type="number" class="form-control" id="free-delivery-min" min="0" step="0.01" placeholder="Leave empty = any order"
+                           th:value="${promotion != null and promotion.promotionType == 'FREE_DELIVERY' ? promotion.minimumOrderAmount : ''}" />
+                    <small class="form-text text-muted">Optional. Empty means free delivery for all orders during the promo window.</small>
                   </div>
                 </div>
                 <div class="form-row">
@@ -138,7 +207,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="form-row form-row--full">
+                <div id="section-price-preview" class="promo-section form-row form-row--full">
                   <span class="form-label"><i class="bi bi-calculator"></i> Price Preview</span>
                   <div class="form-control-wrap">
                     <div id="discount-preview" class="discount-preview" style="display: none;">
@@ -172,11 +241,49 @@
         let editingPromotionId = /*[[${editingId}]]*/ null;
         let selectedImages = [];
 
-        // Initialize form if editing
+        function getSelectedPromotionType() {
+          const r = document.querySelector('input[name="promotion-type"]:checked');
+          return r ? r.value : 'PRODUCT_DISCOUNT';
+        }
+
+        function setPromotionType(type) {
+          const input = document.querySelector(`input[name="promotion-type"][value="${type}"]`);
+          if (input) {
+            input.checked = true;
+            document.querySelectorAll('.promo-type-card').forEach(function(card) {
+              card.classList.toggle('selected', card.getAttribute('data-type') === type);
+            });
+          }
+          refreshPromotionTypeUI();
+        }
+
+        function refreshPromotionTypeUI() {
+          const t = getSelectedPromotionType();
+          const map = {
+            'PRODUCT_DISCOUNT': ['section-product', 'section-discount-product', 'section-price-preview'],
+            'FREE_DELIVERY': ['section-free-min'],
+            'MIN_ORDER_SPEND': ['section-min-order', 'section-discount-order']
+          };
+          document.querySelectorAll('.promo-section').forEach(function(el) {
+            el.classList.remove('is-visible');
+          });
+          (map[t] || []).forEach(function(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('is-visible');
+          });
+          updateDiscountPreview();
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
+          document.querySelectorAll('.promo-type-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+              const type = card.getAttribute('data-type');
+              setPromotionType(type);
+            });
+          });
+
           const promotion = /*[[${promotion}]]*/ null;
           if (promotion && editingPromotionId) {
-            // Format dates for datetime-local input
             if (promotion.startDate) {
               const startDate = new Date(promotion.startDate);
               document.getElementById('start-date').value = formatDateTimeLocal(startDate);
@@ -184,8 +291,6 @@
             if (promotion.deadline) {
               const deadline = new Date(promotion.deadline);
               document.getElementById('deadline').value = formatDateTimeLocal(deadline);
-              
-              // Calculate duration from start date and deadline
               if (promotion.startDate) {
                 const start = new Date(promotion.startDate);
                 const end = new Date(promotion.deadline);
@@ -194,9 +299,9 @@
                 document.getElementById('duration-days').value = diffDays;
               }
             }
-            updateDiscountPreview();
+            setPromotionType(promotion.promotionType || 'PRODUCT_DISCOUNT');
           } else {
-            // Auto-set start date to now when creating
+            setPromotionType('PRODUCT_DISCOUNT');
             autoSetStartDate();
           }
         });
@@ -311,8 +416,11 @@
           return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
 
-        // Update discount preview
         function updateDiscountPreview() {
+          if (getSelectedPromotionType() !== 'PRODUCT_DISCOUNT') {
+            document.getElementById('discount-preview').style.display = 'none';
+            return;
+          }
           const productId = document.getElementById('product-select').value;
           const discountPercentage = parseFloat(document.getElementById('discount-percentage').value) || 0;
           
@@ -333,31 +441,73 @@
           }
         }
 
-        // Form submission
         document.getElementById('promotion-form').addEventListener('submit', async function(e) {
           e.preventDefault();
           
           if (typeof showToast === 'function') {
             showToast(editingPromotionId ? 'Updating promotion...' : 'Creating promotion...', 'info');
           }
-          
-          const formData = {
+
+          const ptype = getSelectedPromotionType();
+          const base = {
             title: document.getElementById('title').value,
             description: document.getElementById('description').value,
             link: document.getElementById('link').value,
-            discountPercentage: parseFloat(document.getElementById('discount-percentage').value),
             startDate: document.getElementById('start-date').value,
             deadline: document.getElementById('deadline').value,
-            productId: parseInt(document.getElementById('product-select').value),
             active: document.getElementById('active').checked
           };
-          
-          // Convert datetime-local to ISO format
-          if (formData.startDate) {
-            formData.startDate = new Date(formData.startDate).toISOString();
-          }
-          if (formData.deadline) {
-            formData.deadline = new Date(formData.deadline).toISOString();
+          if (base.startDate) base.startDate = new Date(base.startDate).toISOString();
+          if (base.deadline) base.deadline = new Date(base.deadline).toISOString();
+
+          let formData;
+          if (ptype === 'PRODUCT_DISCOUNT') {
+            const pid = document.getElementById('product-select').value;
+            const pct = parseFloat(document.getElementById('discount-percentage').value);
+            if (!pid) {
+              if (typeof showToast === 'function') showToast('Select a product for this promotion.', 'error');
+              return;
+            }
+            if (!pct || pct <= 0) {
+              if (typeof showToast === 'function') showToast('Enter a discount percentage greater than 0.', 'error');
+              return;
+            }
+            formData = Object.assign({
+              promotionType: 'PRODUCT_DISCOUNT',
+              productId: parseInt(pid, 10),
+              discountPercentage: pct
+            }, base);
+          } else if (ptype === 'FREE_DELIVERY') {
+            const minEl = document.getElementById('free-delivery-min');
+            const raw = minEl.value.trim();
+            const payload = Object.assign({
+              promotionType: 'FREE_DELIVERY',
+              discountPercentage: 0,
+              freeDelivery: true
+            }, base);
+            if (raw === '') {
+              payload.minimumOrderAmount = null;
+            } else {
+              const m = parseFloat(raw);
+              payload.minimumOrderAmount = !isNaN(m) && m > 0 ? m : null;
+            }
+            formData = payload;
+          } else {
+            const minSpend = parseFloat(document.getElementById('minimum-order-amount').value);
+            const orderPct = parseFloat(document.getElementById('order-discount-percentage').value);
+            if (!minSpend || minSpend <= 0) {
+              if (typeof showToast === 'function') showToast('Enter a minimum spend greater than 0.', 'error');
+              return;
+            }
+            if (!orderPct || orderPct <= 0) {
+              if (typeof showToast === 'function') showToast('Enter an order discount percentage greater than 0.', 'error');
+              return;
+            }
+            formData = Object.assign({
+              promotionType: 'MIN_ORDER_SPEND',
+              minimumOrderAmount: minSpend,
+              discountPercentage: orderPct
+            }, base);
           }
           
           try {
@@ -401,7 +551,6 @@
           }
         });
 
-        // Update preview on change
         document.getElementById('product-select').addEventListener('change', updateDiscountPreview);
         document.getElementById('discount-percentage').addEventListener('input', updateDiscountPreview);
         

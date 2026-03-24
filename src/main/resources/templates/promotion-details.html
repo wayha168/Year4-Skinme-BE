@@ -29,23 +29,39 @@
             <div class="card detail-card">
               <div class="card-body p-4">
                 <h3 class="mb-3" th:text="${promotion.title}">Promotion Title</h3>
+                <div class="info-row" th:if="${promotion.summaryLine}">
+                  <span class="info-label"><i class="bi bi-info-circle"></i> Summary</span>
+                  <span class="info-value" th:text="${promotion.summaryLine}">Summary</span>
+                </div>
                 <div class="info-row">
                   <span class="info-label"><i class="bi bi-hash"></i> ID</span>
                   <span class="info-value" th:text="${promotion.id}">1</span>
+                </div>
+                <div class="info-row" th:if="${promotion.promotionTypeLabel}">
+                  <span class="info-label"><i class="bi bi-layers"></i> Type</span>
+                  <span class="info-value" th:text="${promotion.promotionTypeLabel}">Type</span>
                 </div>
                 <div class="info-row" th:if="${promotion.productName}">
                   <span class="info-label"><i class="bi bi-box"></i> Product</span>
                   <span class="info-value" th:text="${promotion.productName + ' (ID: ' + promotion.productId + ')'}">Product</span>
                 </div>
-                <div class="info-row">
-                  <span class="info-label"><i class="bi bi-percent"></i> Discount</span>
-                  <span class="info-value text-end" th:text="${promotion.discountPercentage != null ? #numbers.formatDecimal(promotion.discountPercentage, 1, 2) + '%' : 'N/A'}">0%</span>
+                <div class="info-row" th:if="${promotion.promotionType == 'FREE_DELIVERY'}">
+                  <span class="info-label"><i class="bi bi-truck"></i> Free delivery</span>
+                  <span class="info-value" th:text="${promotion.freeDelivery} ? 'Yes' : 'No'">Yes</span>
+                </div>
+                <div class="info-row" th:if="${promotion.minimumOrderAmount != null}">
+                  <span class="info-label"><i class="bi bi-bag"></i> Minimum spend</span>
+                  <span class="info-value" th:text="'$' + ${#numbers.formatDecimal(promotion.minimumOrderAmount, 1, 2)}">$0</span>
                 </div>
                 <div class="info-row">
+                  <span class="info-label"><i class="bi bi-percent"></i> Discount</span>
+                  <span class="info-value text-end" th:text="${promotion.promotionType == 'FREE_DELIVERY'} ? '—' : (${promotion.discountPercentage != null ? #numbers.formatDecimal(promotion.discountPercentage, 1, 2) + '%' : 'N/A'})">0%</span>
+                </div>
+                <div class="info-row" th:if="${promotion.promotionType == 'PRODUCT_DISCOUNT'}">
                   <span class="info-label"><i class="bi bi-currency-dollar"></i> Original Price</span>
                   <span class="info-value text-muted" style="text-decoration: line-through;" th:text="'$' + ${#numbers.formatDecimal(promotion.originalPrice != null ? promotion.originalPrice : 0, 1, 2)}">$0.00</span>
                 </div>
-                <div class="info-row">
+                <div class="info-row" th:if="${promotion.promotionType == 'PRODUCT_DISCOUNT'}">
                   <span class="info-label"><i class="bi bi-currency-dollar"></i> Discounted Price</span>
                   <span class="info-value fw-bold text-success" th:text="'$' + ${#numbers.formatDecimal(promotion.discountedPrice != null ? promotion.discountedPrice : 0, 1, 2)}">$0.00</span>
                 </div>
@@ -93,7 +109,7 @@
           <div class="col-lg-4" th:if="${promotion.images != null and !promotion.images.isEmpty()}">
             <div class="card detail-card">
               <div class="card-header detail-header">
-                <h5 class="mb-0 text-white"><i class="bi bi-image"></i> Im  ages</h5>
+                <h5 class="mb-0 text-white"><i class="bi bi-image"></i> Images</h5>
               </div>
               <div class="card-body">
                 <div class="d-flex flex-wrap gap-2">

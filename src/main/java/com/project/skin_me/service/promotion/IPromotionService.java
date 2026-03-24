@@ -1,6 +1,8 @@
 package com.project.skin_me.service.promotion;
 
+import com.project.skin_me.dto.PromotionCheckoutSummaryDto;
 import com.project.skin_me.dto.PromotionDto;
+import com.project.skin_me.enums.PromotionType;
 import com.project.skin_me.model.Promotion;
 import com.project.skin_me.request.CreatePromotionRequest;
 import com.project.skin_me.request.UpdatePromotionRequest;
@@ -19,6 +21,10 @@ public interface IPromotionService {
     /** Paginated: only fetches the requested page from DB (e.g. 25 per page). */
     Page<PromotionDto> getAllPromotions(Pageable pageable);
     List<PromotionDto> getActivePromotions();
+    /** Active promotions in the current window, filtered by type. */
+    List<PromotionDto> getActivePromotionsByType(PromotionType type);
+    /** Grouped active rules for checkout (product discounts vs cart rules). */
+    PromotionCheckoutSummaryDto getActiveCheckoutSummary();
     PromotionDto getActivePromotionByProductId(Long productId);
     void deletePromotion(Long id);
     PromotionDto convertToDto(Promotion promotion);

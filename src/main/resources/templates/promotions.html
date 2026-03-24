@@ -45,6 +45,17 @@
         .promotion-table .promo-muted { font-size: 0.8125rem; color: #6b7280; }
         .promotion-table .price-original { text-decoration: line-through; color: #6b7280; font-size: 0.875rem; }
         .promotion-table .price-sale { font-weight: 600; color: #16a34a; }
+        .promo-type-badge {
+          display: inline-block;
+          font-size: 0.75rem;
+          font-weight: 600;
+          padding: 0.25rem 0.5rem;
+          border-radius: 6px;
+          white-space: nowrap;
+        }
+        .promo-type-badge--product { background: #dbeafe; color: #1e40af; }
+        .promo-type-badge--delivery { background: #d1fae5; color: #047857; }
+        .promo-type-badge--order { background: #fef3c7; color: #b45309; }
       </style>
     </th:block>
     <meta charset="UTF-8" />
@@ -89,6 +100,7 @@
                 <thead>
                   <tr>
                     <th style="width: 60px;"><i class="bi bi-hash"></i> ID</th>
+                    <th style="width: 120px;"><i class="bi bi-layers"></i> Type</th>
                     <th><i class="bi bi-tag"></i> Title</th>
                     <th><i class="bi bi-box"></i> Product</th>
                     <th style="width: 90px;"><i class="bi bi-percent"></i> Discount</th>
@@ -104,15 +116,24 @@
                   <tr th:each="promotion : ${promotions}">
                     <td class="text-muted fw-semibold" th:text="${promotion.id}">1</td>
                     <td>
+                      <span th:if="${promotion.promotionType == 'PRODUCT_DISCOUNT'}" class="promo-type-badge promo-type-badge--product">Product</span>
+                      <span th:if="${promotion.promotionType == 'FREE_DELIVERY'}" class="promo-type-badge promo-type-badge--delivery">Free delivery</span>
+                      <span th:if="${promotion.promotionType == 'MIN_ORDER_SPEND'}" class="promo-type-badge promo-type-badge--order">Min. order</span>
+                      <span th:if="${promotion.promotionType == null}" class="promo-muted">—</span>
+                    </td>
+                    <td>
                       <div class="promo-title" th:text="${promotion.title}">Title</div>
-                      <div class="promo-muted" th:if="${promotion.description}" th:text="${#strings.abbreviate(promotion.description, 45)}" th:title="${promotion.description}">Description</div>
+                      <div class="promo-muted" th:if="${promotion.summaryLine}" th:text="${#strings.abbreviate(promotion.summaryLine, 52)}" th:title="${promotion.summaryLine}">Summary</div>
+                      <div class="promo-muted" th:if="${promotion.summaryLine == null and promotion.description != null and !#strings.isEmpty(promotion.description)}" th:text="${#strings.abbreviate(promotion.description, 45)}" th:title="${promotion.description}">Description</div>
                     </td>
                     <td>
-                      <div class="fw-semibold text-dark" th:text="${promotion.productName}">Product</div>
-                      <div class="promo-muted" th:text="'ID: ' + ${promotion.productId}">ID</div>
+                      <div th:if="${promotion.productName != null}" class="fw-semibold text-dark" th:text="${promotion.productName}">Product</div>
+                      <div th:if="${promotion.productName != null}" class="promo-muted" th:text="'ID: ' + ${promotion.productId}">ID</div>
+                      <span th:if="${promotion.productName == null}" class="promo-muted">Store-wide</span>
                     </td>
                     <td>
-                      <span class="fw-semibold text-dark" th:text="${#numbers.formatDecimal(promotion.discountPercentage, 1, 2)} + '%'">0%</span>
+                      <span class="fw-semibold text-dark" th:if="${promotion.promotionType == 'FREE_DELIVERY'}">—</span>
+                      <span class="fw-semibold text-dark" th:unless="${promotion.promotionType == 'FREE_DELIVERY'}" th:text="${#numbers.formatDecimal(promotion.discountPercentage != null ? promotion.discountPercentage : 0, 1, 2)} + '%'">0%</span>
                     </td>
                     <td>
                       <div class="text-dark" th:text="${#temporals.format(promotion.startDate, 'MMM dd, yyyy')}">Start</div>
@@ -124,8 +145,11 @@
                       <div class="promo-muted text-success" th:if="${promotion.currentlyActive}">Active now</div>
                     </td>
                     <td>
-                      <div class="price-original" th:text="'$' + ${#numbers.formatDecimal(promotion.originalPrice, 1, 2)}">$0.00</div>
-                      <div class="price-sale" th:text="'$' + ${#numbers.formatDecimal(promotion.discountedPrice, 1, 2)}">$0.00</div>
+                      <div th:if="${promotion.promotionType == 'PRODUCT_DISCOUNT' and promotion.originalPrice != null}">
+                        <div class="price-original" th:text="'$' + ${#numbers.formatDecimal(promotion.originalPrice, 1, 2)}">$0.00</div>
+                        <div class="price-sale" th:text="'$' + ${#numbers.formatDecimal(promotion.discountedPrice != null ? promotion.discountedPrice : 0, 1, 2)}">$0.00</div>
+                      </div>
+                      <div th:if="${promotion.promotionType != 'PRODUCT_DISCOUNT'}" class="promo-muted" th:text="${promotion.summaryLine != null ? #strings.abbreviate(promotion.summaryLine, 28) : '—'}">—</div>
                     </td>
                     <td>
                       <div th:if="${promotion.images != null and !promotion.images.isEmpty()}">
