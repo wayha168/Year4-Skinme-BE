@@ -13,10 +13,19 @@ import java.util.List;
 @AllArgsConstructor
 public class PromotionDto {
     private Long id;
+    /** Enum name, e.g. PRODUCT_DISCOUNT */
+    private String promotionType;
+    /** Short label for admin and UI */
+    private String promotionTypeLabel;
+    /** One-line description of what the rule does */
+    private String summaryLine;
     private String title;
     private String description;
     private String link;
     private BigDecimal discountPercentage;
+    /** Minimum cart subtotal for FREE_DELIVERY or MIN_ORDER_SPEND; null means no minimum. */
+    private BigDecimal minimumOrderAmount;
+    private boolean freeDelivery;
     private LocalDateTime deadline;
     private LocalDateTime startDate;
     private boolean active;

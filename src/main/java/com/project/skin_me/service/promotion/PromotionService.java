@@ -2,6 +2,7 @@ package com.project.skin_me.service.promotion;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.project.skin_me.dto.ImageDto;
+import com.project.skin_me.dto.PromotionCheckoutSummaryDto;
 import com.project.skin_me.dto.PromotionDto;
+import com.project.skin_me.enums.PromotionType;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Image;
 import com.project.skin_me.model.Product;
@@ -33,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PromotionService implements IPromotionService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(PromotionService.class);
     private final PromotionRepository promotionRepository;
     private final ProductRepository productRepository;
@@ -43,46 +46,142 @@ public class PromotionService implements IPromotionService {
     @Transactional
     public PromotionDto createPromotion(CreatePromotionRequest request) {
         logger.debug("Creating promotion: {}", request.getTitle());
-        
-        // Validate product exists
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + request.getProductId()));
-        
-        // Validate dates
-        if (request.getStartDate().isAfter(request.getDeadline())) {
-            throw new IllegalArgumentException("Start date must be before deadline");
-        }
-        
-        if (request.getStartDate().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Start date cannot be in the past");
-        }
-        
-        // Create promotion
+        validateCreateRequest(request);
+
         Promotion promotion = new Promotion();
+        promotion.setPromotionType(request.getPromotionType());
         promotion.setTitle(request.getTitle());
         promotion.setDescription(request.getDescription());
         promotion.setLink(request.getLink());
-        promotion.setDiscountPercentage(request.getDiscountPercentage());
         promotion.setDeadline(request.getDeadline());
         promotion.setStartDate(request.getStartDate());
-        promotion.setProduct(product);
         promotion.setActive(request.getActive() != null ? request.getActive() : true);
-        
+
+        applyTypeFieldsOnCreate(promotion, request);
+
+        validatePromotionState(promotion);
+
         Promotion savedPromotion = promotionRepository.save(promotion);
         logger.info("Promotion created successfully: {}", savedPromotion.getId());
-        
+
         return convertToDto(savedPromotion);
+    }
+
+    private void applyTypeFieldsOnCreate(Promotion promotion, CreatePromotionRequest request) {
+        switch (request.getPromotionType()) {
+            case PRODUCT_DISCOUNT -> {
+                Product product = productRepository.findById(request.getProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + request.getProductId()));
+                promotion.setProduct(product);
+                promotion.setDiscountPercentage(request.getDiscountPercentage());
+                promotion.setFreeDelivery(false);
+                promotion.setMinimumOrderAmount(null);
+            }
+            case FREE_DELIVERY -> {
+                promotion.setProduct(null);
+                promotion.setDiscountPercentage(BigDecimal.ZERO);
+                promotion.setFreeDelivery(true);
+                promotion.setMinimumOrderAmount(normalizeMinAmount(request.getMinimumOrderAmount()));
+            }
+            case MIN_ORDER_SPEND -> {
+                promotion.setProduct(null);
+                promotion.setDiscountPercentage(request.getDiscountPercentage());
+                promotion.setFreeDelivery(false);
+                promotion.setMinimumOrderAmount(request.getMinimumOrderAmount().setScale(2, RoundingMode.HALF_UP));
+            }
+        }
+    }
+
+    private void validateCreateRequest(CreatePromotionRequest request) {
+        if (request.getStartDate().isAfter(request.getDeadline())) {
+            throw new IllegalArgumentException("Start date must be before deadline");
+        }
+        if (request.getStartDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Start date cannot be in the past");
+        }
+        PromotionType type = request.getPromotionType();
+        if (type == null) {
+            throw new IllegalArgumentException("Promotion type is required");
+        }
+        switch (type) {
+            case PRODUCT_DISCOUNT -> {
+                if (request.getProductId() == null) {
+                    throw new IllegalArgumentException("Product is required for a product discount");
+                }
+                if (request.getDiscountPercentage() == null
+                        || request.getDiscountPercentage().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Discount percentage must be greater than 0 for product discount");
+                }
+            }
+            case FREE_DELIVERY -> {
+                if (request.getProductId() != null) {
+                    throw new IllegalArgumentException("Free delivery promotions must not target a single product");
+                }
+                if (request.getDiscountPercentage() != null && request.getDiscountPercentage().compareTo(BigDecimal.ZERO) > 0) {
+                    throw new IllegalArgumentException("Use 0% discount for free delivery promotions");
+                }
+            }
+            case MIN_ORDER_SPEND -> {
+                if (request.getMinimumOrderAmount() == null
+                        || request.getMinimumOrderAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Minimum order amount must be greater than 0");
+                }
+                if (request.getDiscountPercentage() == null
+                        || request.getDiscountPercentage().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Order discount percentage must be greater than 0");
+                }
+            }
+        }
+    }
+
+    private BigDecimal normalizeMinAmount(BigDecimal min) {
+        if (min == null || min.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return min.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void validatePromotionState(Promotion p) {
+        if (p.getStartDate().isAfter(p.getDeadline())) {
+            throw new IllegalArgumentException("Start date must be before deadline");
+        }
+        PromotionType type = p.getPromotionType() != null ? p.getPromotionType() : PromotionType.PRODUCT_DISCOUNT;
+        switch (type) {
+            case PRODUCT_DISCOUNT -> {
+                if (p.getProduct() == null) {
+                    throw new IllegalArgumentException("Product is required for a product discount");
+                }
+                if (p.getDiscountPercentage() == null || p.getDiscountPercentage().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Discount percentage must be greater than 0 for product discount");
+                }
+            }
+            case FREE_DELIVERY -> {
+                if (p.getProduct() != null) {
+                    throw new IllegalArgumentException("Free delivery promotions must not be linked to a product");
+                }
+            }
+            case MIN_ORDER_SPEND -> {
+                if (p.getMinimumOrderAmount() == null || p.getMinimumOrderAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Minimum order amount must be greater than 0");
+                }
+                if (p.getDiscountPercentage() == null || p.getDiscountPercentage().compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Order discount percentage must be greater than 0");
+                }
+                if (p.getProduct() != null) {
+                    throw new IllegalArgumentException("Minimum order promotions apply to the whole cart, not one product");
+                }
+            }
+        }
     }
 
     @Override
     @Transactional
     public PromotionDto updatePromotion(Long id, UpdatePromotionRequest request) {
         logger.debug("Updating promotion: {}", id);
-        
+
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion not found with ID: " + id));
-        
-        // Update fields if provided
+
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             promotion.setTitle(request.getTitle());
         }
@@ -91,9 +190,6 @@ public class PromotionService implements IPromotionService {
         }
         if (request.getLink() != null) {
             promotion.setLink(request.getLink());
-        }
-        if (request.getDiscountPercentage() != null) {
-            promotion.setDiscountPercentage(request.getDiscountPercentage());
         }
         if (request.getDeadline() != null) {
             promotion.setDeadline(request.getDeadline());
@@ -104,20 +200,49 @@ public class PromotionService implements IPromotionService {
         if (request.getActive() != null) {
             promotion.setActive(request.getActive());
         }
-        if (request.getProductId() != null) {
-            Product product = productRepository.findById(request.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + request.getProductId()));
-            promotion.setProduct(product);
+
+        PromotionType newType = request.getPromotionType() != null ? request.getPromotionType() : promotion.getPromotionType();
+        if (request.getPromotionType() != null) {
+            promotion.setPromotionType(request.getPromotionType());
         }
-        
-        // Validate dates if updated
-        if (promotion.getStartDate().isAfter(promotion.getDeadline())) {
-            throw new IllegalArgumentException("Start date must be before deadline");
+
+        if (newType == PromotionType.PRODUCT_DISCOUNT) {
+            if (request.getProductId() != null) {
+                Product product = productRepository.findById(request.getProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + request.getProductId()));
+                promotion.setProduct(product);
+            }
+            if (request.getDiscountPercentage() != null) {
+                promotion.setDiscountPercentage(request.getDiscountPercentage());
+            }
+            promotion.setFreeDelivery(false);
+            promotion.setMinimumOrderAmount(null);
+        } else {
+            promotion.setProduct(null);
+            if (newType == PromotionType.FREE_DELIVERY) {
+                promotion.setDiscountPercentage(BigDecimal.ZERO);
+                promotion.setFreeDelivery(true);
+                if (request.getMinimumOrderAmount() != null) {
+                    promotion.setMinimumOrderAmount(normalizeMinAmount(request.getMinimumOrderAmount()));
+                } else if (request.getPromotionType() == PromotionType.FREE_DELIVERY) {
+                    promotion.setMinimumOrderAmount(null);
+                }
+            } else if (newType == PromotionType.MIN_ORDER_SPEND) {
+                promotion.setFreeDelivery(false);
+                if (request.getDiscountPercentage() != null) {
+                    promotion.setDiscountPercentage(request.getDiscountPercentage());
+                }
+                if (request.getMinimumOrderAmount() != null) {
+                    promotion.setMinimumOrderAmount(request.getMinimumOrderAmount().setScale(2, RoundingMode.HALF_UP));
+                }
+            }
         }
-        
+
+        validatePromotionState(promotion);
+
         Promotion updatedPromotion = promotionRepository.save(promotion);
         logger.info("Promotion updated successfully: {}", id);
-        
+
         return convertToDto(updatedPromotion);
     }
 
@@ -126,7 +251,6 @@ public class PromotionService implements IPromotionService {
     public PromotionDto getPromotionById(Long id) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion not found with ID: " + id));
-        // Force load images
         if (promotion.getImages() != null) {
             promotion.getImages().size();
         }
@@ -137,7 +261,6 @@ public class PromotionService implements IPromotionService {
     @Transactional(readOnly = true)
     public List<PromotionDto> getAllPromotions() {
         List<Promotion> promotions = promotionRepository.findAllByOrderByCreatedAtDesc();
-        // Force load images for all promotions
         promotions.forEach(p -> {
             if (p.getImages() != null) {
                 p.getImages().size();
@@ -169,6 +292,33 @@ public class PromotionService implements IPromotionService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<PromotionDto> getActivePromotionsByType(PromotionType type) {
+        List<Promotion> promotions = promotionRepository.findActivePromotionsByType(type, LocalDateTime.now());
+        return promotions.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PromotionCheckoutSummaryDto getActiveCheckoutSummary() {
+        List<PromotionDto> active = getActivePromotions();
+        PromotionCheckoutSummaryDto summary = new PromotionCheckoutSummaryDto();
+        for (PromotionDto p : active) {
+            if (p.getPromotionType() == null) {
+                continue;
+            }
+            switch (PromotionType.valueOf(p.getPromotionType())) {
+                case PRODUCT_DISCOUNT -> summary.getProductDiscounts().add(p);
+                case FREE_DELIVERY -> summary.getFreeDeliveryOffers().add(p);
+                case MIN_ORDER_SPEND -> summary.getMinimumOrderDiscounts().add(p);
+            }
+        }
+        return summary;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PromotionDto getActivePromotionByProductId(Long productId) {
         Promotion promotion = promotionRepository.findActivePromotionByProductId(productId, LocalDateTime.now())
                 .orElseThrow(() -> new ResourceNotFoundException("No active promotion found for product ID: " + productId));
@@ -188,10 +338,16 @@ public class PromotionService implements IPromotionService {
     public PromotionDto convertToDto(Promotion promotion) {
         PromotionDto dto = new PromotionDto();
         dto.setId(promotion.getId());
+        PromotionType type = promotion.getPromotionType() != null ? promotion.getPromotionType() : PromotionType.PRODUCT_DISCOUNT;
+        dto.setPromotionType(type.name());
+        dto.setPromotionTypeLabel(promotionTypeLabel(type));
+        dto.setSummaryLine(buildSummaryLine(promotion, type));
         dto.setTitle(promotion.getTitle());
         dto.setDescription(promotion.getDescription());
         dto.setLink(promotion.getLink());
         dto.setDiscountPercentage(promotion.getDiscountPercentage());
+        dto.setMinimumOrderAmount(promotion.getMinimumOrderAmount());
+        dto.setFreeDelivery(promotion.isFreeDelivery());
         dto.setDeadline(promotion.getDeadline());
         dto.setStartDate(promotion.getStartDate());
         dto.setActive(promotion.isActive());
@@ -206,8 +362,7 @@ public class PromotionService implements IPromotionService {
             dto.setOriginalPrice(promotion.getProduct().getPrice());
             dto.setDiscountedPrice(promotion.calculateDiscountedPrice());
         }
-        
-        // Convert images to DTOs
+
         if (promotion.getImages() != null && !promotion.getImages().isEmpty()) {
             List<ImageDto> imageDtos = promotion.getImages().stream()
                     .map(image -> {
@@ -223,13 +378,37 @@ public class PromotionService implements IPromotionService {
                     .collect(Collectors.toList());
             dto.setImages(imageDtos);
         }
-        
+
         return dto;
     }
 
-    /**
-     * Save images for a promotion
-     */
+    private static String promotionTypeLabel(PromotionType type) {
+        return switch (type) {
+            case PRODUCT_DISCOUNT -> "Product discount";
+            case FREE_DELIVERY -> "Free delivery";
+            case MIN_ORDER_SPEND -> "Minimum order discount";
+        };
+    }
+
+    private static String buildSummaryLine(Promotion p, PromotionType type) {
+        return switch (type) {
+            case PRODUCT_DISCOUNT -> {
+                String name = p.getProduct() != null ? p.getProduct().getName() : "product";
+                yield String.format("%s%% off %s", p.getDiscountPercentage().stripTrailingZeros().toPlainString(), name);
+            }
+            case FREE_DELIVERY -> {
+                if (p.getMinimumOrderAmount() != null && p.getMinimumOrderAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    yield "Free delivery on orders from $" + p.getMinimumOrderAmount().stripTrailingZeros().toPlainString();
+                }
+                yield "Free delivery";
+            }
+            case MIN_ORDER_SPEND -> String.format(
+                    "%s%% off order when spend is at least $%s",
+                    p.getDiscountPercentage().stripTrailingZeros().toPlainString(),
+                    p.getMinimumOrderAmount() != null ? p.getMinimumOrderAmount().stripTrailingZeros().toPlainString() : "—");
+        };
+    }
+
     @Transactional
     public List<ImageDto> savePromotionImages(Long promotionId, List<MultipartFile> files) {
         Promotion promotion = promotionRepository.findById(promotionId)
@@ -271,12 +450,11 @@ public class PromotionService implements IPromotionService {
         try {
             Promotion promotion = promotionRepository.findActivePromotionByProductId(productId, LocalDateTime.now())
                     .orElse(null);
-            
+
             if (promotion != null && promotion.isCurrentlyActive()) {
                 return promotion.calculateDiscountedPrice();
             }
-            
-            // Return original price if no active promotion
+
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + productId));
             return product.getPrice();
