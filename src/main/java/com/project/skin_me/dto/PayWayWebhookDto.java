@@ -5,8 +5,9 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * PayWay (ABA / KHQR) webhook payload.
- * POST, HTTPS. status=0 means success.
+ * Reference shape for PayWay (ABA / KHQR) callbacks.
+ * The live endpoint parses JSON as {@link com.fasterxml.jackson.databind.JsonNode} and
+ * normalizes field aliases — see {@code PayWayWebhookNormalizer}.
  */
 @Data
 public class PayWayWebhookDto {
