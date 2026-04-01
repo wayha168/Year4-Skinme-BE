@@ -9,6 +9,7 @@ import com.project.skin_me.model.User;
 import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.request.ProductFeedbackRequest;
+import com.project.skin_me.service.image.IImageService;
 import com.project.skin_me.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -30,10 +32,11 @@ public class ProductFeedbackService implements IProductFeedbackService {
     private final ProductRepository productRepository;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final IImageService imageService;
 
     @Override
     @Transactional
-    public ProductFeedbackDto submit(User user, ProductFeedbackRequest request) {
+    public ProductFeedbackDto submit(User user, ProductFeedbackRequest request, MultipartFile image) {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
@@ -51,6 +54,8 @@ public class ProductFeedbackService implements IProductFeedbackService {
         fb.setProduct(product);
         fb.setRating(rating);
         fb.setComment(request.getComment() != null ? request.getComment().trim() : null);
+        String imageUrl = imageService.saveFeedbackImage(image);
+        fb.setImageUrl(imageUrl);
         fb.setVisibleOnFrontend(false);
 
         ProductFeedback saved = productFeedbackRepository.save(fb);
@@ -123,6 +128,7 @@ public class ProductFeedbackService implements IProductFeedbackService {
                 .userDisplayName(display)
                 .rating(fb.getRating())
                 .comment(fb.getComment())
+                .imageUrl(fb.getImageUrl())
                 .visibleOnFrontend(fb.isVisibleOnFrontend())
                 .createdAt(fb.getCreatedAt())
                 .build();

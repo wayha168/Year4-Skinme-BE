@@ -20,6 +20,8 @@ public class ProductFeedbackDto {
     private String userDisplayName;
     private BigDecimal rating;
     private String comment;
+    /** Public URL for an optional review image (e.g. /uploads/...). */
+    private String imageUrl;
     private boolean visibleOnFrontend;
     private LocalDateTime createdAt;
 }

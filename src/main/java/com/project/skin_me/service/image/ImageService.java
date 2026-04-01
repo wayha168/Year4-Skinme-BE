@@ -181,6 +181,52 @@ public class ImageService implements IImageService {
     }
 
     @Override
+    public String saveFeedbackImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        String ct = file.getContentType();
+        if (ct != null && !ct.isBlank() && !ct.startsWith("image/")) {
+            throw new IllegalArgumentException("Feedback image must be an image file.");
+        }
+        Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(basePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not create upload directory: " + e.getMessage());
+        }
+        try {
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null || originalFilename.isBlank()) {
+                originalFilename = "feedback_" + System.currentTimeMillis() + ".dat";
+            }
+            if (originalFilename.contains("..")) {
+                originalFilename = originalFilename.replace("..", "");
+            }
+            String ext = "";
+            int dot = originalFilename.lastIndexOf('.');
+            if (dot > 0 && dot < originalFilename.length() - 1) {
+                ext = originalFilename.substring(dot);
+            } else {
+                ext = ".png";
+            }
+            String filename = "feedback_" + System.currentTimeMillis() + ext;
+            Path targetFile = basePath.resolve(filename);
+            Files.write(targetFile, file.getBytes());
+
+            Image image = new Image();
+            image.setFileName(filename);
+            image.setFileType(file.getContentType());
+            image.setDownloadUrl("/uploads/" + filename);
+            image.setImage(file.getBytes());
+            imageRepository.save(image);
+            return "/uploads/" + filename;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save feedback image: " + e.getMessage());
+        }
+    }
+
+    @Override
     public void updateImage(MultipartFile file, Long imageId) {
         Image image = getImageById(imageId);
         Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();

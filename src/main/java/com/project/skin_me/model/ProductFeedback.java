@@ -36,6 +36,10 @@ public class ProductFeedback {
     @Column(columnDefinition = "TEXT")
     private String comment;
 
+    /** Optional review photo URL (e.g. /uploads/filename). */
+    @Column(length = 2048)
+    private String imageUrl;
+
     @Column(nullable = false)
     private boolean visibleOnFrontend = false;
 

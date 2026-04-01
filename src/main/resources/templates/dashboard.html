@@ -648,6 +648,7 @@
               <th>Product</th>
               <th>User</th>
               <th>Rating</th>
+              <th>Photo</th>
               <th>Comment</th>
               <th>Show on storefront</th>
               <th>Submitted</th>
@@ -662,6 +663,14 @@
               </td>
               <td th:text="${fb.userDisplayName}">Name</td>
               <td class="text-nowrap" th:text="${fb.rating}">5.00</td>
+              <td class="text-center" style="width: 72px;">
+                <a th:if="${fb.imageUrl != null and !fb.imageUrl.isEmpty()}"
+                   th:href="${fb.imageUrl}" target="_blank" rel="noopener noreferrer" title="Open image">
+                  <img th:src="${fb.imageUrl}" alt="" class="rounded border"
+                       style="max-width: 56px; max-height: 56px; object-fit: cover;" />
+                </a>
+                <span th:unless="${fb.imageUrl != null and !fb.imageUrl.isEmpty()}" class="text-muted">—</span>
+              </td>
               <td style="max-width: 280px;">
                 <span th:text="${fb.comment != null and !fb.comment.isEmpty() ? fb.comment : '—'}">—</span>
               </td>

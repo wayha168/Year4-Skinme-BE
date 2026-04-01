@@ -33,6 +33,6 @@ build/
 
 ### VS Code ###
 .vscode/
-
+src/test/
 ### Uploaded product images (stored on disk) ###
 # /uploads/

@@ -27,5 +27,10 @@ public interface IImageService {
      */
     String saveBrandImage(MultipartFile file);
 
+    /**
+     * Save an optional customer review photo for product feedback. Returns null if file is null or empty.
+     */
+    String saveFeedbackImage(MultipartFile file);
+
     void updateImage(MultipartFile file, Long imageId);
 }

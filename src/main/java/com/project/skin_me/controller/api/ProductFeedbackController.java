@@ -13,8 +13,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("${api.prefix}/feedback")
@@ -24,12 +28,35 @@ public class ProductFeedbackController {
     private final IProductFeedbackService productFeedbackService;
     private final IUserService userService;
 
-    /** Authenticated customers: submit feedback (one per product per user). */
-    @PostMapping
+    /** Authenticated customers: submit feedback (one per product per user). JSON body, no image file. */
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse> submit(@Valid @RequestBody ProductFeedbackRequest request) {
+        return submitFeedback(request, null);
+    }
+
+    /**
+     * Same as JSON submit, with optional review image ({@code image} part).
+     * Form fields: {@code productId}, {@code rating} (required); {@code comment}, {@code orderId} (optional).
+     */
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse> submitWithImage(
+            @RequestParam Long productId,
+            @RequestParam BigDecimal rating,
+            @RequestParam(required = false) String comment,
+            @RequestParam(required = false) Long orderId,
+            @RequestParam(value = "image", required = false) MultipartFile image) {
+        ProductFeedbackRequest request = new ProductFeedbackRequest();
+        request.setProductId(productId);
+        request.setRating(rating);
+        request.setComment(comment);
+        request.setOrderId(orderId);
+        return submitFeedback(request, image);
+    }
+
+    private ResponseEntity<ApiResponse> submitFeedback(ProductFeedbackRequest request, MultipartFile image) {
         try {
             User user = userService.getAuthenticatedUser();
-            ProductFeedbackDto dto = productFeedbackService.submit(user, request);
+            ProductFeedbackDto dto = productFeedbackService.submit(user, request, image);
             return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse("Feedback submitted", dto));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiResponse(e.getMessage(), null));
