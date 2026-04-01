@@ -1,7 +1,9 @@
 package com.project.skin_me.service.auth;
 
+import com.google.api.client.auth.oauth2.TokenResponseException;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
@@ -46,6 +48,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -90,7 +94,8 @@ public class AuthService implements IAuthService {
     @Value("${app.sms.dev.return-otp-when-delivery-fails:false}")
     private boolean returnOtpWhenDeliveryFails;
 
-    @Value("${app.oauth.redirect-uri:https://skinme.store/oauth-callback}")
+    /** Must match the redirect URI used by the frontend in the Google auth request and in Google Cloud Console. */
+    @Value("${spring.security.oauth2.client.registration.google.redirect-uri}")
     private String googleRedirectUri;
 
     @Override
@@ -170,44 +175,98 @@ public class AuthService implements IAuthService {
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse> googleLogin(String code, HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<ApiResponse> googleLogin(String code, String credential, String redirectUri, HttpServletRequest request, HttpServletResponse response) {
         try {
-            // Validate code parameter
-            if (code == null || code.isBlank()) {
-                logger.warn("Google login failed: Authorization code is missing");
+            final GoogleIdToken idToken;
+            if (code != null && !code.isBlank()) {
+                logger.debug("Google login: auth-code flow (prefix={}...)", code.substring(0, Math.min(8, code.length())));
+                try {
+                    idToken = exchangeAuthCodeForGoogleIdToken(code.trim(), redirectUri);
+                } catch (TokenResponseException e) {
+                    logger.error(
+                            "Google token endpoint rejected auth code (redirect_uri must match frontend; codes are single-use and expire quickly): {}",
+                            e.getMessage());
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
+                } catch (IOException e) {
+                    logger.error("Google auth code exchange failed: {}", e.getMessage(), e);
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
+                }
+            } else if (credential != null && !credential.isBlank()) {
+                logger.debug("Google login: ID token (credential) flow");
+                try {
+                    idToken = verifyGoogleCredentialJwt(credential.trim());
+                } catch (GeneralSecurityException | IOException e) {
+                    logger.error("Google credential verification failed: {}", e.getMessage());
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.credential.invalid", null));
+                }
+                if (idToken == null) {
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.credential.invalid", null));
+                }
+            } else {
                 return ResponseEntity.status(BAD_REQUEST)
-                        .body(ApiResponse.ofKey("api.auth.google.code.required", null));
+                        .body(ApiResponse.ofKey("api.auth.google.payload.required", null));
             }
 
-            logger.debug("Processing Google OAuth2 login with code: {}", code.substring(0, Math.min(10, code.length())) + "...");
-            
-            // Exchange authorization code for tokens
-            GoogleTokenResponse tokenResponse;
-            try {
-                tokenResponse = new GoogleAuthorizationCodeTokenRequest(
-                        new NetHttpTransport(),
-                        JacksonFactory.getDefaultInstance(),
-                        "https://oauth2.googleapis.com/token",
-                        googleClientId,
-                        googleClientSecret,
-                        code,
-                        googleRedirectUri).execute();
-            } catch (Exception e) {
-                logger.error("Failed to exchange Google authorization code: {}", e.getMessage());
-                return ResponseEntity.status(UNAUTHORIZED)
-                        .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
-            }
+            return completeGoogleLoginWithIdToken(idToken, request, response);
 
-            // Parse ID token
-            GoogleIdToken idToken;
-            try {
-                idToken = tokenResponse.parseIdToken();
-            } catch (Exception e) {
-                logger.error("Failed to parse Google ID token: {}", e.getMessage());
-                return ResponseEntity.status(UNAUTHORIZED)
-                        .body(ApiResponse.ofKey("api.auth.google.token.failed", null));
-            }
+        } catch (IllegalArgumentException e) {
+            logger.error("Google login failed - invalid argument: {}", e.getMessage(), e);
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        } catch (RuntimeException e) {
+            logger.error("Google login failed - runtime error: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        } catch (Exception e) {
+            logger.error("Google login failed - unexpected error: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
 
+    /**
+     * Auth-code flow: exchange at Google's token endpoint. {@code redirectUri} must match the client that issued the code
+     * (often {@code postmessage} for GIS popup).
+     */
+    private GoogleIdToken exchangeAuthCodeForGoogleIdToken(String code, String redirectUri) throws IOException {
+        String redirectUriForToken = (redirectUri != null && !redirectUri.isBlank())
+                ? redirectUri.trim()
+                : googleRedirectUri;
+        logger.debug("Google token exchange using redirect_uri={}", redirectUriForToken);
+
+        GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
+                new NetHttpTransport(),
+                JacksonFactory.getDefaultInstance(),
+                "https://oauth2.googleapis.com/token",
+                googleClientId,
+                googleClientSecret,
+                code,
+                redirectUriForToken).execute();
+
+        GoogleIdToken idToken = tokenResponse.parseIdToken();
+        if (idToken == null) {
+            throw new IOException("No ID token in Google token response");
+        }
+        return idToken;
+    }
+
+    /**
+     * ID-token flow (Sign in with Google button / {@code google.accounts.id}): verify JWT using Google's certs; no client secret.
+     */
+    private GoogleIdToken verifyGoogleCredentialJwt(String credentialJwt) throws GeneralSecurityException, IOException {
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(),
+                JacksonFactory.getDefaultInstance())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
+        return verifier.verify(credentialJwt);
+    }
+
+    private ResponseEntity<ApiResponse> completeGoogleLoginWithIdToken(GoogleIdToken idToken, HttpServletRequest request, HttpServletResponse response) {
             GoogleIdToken.Payload payload = idToken.getPayload();
 
             // Extract user information
@@ -317,20 +376,6 @@ public class AuthService implements IAuthService {
             }
             
             return ResponseEntity.ok(ApiResponse.ofKey("api.auth.google.success", jwtResponse));
-
-        } catch (IllegalArgumentException e) {
-            logger.error("Google login failed - invalid argument: {}", e.getMessage(), e);
-            return ResponseEntity.status(BAD_REQUEST)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        } catch (RuntimeException e) {
-            logger.error("Google login failed - runtime error: {}", e.getMessage(), e);
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        } catch (Exception e) {
-            logger.error("Google login failed - unexpected error: {}", e.getMessage(), e);
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        }
     }
 
     @Override

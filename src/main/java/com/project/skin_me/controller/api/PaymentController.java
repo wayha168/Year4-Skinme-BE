@@ -74,6 +74,9 @@ public class PaymentController {
      * Creates an order from the cart and either a Stripe Checkout session (card) or
      * a KHQR-only payload (no Stripe — avoids Stripe minimum amount and wrong gateway).
      * <p>
+     * Pass {@code orderId} in the JSON body to resume checkout for an existing order (same user only).
+     * Prevents duplicate orders and reuses an open Stripe Checkout session when one already exists.
+     * <p>
      * KHQR: pass {@code paymentMethod} in the JSON body or query as {@code KHQR}, {@code ABA},
      * {@code ABA_KHQR}, or {@code PAYWAY}. Then call {@code GET /payment/generate-khqr} with the returned {@code orderId} and {@code amount}.
      */
@@ -83,11 +86,7 @@ public class PaymentController {
             @RequestParam(required = false) String paymentMethod,
             @RequestBody(required = false) Map<String, Object> body) {
         try {
-            Order order = orderService.placeOrderItem(userId);
-            if (body != null) {
-                applyDeliveryToOrder(order, body);
-                orderService.updateOrder(order);
-            }
+            Order order = resolveOrderForCheckout(userId, body);
 
             if (checkoutWantsKhqr(body, paymentMethod)) {
                 order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
@@ -162,21 +161,40 @@ public class PaymentController {
                                 "hint", "Set paymentMethod to KHQR (or ABA) on create-checkout-session")));
             }
 
+            StripeCheckoutResolution stripeRes = resolveStripeCheckoutForOrder(order);
+            if (stripeRes.kind() == StripeCheckoutResolution.Kind.REUSE_OPEN_SESSION) {
+                Session session = stripeRes.session();
+                order.setStripeSessionId(session.getId());
+                order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
+                orderService.updateOrder(order);
+                Payment payment = upsertPendingCardPayment(order, session.getId());
+                Map<String, Object> data = new HashMap<>();
+                data.put("checkoutUrl", session.getUrl());
+                data.put("orderId", order.getId());
+                data.put("sessionId", session.getId());
+                data.put("paymentMethod", "CARD");
+                data.put("reusedSession", true);
+                data.put("paymentId", payment.getId());
+                return ResponseEntity.ok(new ApiResponse("Existing Stripe checkout session (not charged twice)", data));
+            }
+            if (stripeRes.kind() == StripeCheckoutResolution.Kind.ALREADY_PAID_OR_COMPLETE) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("checkoutUrl", null);
+                data.put("orderId", order.getId());
+                data.put("sessionId", order.getStripeSessionId());
+                data.put("paymentMethod", "CARD");
+                data.put("reusedSession", true);
+                data.put("alreadyPaid", true);
+                return ResponseEntity.ok(new ApiResponse(stripeRes.message(), data));
+            }
+
             Session session = checkoutService.createCheckoutSession(order.getId(), amountInCents);
 
             order.setStripeSessionId(session.getId());
             order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
             orderService.updateOrder(order);
 
-            Payment payment = Payment.builder()
-                    .order(order)
-                    .amount(order.getOrderTotalAmount())
-                    .method(PaymentMethod.CREDIT_CARD)
-                    .status(OrderStatus.PENDING)
-                    .transactionRef(session.getId())
-                    .transactionTime(LocalDateTime.now())
-                    .build();
-            paymentRepository.save(payment);
+            Payment payment = upsertPendingCardPayment(order, session.getId());
 
             try {
                 notificationService.notifyUserWithAction(
@@ -208,10 +226,17 @@ public class PaymentController {
             data.put("orderId", order.getId());
             data.put("sessionId", session.getId());
             data.put("paymentMethod", "CARD");
+            data.put("reusedSession", false);
             return ResponseEntity.ok(new ApiResponse("Stripe checkout session created", data));
         } catch (StripeException e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Stripe error: " + e.getMessage(), null));
+        } catch (IllegalStateException e) {
+            int status = "Order already paid".equals(e.getMessage()) ? 409 : 400;
+            return ResponseEntity.status(status).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalArgumentException e) {
+            int status = e.getMessage() != null && e.getMessage().contains("does not belong") ? 403 : 400;
+            return ResponseEntity.status(status).body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error: " + e.getMessage(), null));
@@ -337,7 +362,31 @@ public class PaymentController {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
-            // Create PaymentIntent
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
+
+            Optional<Payment> existingPay = paymentRepository.findByOrder(order);
+            if (existingPay.isPresent() && existingPay.get().getStatus() == OrderStatus.SUCCESS) {
+                return ResponseEntity.status(409).body(new ApiResponse("Payment already completed for this order",
+                        Map.of("orderId", orderId)));
+            }
+
+            if (existingPay.isPresent() && existingPay.get().getTransactionRef() != null
+                    && existingPay.get().getTransactionRef().startsWith("pi_")) {
+                PaymentIntent existingPi = PaymentIntent.retrieve(existingPay.get().getTransactionRef());
+                String st = existingPi.getStatus();
+                if ("requires_payment_method".equals(st) || "requires_confirmation".equals(st)
+                        || "requires_action".equals(st) || "processing".equals(st)) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("clientSecret", existingPi.getClientSecret());
+                    data.put("paymentIntentId", existingPi.getId());
+                    data.put("orderId", orderId);
+                    data.put("reusedPaymentIntent", true);
+                    return ResponseEntity.ok(new ApiResponse("Existing payment intent (not charged twice)", data));
+                }
+            }
+
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                     .setAmount(amountCents)
                     .setCurrency("usd")
@@ -349,21 +398,32 @@ public class PaymentController {
 
             PaymentIntent paymentIntent = PaymentIntent.create(params);
 
-            // Save payment record
-            Payment payment = Payment.builder()
-                    .order(order)
-                    .amount(order.getOrderTotalAmount())
-                    .method(PaymentMethod.CREDIT_CARD)
-                    .status(OrderStatus.PENDING)
-                    .transactionRef(paymentIntent.getId())
-                    .transactionTime(LocalDateTime.now())
-                    .build();
-            paymentRepository.save(payment);
+            Payment payment;
+            if (existingPay.isPresent() && existingPay.get().getStatus() != OrderStatus.SUCCESS) {
+                payment = existingPay.get();
+                payment.setMethod(PaymentMethod.CREDIT_CARD);
+                payment.setStatus(OrderStatus.PENDING);
+                payment.setTransactionRef(paymentIntent.getId());
+                payment.setAmount(order.getOrderTotalAmount());
+                payment.setTransactionTime(LocalDateTime.now());
+                payment = paymentRepository.save(payment);
+            } else {
+                payment = Payment.builder()
+                        .order(order)
+                        .amount(order.getOrderTotalAmount())
+                        .method(PaymentMethod.CREDIT_CARD)
+                        .status(OrderStatus.PENDING)
+                        .transactionRef(paymentIntent.getId())
+                        .transactionTime(LocalDateTime.now())
+                        .build();
+                payment = paymentRepository.save(payment);
+            }
 
             Map<String, Object> data = new HashMap<>();
             data.put("clientSecret", paymentIntent.getClientSecret());
             data.put("paymentIntentId", paymentIntent.getId());
             data.put("orderId", orderId);
+            data.put("reusedPaymentIntent", false);
 
             return ResponseEntity.ok(new ApiResponse("Payment intent created", data));
         } catch (StripeException e) {
@@ -381,11 +441,19 @@ public class PaymentController {
             PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
 
             if ("succeeded".equals(paymentIntent.getStatus())) {
-                // Find order by payment intent ID
                 Payment payment = paymentRepository.findByTransactionRef(paymentIntentId)
                         .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
 
                 Order order = payment.getOrder();
+                if (order.getOrderStatus() == OrderStatus.PAID || payment.getStatus() == OrderStatus.SUCCESS) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("orderId", order.getId());
+                    data.put("paymentIntentId", paymentIntentId);
+                    data.put("status", "succeeded");
+                    data.put("alreadyConfirmed", true);
+                    return ResponseEntity.ok(new ApiResponse("Payment already confirmed", data));
+                }
+
                 payment.setStatus(OrderStatus.SUCCESS);
                 payment.setTransactionTime(LocalDateTime.now());
                 paymentRepository.save(payment);
@@ -585,10 +653,25 @@ public class PaymentController {
             Map<String, Object> processedEvents) {
         orderService.getOrderByStripeSessionId(sessionId).ifPresentOrElse(
                 order -> {
+                    if (order.getOrderStatus() == OrderStatus.PAID) {
+                        processedEvents.put("skipped", "order_already_paid");
+                        processedEvents.put("order_id", order.getId());
+                        log.info("Webhook: checkout.session.completed ignored (already paid) session {} order {}",
+                                sessionId, order.getId());
+                        return;
+                    }
                     Optional<Payment> payOpt = paymentRepository.findByTransactionRef(sessionId)
                             .or(() -> paymentRepository.findByOrder(order));
                     payOpt.ifPresentOrElse(
                             payment -> {
+                                if (payment.getStatus() == OrderStatus.SUCCESS) {
+                                    if (order.getOrderStatus() != OrderStatus.PAID) {
+                                        orderService.confirmOrderPayment(order);
+                                    }
+                                    processedEvents.put("skipped", "payment_already_success");
+                                    processedEvents.put("order_id", order.getId());
+                                    return;
+                                }
                                 if (paymentIntentId != null && !paymentIntentId.isEmpty()) {
                                     payment.setPaymentIntentId(paymentIntentId);
                                 }
@@ -725,6 +808,9 @@ public class PaymentController {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
             // Support both currencies: USD and Khmer Riel (KHR)
             if (currency == null || (!"USD".equalsIgnoreCase(currency) && !"KHR".equalsIgnoreCase(currency))) {
                 currency = "USD";
@@ -783,9 +869,16 @@ public class PaymentController {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
 
             Payment payment = paymentRepository.findByOrder(order)
                     .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+
+            if (payment.getStatus() == OrderStatus.SUCCESS) {
+                return ResponseEntity.status(409).body(new ApiResponse("Payment already completed", Map.of("orderId", orderId)));
+            }
 
             if (payment.getMethod() != PaymentMethod.KHQR) {
                 return ResponseEntity.status(400)
@@ -810,6 +903,115 @@ public class PaymentController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error verifying KHQR payment: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * New checkout: creates order from cart. Existing checkout: pass {@code orderId} in the body
+     * so repeated clicks do not create multiple orders.
+     */
+    private Order resolveOrderForCheckout(Long userId, Map<String, Object> body) {
+        Long existingOrderId = null;
+        if (body != null && body.get("orderId") != null) {
+            Object o = body.get("orderId");
+            if (o != null && !o.toString().isBlank()) {
+                existingOrderId = Long.parseLong(o.toString().trim());
+            }
+        }
+        if (existingOrderId != null) {
+            Order order = orderRepository.findById(existingOrderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getUser() == null || !order.getUser().getId().equals(userId)) {
+                throw new IllegalArgumentException("Order does not belong to this user");
+            }
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                throw new IllegalStateException("Order already paid");
+            }
+            if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
+                throw new IllegalStateException("Order cannot be checked out in status: " + order.getOrderStatus());
+            }
+            if (body != null) {
+                applyDeliveryToOrder(order, body);
+                orderService.updateOrder(order);
+            }
+            return order;
+        }
+        Order order = orderService.placeOrderItem(userId);
+        if (body != null) {
+            applyDeliveryToOrder(order, body);
+            orderService.updateOrder(order);
+        }
+        return order;
+    }
+
+    /** One pending card payment row per order; updates amount/ref when creating or reusing a Checkout session. */
+    private Payment upsertPendingCardPayment(Order order, String stripeSessionId) {
+        Optional<Payment> existing = paymentRepository.findByOrder(order);
+        if (existing.isPresent()) {
+            Payment p = existing.get();
+            if (p.getStatus() == OrderStatus.SUCCESS) {
+                return p;
+            }
+            p.setMethod(PaymentMethod.CREDIT_CARD);
+            p.setStatus(OrderStatus.PENDING);
+            p.setTransactionRef(stripeSessionId);
+            p.setAmount(order.getOrderTotalAmount());
+            p.setTransactionTime(LocalDateTime.now());
+            return paymentRepository.save(p);
+        }
+        Payment payment = Payment.builder()
+                .order(order)
+                .amount(order.getOrderTotalAmount())
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(OrderStatus.PENDING)
+                .transactionRef(stripeSessionId)
+                .transactionTime(LocalDateTime.now())
+                .build();
+        return paymentRepository.save(payment);
+    }
+
+    private StripeCheckoutResolution resolveStripeCheckoutForOrder(Order order) {
+        String sid = order.getStripeSessionId();
+        if (sid == null || sid.isBlank()) {
+            return StripeCheckoutResolution.createNew();
+        }
+        try {
+            Session existing = Session.retrieve(sid);
+            if ("open".equals(existing.getStatus())) {
+                return StripeCheckoutResolution.reuseOpen(existing);
+            }
+            if ("complete".equals(existing.getStatus()) && "paid".equalsIgnoreCase(existing.getPaymentStatus())) {
+                Order fresh = orderRepository.findByIdWithOrderItemsAndProducts(order.getId()).orElse(order);
+                if (fresh.getOrderStatus() == OrderStatus.PAID) {
+                    return StripeCheckoutResolution.alreadyPaid("Order already paid");
+                }
+                orderService.confirmOrderPayment(fresh);
+                return StripeCheckoutResolution.alreadyPaid("Checkout session completed; order confirmed");
+            }
+            if ("expired".equals(existing.getStatus())) {
+                return StripeCheckoutResolution.createNew();
+            }
+        } catch (StripeException e) {
+            log.debug("Stripe session {} not reusable ({}), creating new session", sid, e.getMessage());
+        }
+        return StripeCheckoutResolution.createNew();
+    }
+
+    private record StripeCheckoutResolution(Kind kind, Session session, String message) {
+        enum Kind {
+            CREATE_NEW, REUSE_OPEN_SESSION, ALREADY_PAID_OR_COMPLETE
+        }
+
+        static StripeCheckoutResolution createNew() {
+            return new StripeCheckoutResolution(Kind.CREATE_NEW, null, null);
+        }
+
+        static StripeCheckoutResolution reuseOpen(Session session) {
+            return new StripeCheckoutResolution(Kind.REUSE_OPEN_SESSION, session, null);
+        }
+
+        static StripeCheckoutResolution alreadyPaid(String message) {
+            return new StripeCheckoutResolution(Kind.ALREADY_PAID_OR_COMPLETE, null, message);
         }
     }
 }
