@@ -53,6 +53,13 @@ public class AdminProductFeedbackController {
         return ResponseEntity.ok(new ApiResponse("Updated", dto));
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse> delete(@PathVariable Long id) {
+        productFeedbackService.deleteById(id);
+        return ResponseEntity.ok(new ApiResponse("Deleted", null));
+    }
+
     @Data
     public static class VisibilityBody {
         private boolean visibleOnFrontend;

@@ -108,6 +108,14 @@ public class ProductFeedbackService implements IProductFeedbackService {
         return toDto(productFeedbackRepository.save(fb));
     }
 
+    @Override
+    @Transactional
+    public void deleteById(Long feedbackId) {
+        ProductFeedback fb = productFeedbackRepository.findById(feedbackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Feedback not found"));
+        productFeedbackRepository.delete(fb);
+    }
+
     private ProductFeedbackDto toDto(ProductFeedback fb) {
         User u = fb.getUser();
         Product p = fb.getProduct();

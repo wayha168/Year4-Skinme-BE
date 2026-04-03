@@ -209,6 +209,10 @@ public class UserService implements IUserService {
     @Override
     @Transactional
     public void deleteUser(Long userId) {
+        User current = getAuthenticatedUser();
+        if (current.getId().equals(userId)) {
+            throw new IllegalStateException("You cannot delete your own account");
+        }
         userRepository.findById(userId)
                 .ifPresentOrElse(userRepository::delete,
                         () -> { throw new ResourceNotFoundException("User not found with ID: " + userId); });

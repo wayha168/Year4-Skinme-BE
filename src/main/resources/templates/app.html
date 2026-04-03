@@ -60,17 +60,160 @@
     
     <!-- Toast Notification Container (flexible dropdown, auto-dismiss) -->
     <div id="toastContainer"></div>
+
+    <!-- Global confirm dialog (replaces window.confirm); use showConfirmModal({ ... }).then(ok => ...) -->
+    <div id="appConfirmModal" class="app-confirm-overlay" role="presentation" aria-hidden="true">
+      <div class="app-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMessage">
+        <h3 class="app-confirm-title" id="appConfirmTitle">Confirm</h3>
+        <p class="app-confirm-message text-muted mb-0" id="appConfirmMessage"></p>
+        <div class="app-confirm-actions">
+          <button type="button" class="btn btn-outline-secondary" id="appConfirmCancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="appConfirmOk">Confirm</button>
+        </div>
+      </div>
+    </div>
+    <style>
+      .app-confirm-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        background: rgba(15, 23, 42, 0.45);
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        backdrop-filter: blur(2px);
+      }
+      .app-confirm-overlay.is-open {
+        display: flex;
+      }
+      .app-confirm-dialog {
+        background: var(--white, #fff);
+        border-radius: 12px;
+        max-width: 420px;
+        width: 100%;
+        padding: 1.35rem 1.5rem;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .app-confirm-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 0.65rem 0;
+        color: #111827;
+      }
+      .app-confirm-message {
+        font-size: 0.95rem;
+        line-height: 1.45;
+        margin-bottom: 1.15rem !important;
+      }
+      .app-confirm-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+    </style>
     
     <script>
+      /**
+       * Promise-based confirm. Options: title, message, confirmText, cancelText, danger (boolean — red confirm btn).
+       * Resolves true if user confirms, false if cancel / backdrop / Escape.
+       */
+      function showConfirmModal(options) {
+        return new Promise(function(resolve) {
+          var o = options || {};
+          var modal = document.getElementById('appConfirmModal');
+          var titleEl = document.getElementById('appConfirmTitle');
+          var msgEl = document.getElementById('appConfirmMessage');
+          var btnOk = document.getElementById('appConfirmOk');
+          var btnCancel = document.getElementById('appConfirmCancel');
+          if (!modal || !titleEl || !msgEl || !btnOk || !btnCancel) {
+            resolve(window.confirm(String(o.message || 'Continue?')));
+            return;
+          }
+          titleEl.textContent = o.title || 'Confirm';
+          msgEl.textContent = o.message || '';
+          btnOk.textContent = o.confirmText || 'Confirm';
+          btnCancel.textContent = o.cancelText || 'Cancel';
+          btnOk.className = 'btn ' + (o.danger ? 'btn-danger' : 'btn-primary');
+          function cleanup() {
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+            document.removeEventListener('keydown', onKey);
+          }
+          function onOk() {
+            cleanup();
+            resolve(true);
+          }
+          function onCancel() {
+            cleanup();
+            resolve(false);
+          }
+          function onBackdrop(e) {
+            if (e.target === modal) onCancel();
+          }
+          function onKey(e) {
+            if (e.key === 'Escape') onCancel();
+          }
+          btnOk.addEventListener('click', onOk);
+          btnCancel.addEventListener('click', onCancel);
+          modal.addEventListener('click', onBackdrop);
+          document.addEventListener('keydown', onKey);
+          modal.classList.add('is-open');
+          modal.setAttribute('aria-hidden', 'false');
+          setTimeout(function() {
+            try {
+              btnOk.focus();
+            } catch (err) {}
+          }, 0);
+        });
+      }
+      window.showConfirmModal = showConfirmModal;
+
+      /**
+       * Maps API notification.type (and title fallback) to Bootstrap Icon + CSS accent for panel + toasts.
+       */
+      function skinmeNotificationIconMeta(n) {
+        if (!n) return { icon: 'bi-bell', accent: 'default' };
+        var t = (n.type != null ? String(n.type) : '').toUpperCase();
+        var title = (n.title != null ? String(n.title) : '').toLowerCase();
+        var message = (n.message != null ? String(n.message) : '').toLowerCase();
+        if (!t) {
+          if (title.indexOf('payment received') >= 0 || title.indexOf('order #') >= 0) t = 'ORDER';
+          else if (title.indexOf('review') >= 0 || title.indexOf('feedback') >= 0) t = 'FEEDBACK';
+          else if (title.indexOf('deliver') >= 0) t = 'DELIVERY';
+          else if (title.indexOf('new user') >= 0 || title.indexOf('registered') >= 0) t = 'USER';
+          else if (title.indexOf('welcome') >= 0 || title.indexOf('login') >= 0) t = 'AUTH';
+        }
+        switch (t) {
+          case 'ORDER': return { icon: 'bi-bag-check', accent: 'order' };
+          case 'FEEDBACK': return { icon: 'bi-stars', accent: 'feedback' };
+          case 'DELIVERY': return { icon: 'bi-truck', accent: 'delivery' };
+          case 'PAYMENT': return { icon: 'bi-credit-card-2-front', accent: 'payment' };
+          case 'PRODUCT': return { icon: 'bi-box-seam', accent: 'product' };
+          case 'PROMOTION': return { icon: 'bi-tag', accent: 'promotion' };
+          case 'USER': return { icon: 'bi-person-plus', accent: 'user' };
+          case 'AUTH': return { icon: 'bi-person-check', accent: 'auth' };
+          default: return { icon: 'bi-bell', accent: 'default' };
+        }
+      }
+      window.skinmeNotificationIconMeta = skinmeNotificationIconMeta;
+
       // Global Toast - flexible popup dropdown, disappears in a few seconds
-      function showToast(message, type = 'info', duration = 2500) {
+      // Optional 4th arg: Bootstrap icon class (e.g. bi-bag-check) for type-specific notification toasts
+      function showToast(message, type = 'info', duration = 2500, iconOverride = null) {
         const container = document.getElementById('toastContainer');
         if (!container) return;
         
         const toast = document.createElement('div');
         toast.className = 'toast-notification toast-' + (type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info');
         
-        const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-x-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+        let icon = iconOverride || (type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-x-circle' : type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle');
+        if (icon && icon.indexOf('bi-') !== 0) icon = 'bi-' + icon;
         
         toast.innerHTML = `
           <i class="bi ${icon} toast-icon"></i>
@@ -211,8 +354,11 @@
           // Subscribe to notifications
           window.webSocketClient.subscribeToNotifications(function(notification) {
             if (typeof showToast === 'function') {
-              showToast(notification.message, notification.type === 'ERROR' ? 'error' :
-                       notification.type === 'SUCCESS' ? 'success' : 'info', 5000);
+              var line = (notification.title ? notification.title + ' — ' : '') + (notification.message || '');
+              var meta = typeof skinmeNotificationIconMeta === 'function' ? skinmeNotificationIconMeta(notification) : { icon: 'bi-info-circle' };
+              var toastType = notification.type === 'ERROR' ? 'error' : notification.type === 'SUCCESS' ? 'success' : 'info';
+              var toastIcon = (toastType === 'error' || toastType === 'success') ? null : meta.icon;
+              showToast(line, toastType, 5000, toastIcon);
             }
             document.dispatchEvent(new CustomEvent('skinme-notification', { detail: notification }));
           });
@@ -265,8 +411,22 @@
             if (u === '/chat' || u.indexOf('/chat?') === 0) {
               return u.indexOf('/chat?') === 0 ? '/views/chat' + u.substring('/chat'.length()) : '/views/chat';
             }
+            if (u.indexOf('/views/users') === 0) return u;
             return u;
           } catch (e) { return url; }
+        }
+        function notificationItemInnerHtml(n) {
+          var meta = typeof skinmeNotificationIconMeta === 'function' ? skinmeNotificationIconMeta(n) : { icon: 'bi-bell', accent: 'default' };
+          var timeStr = n.createdAt ? (String(n.createdAt).substring(0, 16).replace('T', ' ')) : '';
+          var unreadLabel = n.status === 'UNREAD' ? '<span class="notification-panel-unread-dot" aria-label="Unread"></span>' : '';
+          var unreadMeta = n.status === 'UNREAD' ? ' &middot; Unread' : '';
+          return '<div class="notification-panel-item-row">' +
+            '<span class="notification-panel-item-icon notification-icon--' + meta.accent + '" aria-hidden="true"><i class="bi ' + meta.icon + '"></i></span>' +
+            '<div class="notification-panel-item-body">' +
+            '<div class="notification-panel-item-title-row">' + unreadLabel + '<span class="notification-panel-item-title">' + esc(n.title || '') + '</span></div>' +
+            '<div class="notification-panel-item-message">' + esc((n.message || '').substring(0, 80)) + (n.message && n.message.length > 80 ? '...' : '') + '</div>' +
+            '<div class="notification-panel-item-meta">' + timeStr + unreadMeta + '</div>' +
+            '</div></div>';
         }
         function csrfHeaders() {
           var h = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
@@ -314,11 +474,7 @@
               item.className = 'notification-panel-item' + (n.status === 'UNREAD' ? ' unread' : '');
               item.setAttribute('data-id', n.id);
               if (!n.actionUrl) item.addEventListener('click', function(e) { e.preventDefault(); });
-              var timeStr = n.createdAt ? (String(n.createdAt).substring(0, 16).replace('T', ' ')) : '';
-              var unreadLabel = n.status === 'UNREAD' ? '<span class="notification-panel-unread-dot" aria-label="Unread"></span>' : '';
-              item.innerHTML = '<div class="notification-panel-item-title-row">' + unreadLabel + '<span class="notification-panel-item-title">' + esc(n.title || '') + '</span></div>' +
-                '<div class="notification-panel-item-message">' + esc((n.message || '').substring(0, 80)) + (n.message && n.message.length > 80 ? '...' : '') + '</div>' +
-                '<div class="notification-panel-item-meta">' + timeStr + (n.status === 'UNREAD' ? ' &middot; Unread' : '') + '</div>';
+              item.innerHTML = notificationItemInnerHtml(n);
               item.addEventListener('click', function() {
                 var id = this.getAttribute('data-id');
                 if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
@@ -361,10 +517,8 @@
           item.className = 'notification-panel-item unread';
           item.setAttribute('data-id', n.id || '');
           if (!n.actionUrl) item.addEventListener('click', function(ev) { ev.preventDefault(); });
-          var timeStr = n.createdAt ? (String(n.createdAt).substring(0, 16).replace('T', ' ')) : '';
-          item.innerHTML = '<div class="notification-panel-item-title-row"><span class="notification-panel-unread-dot" aria-label="Unread"></span><span class="notification-panel-item-title">' + esc(n.title || '') + '</span></div>' +
-            '<div class="notification-panel-item-message">' + esc((n.message || '').substring(0, 80)) + (n.message && n.message.length > 80 ? '...' : '') + '</div>' +
-            '<div class="notification-panel-item-meta">' + timeStr + ' &middot; Unread</div>';
+          n.status = 'UNREAD';
+          item.innerHTML = notificationItemInnerHtml(n);
           item.addEventListener('click', function() {
             var id = this.getAttribute('data-id');
             if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});

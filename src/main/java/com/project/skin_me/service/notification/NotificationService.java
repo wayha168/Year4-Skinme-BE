@@ -145,6 +145,50 @@ public class NotificationService {
     }
 
     /**
+     * In-app notification for each admin when an order is paid (bell panel + persisted).
+     */
+    @Transactional
+    public void notifyAdminsOrderPaid(Long orderId, String customerEmail, BigDecimal totalAmount) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String amt = totalAmount != null ? "$" + totalAmount.stripTrailingZeros().toPlainString() : "N/A";
+        String who = (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : "Customer";
+        String message = "Order #" + orderId + " · " + who + " · " + amt;
+        String actionUrl = "/views/orders";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "Payment received", message, "ORDER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of paid order {}: {}", admin.getId(), orderId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notify admins when a new customer account is created (email, phone, or Google).
+     */
+    @Transactional
+    public void notifyAdminsNewUserRegistered(String email, String displayName, Long userId) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String who = (displayName != null && !displayName.isBlank()) ? displayName.trim()
+                : ((email != null && !email.isBlank()) ? email : "New user");
+        String msg = (email != null && !email.isBlank()) ? who + " · " + email : who;
+        String actionUrl = userId != null ? "/views/users/" + userId : "/views/users";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "New user registered", msg, "USER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of new user: {}", admin.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Persist a notification per admin and push each over {@code /user/topic/notifications} so the bell panel,
      * badge, and toast show product name, rating, comment, and reviewer.
      */

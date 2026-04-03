@@ -224,6 +224,15 @@
             <span>Order ID:</span>
             <strong th:text="'#' + ${order.orderId}">#12345</strong>
           </div>
+          <div class="d-flex justify-content-between mb-2" th:with="sub=${order.itemsSubtotalAmount != null ? order.itemsSubtotalAmount : order.orderTotalAmount}">
+            <span>Subtotal:</span>
+            <strong th:text="'$' + ${#numbers.formatDecimal(sub, 1, 2)}">$0.00</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2"
+            th:if="${order.deliveryFeeAmount != null and order.deliveryFeeAmount.signum() > 0}">
+            <span>Delivery:</span>
+            <strong th:text="'$' + ${#numbers.formatDecimal(order.deliveryFeeAmount, 1, 2)}">$1.00</strong>
+          </div>
           <div class="d-flex justify-content-between mb-2">
             <span>Total Amount:</span>
             <strong style="color: #0066cc; font-size: 1.2rem;"

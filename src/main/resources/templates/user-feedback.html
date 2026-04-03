@@ -82,6 +82,7 @@
                   <th>Comment</th>
                   <th>Show on storefront</th>
                   <th>Submitted</th>
+                  <th style="width: 100px;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -123,6 +124,11 @@
                     <span th:if="${fb.createdAt != null}" th:text="${#temporals.format(fb.createdAt, 'MMM dd, yyyy HH:mm')}">—</span>
                     <span th:if="${fb.createdAt == null}">—</span>
                   </td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-outline-danger fb-delete-btn" th:attr="data-id=${fb.id}" title="Delete review">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -142,6 +148,45 @@
             history.replaceState(null, '', window.location.pathname + window.location.search);
           }
           var API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
+          function csrfHeaders() {
+            var h = { 'Content-Type': 'application/json' };
+            var c = document.querySelector('meta[name="_csrf"]');
+            var ch = document.querySelector('meta[name="_csrf_header"]');
+            if (c && ch) {
+              h[ch.getAttribute('content') || 'X-CSRF-TOKEN'] = c.getAttribute('content') || c.content;
+            }
+            return h;
+          }
+          document.querySelectorAll('.fb-delete-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var id = btn.getAttribute('data-id');
+              if (!id) return;
+              showConfirmModal({
+                title: 'Delete review',
+                message: 'This permanently removes the review from the database. This cannot be undone.',
+                confirmText: 'Delete',
+                cancelText: 'Cancel',
+                danger: true
+              }).then(function(ok) {
+                if (!ok) return;
+                btn.disabled = true;
+                fetch(API_PREFIX + '/admin/feedback/' + id, {
+                  method: 'DELETE',
+                  credentials: 'same-origin',
+                  headers: csrfHeaders()
+                }).then(function(r) {
+                  if (!r.ok) throw new Error('Failed');
+                  return r.json();
+                }).then(function() {
+                  var row = btn.closest('tr');
+                  if (row) row.remove();
+                  if (typeof showToast === 'function') showToast('Review deleted', 'success');
+                }).catch(function() {
+                  if (typeof showToast === 'function') showToast('Could not delete review', 'error');
+                }).finally(function() { btn.disabled = false; });
+              });
+            });
+          });
           document.querySelectorAll('.fb-visible-toggle').forEach(function(el) {
             el.addEventListener('change', function() {
               var id = el.getAttribute('data-id');
