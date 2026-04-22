@@ -31,6 +31,7 @@ import com.project.skin_me.security.user.ShopUserDetails;
 import com.project.skin_me.service.email.EmailService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.sms.SmsService;
+import com.project.skin_me.service.telegram.TelegramNotificationService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -75,6 +76,7 @@ public class AuthService implements IAuthService {
     private final ActivityRepository activityRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final TelegramNotificationService telegramNotificationService;
     private final PhoneOtpRepository phoneOtpRepository;
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final SmsService smsService;
@@ -321,6 +323,14 @@ public class AuthService implements IAuthService {
                 } catch (Exception e) {
                     logger.warn("Failed to notify admins of new Google user: {}", e.getMessage());
                 }
+                try {
+                    String dn = ((user.getFirstName() != null ? user.getFirstName() : "")
+                            + " " + (user.getLastName() != null ? user.getLastName() : "")).trim();
+                    telegramNotificationService.notifyNewUserRegistered(
+                            user.getEmail(), dn.isEmpty() ? null : dn, user.getId());
+                } catch (Exception e) {
+                    logger.warn("Failed to send Telegram alert for new Google user: {}", e.getMessage());
+                }
             }
             
             // Update Google ID if user exists but doesn't have it set (for existing email/password users)
@@ -458,6 +468,14 @@ public class AuthService implements IAuthService {
                         savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
             } catch (Exception e) {
                 logger.warn("Failed to notify admins of new user: {}", e.getMessage());
+            }
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                telegramNotificationService.notifyNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+            } catch (Exception e) {
+                logger.warn("Failed to send Telegram alert for new user: {}", e.getMessage());
             }
 
             return ResponseEntity.status(CREATED)
@@ -877,6 +895,14 @@ public class AuthService implements IAuthService {
                         savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
             } catch (Exception e) {
                 logger.warn("Failed to notify admins of new user: {}", e.getMessage());
+            }
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                telegramNotificationService.notifyNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+            } catch (Exception e) {
+                logger.warn("Failed to send Telegram alert for new phone-registered user: {}", e.getMessage());
             }
 
             return ResponseEntity.status(CREATED)

@@ -164,6 +164,19 @@ public class TelegramNotificationService {
         }
     }
 
+    /** Fired when a new user registers (email/phone/Google). */
+    @Async
+    public void notifyNewUserRegistered(String email, String displayName, Long userId) {
+        String who = (displayName != null && !displayName.isBlank()) ? displayName : "New user";
+        String userRef = userId != null ? "User ID: " + userId : null;
+        String mail = (email != null && !email.isBlank()) ? "Email: " + email : null;
+        String msg = alertBlock("👤", "New user registered",
+                "Name: " + who,
+                mail,
+                userRef);
+        sendAlert(msg);
+    }
+
     private boolean isConfigured() {
         return botToken != null && !botToken.isBlank() && chatId != null && !chatId.isBlank();
     }
