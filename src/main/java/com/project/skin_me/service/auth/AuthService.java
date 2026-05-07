@@ -327,7 +327,7 @@ public class AuthService implements IAuthService {
                     String dn = ((user.getFirstName() != null ? user.getFirstName() : "")
                             + " " + (user.getLastName() != null ? user.getLastName() : "")).trim();
                     telegramNotificationService.notifyNewUserRegistered(
-                            user.getEmail(), dn.isEmpty() ? null : dn, user.getId());
+                            user.getEmail(), dn.isEmpty() ? null : dn, user.getId(), "GOOGLE");
                 } catch (Exception e) {
                     logger.warn("Failed to send Telegram alert for new Google user: {}", e.getMessage());
                 }
@@ -473,7 +473,7 @@ public class AuthService implements IAuthService {
                 String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
                         + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
                 telegramNotificationService.notifyNewUserRegistered(
-                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId(), "EMAIL");
             } catch (Exception e) {
                 logger.warn("Failed to send Telegram alert for new user: {}", e.getMessage());
             }
@@ -900,7 +900,7 @@ public class AuthService implements IAuthService {
                 String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
                         + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
                 telegramNotificationService.notifyNewUserRegistered(
-                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId(), "PHONE");
             } catch (Exception e) {
                 logger.warn("Failed to send Telegram alert for new phone-registered user: {}", e.getMessage());
             }

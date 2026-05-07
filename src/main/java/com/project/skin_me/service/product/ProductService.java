@@ -1,5 +1,9 @@
 package com.project.skin_me.service.product;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.project.skin_me.enums.ProductStatus;
 import com.project.skin_me.event.ProductAddedEvent;
 import com.project.skin_me.event.ProductDeletedEvent;
@@ -27,6 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -38,6 +43,10 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 @Service
 @RequiredArgsConstructor
 public class ProductService implements IProductService {
+    private static final String BARCODE_PREFIX = "SKM";
+    private static final int BARCODE_ID_PADDING = 8;
+    private static final int BARCODE_WIDTH = 400;
+    private static final int BARCODE_HEIGHT = 140;
 
     private final ProductRepository productRepository;
     private final BrandRepository brandRepository;
@@ -64,6 +73,8 @@ public class ProductService implements IProductService {
         product.setCategory(brand.getCategory());
         product.setSkinType(request.getSkinType());
         product.setBenefit(request.getBenefit());
+        product = productRepository.save(product);
+        ensureBarcode(product);
         product = productRepository.save(product);
         eventPublisher.publishEvent(new ProductAddedEvent(this));
 
@@ -133,6 +144,13 @@ public class ProductService implements IProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not Success!"));
     }
 
+    @Override
+    public Product getProductByBarcode(String barcode) {
+        String normalizedBarcode = normalizeBarcode(barcode);
+        return productRepository.findByBarcode(normalizedBarcode)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with barcode: " + normalizedBarcode));
+    }
+
     private boolean productExists(Long brandId, String name) {
         return productRepository.existsByNameAndBrand_Id(name, brandId);
     }
@@ -146,6 +164,26 @@ public class ProductService implements IProductService {
                 request.getDescription(),
                 request.getHowToUse(),
                 brand);
+    }
+
+    private void ensureBarcode(Product product) {
+        if (product.getBarcode() == null || product.getBarcode().isBlank()) {
+            product.setBarcode(buildBarcodeFromProductId(product.getId()));
+        }
+        if (productRepository.existsByBarcodeAndIdNot(product.getBarcode(), product.getId())) {
+            throw new IllegalStateException("Barcode conflict detected for product ID: " + product.getId());
+        }
+    }
+
+    private String buildBarcodeFromProductId(Long productId) {
+        return BARCODE_PREFIX + String.format("%0" + BARCODE_ID_PADDING + "d", productId);
+    }
+
+    private String normalizeBarcode(String barcode) {
+        if (barcode == null || barcode.isBlank()) {
+            throw new ResourceNotFoundException("Barcode is required!");
+        }
+        return barcode.trim().toUpperCase();
     }
 
     private Product updateExistingProduct(Product existingProduct, ProductUpdateRequest request) {
@@ -231,6 +269,7 @@ public class ProductService implements IProductService {
     @Override
     public ProductDto convertToDto(Product product) {
         ProductDto productDto = modelMapper.map(product, ProductDto.class);
+        productDto.setBarcode(product.getBarcode());
 
         if (product.getBrand() != null) {
             productDto.setBrand(product.getBrand());
@@ -249,6 +288,31 @@ public class ProductService implements IProductService {
 
         productDto.setImages(imageDtos);
         return productDto;
+    }
+
+    @Override
+    public Product generateBarcodeForProduct(Long productId) {
+        Product product = getProductById(productId);
+        ensureBarcode(product);
+        return productRepository.save(product);
+    }
+
+    @Override
+    public String generateBarcodeImage(String barcode) {
+        try {
+            String normalizedBarcode = normalizeBarcode(barcode);
+            BitMatrix bitMatrix = new MultiFormatWriter().encode(
+                    normalizedBarcode,
+                    BarcodeFormat.CODE_128,
+                    BARCODE_WIDTH,
+                    BARCODE_HEIGHT
+            );
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate barcode image", e);
+        }
     }
 
     @Override

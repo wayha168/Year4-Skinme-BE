@@ -166,13 +166,17 @@ public class TelegramNotificationService {
 
     /** Fired when a new user registers (email/phone/Google). */
     @Async
-    public void notifyNewUserRegistered(String email, String displayName, Long userId) {
+    public void notifyNewUserRegistered(String email, String displayName, Long userId, String registrationMethod) {
         String who = (displayName != null && !displayName.isBlank()) ? displayName : "New user";
         String userRef = userId != null ? "User ID: " + userId : null;
         String mail = (email != null && !email.isBlank()) ? "Email: " + email : null;
+        String method = (registrationMethod != null && !registrationMethod.isBlank())
+                ? "Method: " + registrationMethod.trim().toUpperCase()
+                : null;
         String msg = alertBlock("👤", "New user registered",
                 "Name: " + who,
                 mail,
+                method,
                 userRef);
         sendAlert(msg);
     }
