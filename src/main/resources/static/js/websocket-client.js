@@ -43,6 +43,10 @@
    * Initialize WebSocket connection (uses same-origin; cookies sent for session auth)
    */
   connect(onConnect, onError) {
+    if (this.isConnected && this.stompClient) {
+      if (onConnect) onConnect("already-connected");
+      return;
+    }
     if (typeof SockJS === "undefined" || typeof Stomp === "undefined") {
       const message = "SockJS or StompJS is not loaded. Include their scripts before websocket-client.js.";
       console.error(message);
@@ -66,7 +70,7 @@
       function(error) {
         console.error("WebSocket Connection Error:", error);
         self.handleConnectionError(onError);
-      },
+      }
     );
   }
 
@@ -86,6 +90,9 @@
    * Subscribe to user-specific messages (/user/queue/... or /user/topic/...)
    */
   subscribeToUser(destination, callback) {
+    if (typeof destination !== "string" || destination.trim() === "") {
+      return;
+    }
     const userDestination = "/user" + (destination.startsWith("/") ? destination : "/" + destination);
     this.subscribe(userDestination, callback);
   }
