@@ -16,4 +16,6 @@ public interface IProductFeedbackService {
     Page<ProductFeedbackDto> listAllForAdmin(Pageable pageable);
 
     ProductFeedbackDto setVisible(Long feedbackId, boolean visible);
+
+    void deleteById(Long feedbackId);
 }

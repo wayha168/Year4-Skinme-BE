@@ -100,6 +100,7 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/ship")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> markAsShipped(@PathVariable Long orderId,
             @RequestParam(required = false) String trackingNumber) {
         try {
@@ -109,6 +110,9 @@ public class OrderController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
                     .body(new ApiResponse("Order not found", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error marking order as shipped: " + e.getMessage(), null));
@@ -116,6 +120,7 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/deliver")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> markAsDelivered(
             @PathVariable Long orderId,
             @RequestParam(required = false) LogisticCompany logisticCompany) {
@@ -126,6 +131,9 @@ public class OrderController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
                     .body(new ApiResponse("Order not found", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error marking order as delivered: " + e.getMessage(), null));

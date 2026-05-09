@@ -52,6 +52,7 @@ public class OrderService implements IOrderService {
     private final IBakongKhqrService bakongKhqrService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ActivityRepository activityRepository;
+    private final DeliveryFeeService deliveryFeeService;
 
     @Override
     @Transactional
@@ -61,7 +62,11 @@ public class OrderService implements IOrderService {
 
         List<OrderItem> orderItemList = createOrderItems(order, cart);
         order.setOrderItems(new HashSet<>(orderItemList));
-        order.setOrderTotalAmount(calculateTotalAmount(orderItemList));
+        BigDecimal itemsSubtotal = calculateTotalAmount(orderItemList);
+        BigDecimal deliveryFee = deliveryFeeService.computeDeliveryFee(itemsSubtotal);
+        order.setItemsSubtotalAmount(itemsSubtotal);
+        order.setDeliveryFeeAmount(deliveryFee);
+        order.setOrderTotalAmount(itemsSubtotal.add(deliveryFee));
         Order savedOrder = orderRepository.save(order);
         
         // Send WebSocket notification for order creation (persisted + user notification panel)
@@ -202,6 +207,8 @@ public class OrderService implements IOrderService {
             );
         }
         dto.setOrderDate(order.getOrderDate());
+        dto.setItemsSubtotalAmount(order.getItemsSubtotalAmount());
+        dto.setDeliveryFeeAmount(order.getDeliveryFeeAmount());
         dto.setTotalAmount(order.getOrderTotalAmount());
         dto.setOrderStatus(order.getOrderStatus() != null ? order.getOrderStatus().toString() : null);
         dto.setTrackingNumber(order.getTrackingNumber());
@@ -298,10 +305,15 @@ public class OrderService implements IOrderService {
         // Remove cart (optional: user may already have no cart)
         cartService.getUserActiveCart(managedOrder.getUser())
                 .ifPresent(cart -> cartService.removeCart(cart.getId()));
-        // Update payment record (by session ref or by order)
-        Payment payment = paymentRepository.findByTransactionRef(managedOrder.getStripeSessionId())
-                .or(() -> paymentRepository.findByOrder(managedOrder))
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for order/sessionId: " + managedOrder.getStripeSessionId()));
+        // Resolve payment: prefer by order (KHQR / PayWay use order-linked rows; stripeSessionId may be null).
+        // Avoid findByTransactionRef(null) — can match wrong rows or fail unpredictably.
+        Optional<Payment> payOpt = paymentRepository.findByOrder(managedOrder);
+        String sessionId = managedOrder.getStripeSessionId();
+        if (payOpt.isEmpty() && sessionId != null && !sessionId.isBlank()) {
+            payOpt = paymentRepository.findByTransactionRef(sessionId);
+        }
+        Payment payment = payOpt.orElseThrow(() -> new IllegalArgumentException(
+                "Payment not found for order id=" + managedOrder.getId() + ", sessionId=" + sessionId));
         payment.setStatus(OrderStatus.SUCCESS);
         payment.setTransactionTime(LocalDateTime.now());
         paymentRepository.save(payment);
@@ -355,6 +367,15 @@ public class OrderService implements IOrderService {
             System.err.println("Failed to send payment confirmation notification: " + e.getMessage());
         }
 
+        try {
+            notificationService.notifyAdminsOrderPaid(
+                    managedOrder.getId(),
+                    managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : null,
+                    managedOrder.getOrderTotalAmount());
+        } catch (Exception e) {
+            System.err.println("Failed to notify admins of paid order: " + e.getMessage());
+        }
+
         // Telegram alert: payment completed (default chat + owner chat if set on KHQR account)
         try {
             String userInfo = managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : "N/A";
@@ -370,6 +391,11 @@ public class OrderService implements IOrderService {
     public Order markAsShipped(Long orderId, String trackingNumber) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+        OrderStatus st = order.getOrderStatus();
+        if (st != OrderStatus.PAID && st != OrderStatus.SUCCESS) {
+            throw new IllegalStateException("Order must be paid before shipping. Current status: " + st);
+        }
 
         if (trackingNumber == null || trackingNumber.isBlank()) {
             trackingNumber = "TRK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -414,6 +440,11 @@ public class OrderService implements IOrderService {
     public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+        if (order.getOrderStatus() != OrderStatus.SHIPPED) {
+            throw new IllegalStateException(
+                    "Order must be shipped before marking delivered. Current status: " + order.getOrderStatus());
+        }
 
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());

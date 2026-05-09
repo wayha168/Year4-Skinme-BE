@@ -41,6 +41,7 @@ public class CartItemDto {
                     p.getPrice(),
                     p.getProductType(),
                     p.getInventory(),
+                    p.getBarcode(),
                     p.getDescription(),
                     p.getHowToUse(),
                     null,

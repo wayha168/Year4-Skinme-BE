@@ -25,6 +25,8 @@ public class Product {
     private BigDecimal price;
     private String productType;
     private int inventory;
+    @Column(unique = true)
+    private String barcode;
 
     @Enumerated(EnumType.STRING)
     private ProductStatus status = ProductStatus.ACTIVE;

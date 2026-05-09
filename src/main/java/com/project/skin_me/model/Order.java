@@ -25,6 +25,16 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long orderId;
     private LocalDate orderDate;
+
+    /** Sum of line items (before delivery fee). */
+    @Column(name = "items_subtotal_amount", precision = 12, scale = 2)
+    private BigDecimal itemsSubtotalAmount;
+
+    /** Flat delivery charge when subtotal is below threshold and free delivery does not apply. */
+    @Column(name = "delivery_fee_amount", precision = 12, scale = 2)
+    private BigDecimal deliveryFeeAmount;
+
+    /** Payable total: items subtotal + delivery fee. */
     private BigDecimal orderTotalAmount;
 
     @Enumerated(EnumType.STRING)

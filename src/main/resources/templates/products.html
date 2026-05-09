@@ -64,6 +64,21 @@
         font-size: 0.875rem;
       }
 
+      .barcode-preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 140px;
+        border: 1px dashed #d6dbe0;
+        border-radius: 10px;
+        background: #fafbfc;
+      }
+
+      .barcode-preview img {
+        max-width: 100%;
+        height: auto;
+      }
+
       @media print {
         body * {
           visibility: hidden;
@@ -88,7 +103,8 @@
         .dropdown,
         nav,
         .page-header .dropdown,
-        .pagination {
+                .pagination,
+                .modal {
           display: none !important;
         }
 
@@ -221,6 +237,7 @@
                   <!-- <th style="max-width: 140px;"><i class="bi bi-info-circle"></i> Using For</th> -->
                   <th style="width: 120px;"><i class="bi bi-currency-dollar"></i> Price</th>
                   <th style="width: 120px;"><i class="bi bi-box"></i> Inventory</th>
+                  <th style="width: 140px;"><i class="bi bi-upc-scan"></i> Barcode</th>
                   <th style="width: 100px;"><i class="bi bi-toggles"></i> Status</th>
                   <th style="width: 80px;"><i class="bi bi-graph-up"></i> Orders</th>
                   <th style="width: 140px;"><i class="bi bi-gear"></i> Actions</th>
@@ -278,6 +295,15 @@
                     </div>
                   </td>
                   <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-dark"
+                        th:attr="data-product-id=${product.id},data-product-name=${product.name},data-inventory=${product.inventory}"
+                        onclick="openBarcodeModal(this)" title="Get barcode">
+                        <i class="bi bi-upc-scan"></i> Get
+                      </button>
+                    </div>
+                  </td>
+                  <td>
                     <span th:if="${product.status == 'ACTIVE'}" class="status-badge-active ">
                       <i class="bi bi-check-circle-fill"></i> Active
                     </span>
@@ -314,6 +340,43 @@
 
         <div class="mt-4 text-center mb-5">
           <p class="text-muted" th:text="'Total Products: ' + ${totalItems}">Total: 0</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="barcodeModal" tabindex="-1" aria-labelledby="barcodeModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="barcodeModalLabel"><i class="bi bi-upc-scan"></i> Product Barcode</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <div class="fw-semibold" id="barcodeProductName">-</div>
+              <small class="text-muted">Barcode: <span id="barcodeValue">-</span></small>
+            </div>
+            <div class="barcode-preview mb-3">
+              <img id="barcodeImage" alt="Barcode image" style="display:none;" />
+              <span id="barcodeLoading" class="text-muted">Loading barcode...</span>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label for="barcodeInventory" class="form-label mb-1">Inventory</label>
+                <input type="number" class="form-control" id="barcodeInventory" readonly />
+              </div>
+              <div class="col-6">
+                <label for="barcodePrintQty" class="form-label mb-1">Print qty</label>
+                <input type="number" class="form-control" id="barcodePrintQty" min="1" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="btnPrintBarcode">
+              <i class="bi bi-printer"></i> Print Labels
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -378,6 +441,101 @@
         window.location.href = url.toString();
       }
 
+      let barcodeModalInstance = null;
+      let currentBarcodeData = null;
+
+      function getApiPrefix() {
+        const appShell = document.getElementById('appShell');
+        return ((appShell && appShell.getAttribute('data-api-prefix')) || '/api/v1').replace(/\/$/, '');
+      }
+
+      async function openBarcodeModal(btn) {
+        const productId = btn.getAttribute('data-product-id');
+        const productName = btn.getAttribute('data-product-name') || 'Product';
+        const inventory = parseInt(btn.getAttribute('data-inventory') || '0', 10);
+
+        document.getElementById('barcodeProductName').textContent = productName;
+        document.getElementById('barcodeInventory').value = inventory;
+        document.getElementById('barcodePrintQty').value = inventory > 0 ? inventory : 1;
+        document.getElementById('barcodeValue').textContent = '-';
+        document.getElementById('barcodeImage').style.display = 'none';
+        document.getElementById('barcodeLoading').style.display = 'inline';
+        currentBarcodeData = null;
+
+        const modalEl = document.getElementById('barcodeModal');
+        barcodeModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        barcodeModalInstance.show();
+
+        try {
+          const url = `${getApiPrefix()}/products/product/${productId}/barcode`;
+          const res = await fetch(url, { credentials: 'same-origin' });
+          const payload = await res.json();
+          if (!res.ok || !payload || !payload.data) {
+            throw new Error((payload && payload.message) || 'Unable to load barcode');
+          }
+
+          currentBarcodeData = payload.data;
+          document.getElementById('barcodeValue').textContent = payload.data.barcode || '-';
+          const barcodeImage = document.getElementById('barcodeImage');
+          barcodeImage.src = payload.data.barcodeImage;
+          barcodeImage.style.display = 'block';
+          document.getElementById('barcodeLoading').style.display = 'none';
+        } catch (error) {
+          document.getElementById('barcodeLoading').textContent = error.message || 'Failed to load barcode';
+          if (typeof showToast === 'function') {
+            showToast('Failed to load barcode', 'error');
+          }
+        }
+      }
+
+      function printBarcodeLabels() {
+        if (!currentBarcodeData || !currentBarcodeData.barcodeImage) {
+          if (typeof showToast === 'function') showToast('Barcode is not ready yet', 'warning');
+          return;
+        }
+        const productName = document.getElementById('barcodeProductName').textContent || '';
+        const barcodeText = document.getElementById('barcodeValue').textContent || '';
+        const inventory = parseInt(document.getElementById('barcodeInventory').value || '0', 10);
+        const qtyInput = document.getElementById('barcodePrintQty');
+        const requestedQty = parseInt(qtyInput.value || '1', 10);
+        const printQty = Number.isFinite(requestedQty) && requestedQty > 0 ? requestedQty : 1;
+        const safeQty = inventory > 0 ? Math.min(printQty, inventory) : printQty;
+        qtyInput.value = safeQty;
+
+        const labels = Array.from({ length: safeQty }).map(() => `
+          <div class="label">
+            <div class="name">${productName}</div>
+            <img src="${currentBarcodeData.barcodeImage}" alt="barcode" />
+            <div class="code">${barcodeText}</div>
+          </div>
+        `).join('');
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        if (!printWindow) return;
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Print Barcode Labels</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 12px; }
+                .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+                .label { border: 1px solid #ddd; border-radius: 8px; padding: 10px; text-align: center; page-break-inside: avoid; }
+                .name { font-weight: 600; margin-bottom: 4px; font-size: 12px; }
+                .code { margin-top: 4px; letter-spacing: 1px; font-size: 11px; }
+                img { width: 100%; max-height: 95px; object-fit: contain; }
+                @media print { body { margin: 0; } .label { border-color: #777; } }
+              </style>
+            </head>
+            <body>
+              <div class="grid">${labels}</div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+      }
+
       document.addEventListener('DOMContentLoaded', function () {
         const searchInput = document.getElementById("searchInput");
         if (searchInput) {
@@ -401,6 +559,11 @@
           btnPrint.addEventListener("click", function () {
             window.print();
           });
+        }
+
+        const btnPrintBarcode = document.getElementById('btnPrintBarcode');
+        if (btnPrintBarcode) {
+          btnPrintBarcode.addEventListener('click', printBarcodeLabels);
         }
       });
     </script>

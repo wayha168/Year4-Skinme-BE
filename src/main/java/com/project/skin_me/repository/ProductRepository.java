@@ -1,6 +1,7 @@
 package com.project.skin_me.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.project.skin_me.dto.ProductOptionDto;
 import com.project.skin_me.enums.ProductStatus;
@@ -39,6 +40,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByBrand_NameAndName(String brandName, String productName);
 
     List<Product> findByProductTypeAndName(String productType, String name);
+    Optional<Product> findByBarcode(String barcode);
+    boolean existsByBarcodeAndIdNot(String barcode, Long id);
 
     Long countByBrand_NameAndName(String brandName, String productName);
 

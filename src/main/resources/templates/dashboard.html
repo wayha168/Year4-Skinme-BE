@@ -751,33 +751,49 @@
         <div class="section-header">
           <div>
             <h2 class="section-title" style="margin-bottom: 0.5rem;">
-              <i class="bi bi-bank2"></i> KHQR &amp; bank merchant accounts
+              <i class="bi bi-bank2"></i> <span th:text="${dashboardKhqrSectionTitle}">Checkout &amp; QR merchants</span>
             </h2>
-            <p class="section-subtitle">
-              Values from configuration (checkout / KHQR). Change in
-              <code class="small">application.properties</code> or env.
+            <p class="section-subtitle" th:text="${dashboardCheckoutHint}">
+              Configure in application.properties or environment.
             </p>
           </div>
         </div>
         <div class="px-1">
+          <div class="text-muted small mb-3">
+            <span class="me-1"><i class="bi bi-currency-exchange"></i></span>
+            USD → KHR rate: <strong th:text="${khqrUsdToKhrRate}">4100</strong>
+            <span class="text-muted">(</span><code class="small">payment.khqr.usd-to-khr-rate</code><span class="text-muted">)</span>
+          </div>
           <div class="mb-4 pb-3 border-bottom">
-            <div class="text-muted small mb-1">ABA Mobile (aba.khqr)</div>
-            <div class="fw-semibold" th:text="${abaKhqrMerchantName}">Merchant name</div>
+            <div class="text-muted small mb-1">
+              <span th:text="${dashboardKhqrAbaLabel}">ABA Mobile</span>
+              <span class="text-muted"> · </span><code class="small">aba.khqr.merchant.*</code>
+            </div>
+            <div class="fw-semibold" th:text="${abaKhqrMerchantName != null && !#strings.isEmpty(abaKhqrMerchantName)} ? ${abaKhqrMerchantName} : '—'">Name</div>
             <div
               class="font-monospace small mt-1 text-break"
-              th:text="${abaKhqrMerchantAccount != null && !#strings.isEmpty(abaKhqrMerchantAccount)} ? ${abaKhqrMerchantAccount} : '— not set (test account may be used)'"
-            >
-              account
+              th:text="${abaKhqrMerchantAccount != null && !#strings.isEmpty(abaKhqrMerchantAccount)} ? ${abaKhqrMerchantAccount} : '— not set (test mode may apply)'"
+            >account</div>
+            <div class="small text-muted mt-2" th:if="${abaKhqrMerchantCity != null && !#strings.isEmpty(abaKhqrMerchantCity)}">
+              <span th:text="${abaKhqrMerchantCity}">City</span>
+              <span th:if="${abaKhqrCategoryCode != null && !#strings.isEmpty(abaKhqrCategoryCode)}"
+                    th:text="${' · MCC ' + abaKhqrCategoryCode}"></span>
             </div>
           </div>
           <div>
-            <div class="text-muted small mb-1">KHQR any bank (khqr.merchant)</div>
-            <div class="fw-semibold" th:text="${genericKhqrMerchantName}">Merchant name</div>
+            <div class="text-muted small mb-1">
+              <span th:text="${dashboardKhqrGenericLabel}">KHQR</span>
+              <span class="text-muted"> · </span><code class="small">khqr.merchant.*</code>
+            </div>
+            <div class="fw-semibold" th:text="${genericKhqrMerchantName != null && !#strings.isEmpty(genericKhqrMerchantName)} ? ${genericKhqrMerchantName} : '—'">Name</div>
             <div
               class="font-monospace small mt-1 text-break"
-              th:text="${genericKhqrMerchantAccount != null && !#strings.isEmpty(genericKhqrMerchantAccount)} ? ${genericKhqrMerchantAccount} : '— not set (test account may be used)'"
-            >
-              account
+              th:text="${genericKhqrMerchantAccount != null && !#strings.isEmpty(genericKhqrMerchantAccount)} ? ${genericKhqrMerchantAccount} : '— not set (test mode may apply)'"
+            >account</div>
+            <div class="small text-muted mt-2" th:if="${genericKhqrMerchantCity != null && !#strings.isEmpty(genericKhqrMerchantCity)}">
+              <span th:text="${genericKhqrMerchantCity}">City</span>
+              <span th:if="${genericKhqrCategoryCode != null && !#strings.isEmpty(genericKhqrCategoryCode)}"
+                    th:text="${' · MCC ' + genericKhqrCategoryCode}"></span>
             </div>
           </div>
         </div>

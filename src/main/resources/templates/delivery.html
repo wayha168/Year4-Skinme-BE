@@ -108,25 +108,30 @@
                   <td>
                     <div class="table-actions">
                     <button 
+                      type="button"
                       class="btn-action" 
                       th:attr="onclick='viewDeliveryDetails(' + ${delivery.orderId} + ')'"
-                      title="View"
+                      title="View order"
                     >
                       <i class="bi bi-eye"></i>
                     </button>
                     <button 
+                      type="button"
                       class="btn-action" 
-                      th:attr="onclick='editDelivery(' + ${delivery.orderId} + ')'"
-                      title="Edit"
+                      th:if="${delivery.orderStatus != null and (delivery.orderStatus.name() == 'PAID' or delivery.orderStatus.name() == 'SUCCESS')}"
+                      th:attr="onclick='markOrderShipped(' + ${delivery.orderId} + ')'"
+                      title="Mark shipped"
                     >
-                      <i class="bi bi-pencil"></i>
+                      <i class="bi bi-box-seam"></i>
                     </button>
                     <button 
+                      type="button"
                       class="btn-action" 
-                      th:attr="onclick='deleteDelivery(' + ${delivery.orderId} + ')'"
-                      title="Delete"
+                      th:if="${delivery.orderStatus != null and delivery.orderStatus.name() == 'SHIPPED'}"
+                      th:attr="onclick='markOrderDelivered(' + ${delivery.orderId} + ')'"
+                      title="Mark delivered"
                     >
-                      <i class="bi bi-trash"></i>
+                      <i class="bi bi-check2-circle"></i>
                     </button>
                     </div>
                   </td>
@@ -144,37 +149,69 @@
     <th:block th:fragment="script">
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script>
-        function viewDeliveryDetails(orderId) {
-          showToast('Loading delivery details...', 'info');
-          window.location.href = '/view/orders/' + orderId;
+        function apiPrefix() {
+          var shell = document.getElementById('appShell');
+          return shell && shell.getAttribute('data-api-prefix') ? shell.getAttribute('data-api-prefix') : '/api/v1';
         }
-        
-        function editDelivery(orderId) {
-          showToast('Redirecting to edit delivery...', 'info');
-          window.location.href = '/view/orders/' + orderId;
-        }
-        
-        function deleteDelivery(orderId) {
-          if (confirm('Are you sure you want to delete delivery record for order #' + orderId + '? This action cannot be undone.')) {
-            if (typeof showToast === 'function') {
-              showToast('Deleting delivery record...', 'info');
-            }
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/views/delivery/' + orderId + '/delete';
-            
-            const csrfToken = document.querySelector('meta[name="_csrf"]');
-            if (csrfToken) {
-              const csrfInput = document.createElement('input');
-              csrfInput.type = 'hidden';
-              csrfInput.name = '_csrf';
-              csrfInput.value = csrfToken.getAttribute('content') || csrfToken.content;
-              form.appendChild(csrfInput);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
+        function orderPutHeaders() {
+          var h = { 'Accept': 'application/json' };
+          var c = document.querySelector('meta[name="_csrf"]');
+          var ch = document.querySelector('meta[name="_csrf_header"]');
+          if (c && ch) {
+            h[ch.getAttribute('content') || 'X-CSRF-TOKEN'] = c.getAttribute('content') || c.content;
           }
+          return h;
+        }
+        function viewDeliveryDetails(orderId) {
+          window.location.href = '/view/orders/' + orderId;
+        }
+        function markOrderShipped(orderId) {
+          showConfirmModal({
+            title: 'Mark order as shipped',
+            message: 'Order #' + orderId + ' will be marked as shipped. A tracking number will be assigned.',
+            confirmText: 'Mark shipped',
+            cancelText: 'Cancel',
+            danger: false
+          }).then(function(ok) {
+            if (!ok) return;
+            fetch(apiPrefix() + '/orders/' + orderId + '/ship', {
+              method: 'PUT',
+              credentials: 'same-origin',
+              headers: orderPutHeaders()
+            }).then(function(r) {
+              if (!r.ok) return r.json().then(function(j) { throw new Error((j && j.message) || r.status); });
+              return r.json();
+            }).then(function() {
+              if (typeof showToast === 'function') showToast('Order marked as shipped', 'success');
+              setTimeout(function() { window.location.reload(); }, 450);
+            }).catch(function(e) {
+              if (typeof showToast === 'function') showToast(e.message || 'Could not update order', 'error');
+            });
+          });
+        }
+        function markOrderDelivered(orderId) {
+          showConfirmModal({
+            title: 'Mark order as delivered',
+            message: 'Confirm that order #' + orderId + ' has been delivered to the customer.',
+            confirmText: 'Mark delivered',
+            cancelText: 'Cancel',
+            danger: false
+          }).then(function(ok) {
+            if (!ok) return;
+            fetch(apiPrefix() + '/orders/' + orderId + '/deliver', {
+              method: 'PUT',
+              credentials: 'same-origin',
+              headers: orderPutHeaders()
+            }).then(function(r) {
+              if (!r.ok) return r.json().then(function(j) { throw new Error((j && j.message) || r.status); });
+              return r.json();
+            }).then(function() {
+              if (typeof showToast === 'function') showToast('Order marked as delivered', 'success');
+              setTimeout(function() { window.location.reload(); }, 450);
+            }).catch(function(e) {
+              if (typeof showToast === 'function') showToast(e.message || 'Could not update order', 'error');
+            });
+          });
         }
       </script>
     </th:block>

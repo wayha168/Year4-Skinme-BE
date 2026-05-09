@@ -111,6 +111,42 @@ public class PageController {
     @org.springframework.beans.factory.annotation.Value("${payment.khqr.usd-to-khr-rate:4100}")
     private int khqrUsdToKhrRate;
 
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.name:}")
+    private String abaKhqrMerchantName;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.account:}")
+    private String abaKhqrMerchantAccount;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.city:}")
+    private String abaKhqrMerchantCity;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.category.code:}")
+    private String abaKhqrCategoryCode;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.name:}")
+    private String genericKhqrMerchantName;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.account:}")
+    private String genericKhqrMerchantAccount;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.city:}")
+    private String genericKhqrMerchantCity;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.category.code:}")
+    private String genericKhqrCategoryCode;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.checkout-hint:QR defaults use aba.khqr.* (ABA) and khqr.merchant.* (any KHQR bank). Change in application.properties or environment.}")
+    private String dashboardCheckoutHint;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.section-title:Checkout & QR merchants}")
+    private String dashboardKhqrSectionTitle;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.aba-label:ABA Mobile}")
+    private String dashboardKhqrAbaLabel;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.generic-label:KHQR (any bank)}")
+    private String dashboardKhqrGenericLabel;
+
     @GetMapping("/login-page")
     public String loginPage(Model model,
             HttpServletRequest request,
@@ -244,8 +280,26 @@ public class PageController {
             model.addAttribute("dashboardFeedbackList", List.<ProductFeedbackDto>of());
             model.addAttribute("error", "Failed to load stats: " + e.getMessage());
         }
+        addDashboardCheckoutConfigAttributes(model);
         model.addAttribute("pageTitle", "Admin Dashboard");
         return "dashboard";
+    }
+
+    /** Values from application.properties / env for dashboard KHQR & checkout summary. */
+    private void addDashboardCheckoutConfigAttributes(Model model) {
+        model.addAttribute("abaKhqrMerchantName", abaKhqrMerchantName);
+        model.addAttribute("abaKhqrMerchantAccount", abaKhqrMerchantAccount);
+        model.addAttribute("abaKhqrMerchantCity", abaKhqrMerchantCity);
+        model.addAttribute("abaKhqrCategoryCode", abaKhqrCategoryCode);
+        model.addAttribute("genericKhqrMerchantName", genericKhqrMerchantName);
+        model.addAttribute("genericKhqrMerchantAccount", genericKhqrMerchantAccount);
+        model.addAttribute("genericKhqrMerchantCity", genericKhqrMerchantCity);
+        model.addAttribute("genericKhqrCategoryCode", genericKhqrCategoryCode);
+        model.addAttribute("khqrUsdToKhrRate", khqrUsdToKhrRate);
+        model.addAttribute("dashboardCheckoutHint", dashboardCheckoutHint);
+        model.addAttribute("dashboardKhqrSectionTitle", dashboardKhqrSectionTitle);
+        model.addAttribute("dashboardKhqrAbaLabel", dashboardKhqrAbaLabel);
+        model.addAttribute("dashboardKhqrGenericLabel", dashboardKhqrGenericLabel);
     }
 
     /**
@@ -1472,6 +1526,7 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("currentUserId", userService.getAuthenticatedUser().getId());
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load users: " + e.getMessage());
             model.addAttribute("users", List.<User>of());
@@ -1481,6 +1536,7 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
+            model.addAttribute("currentUserId", null);
         }
         model.addAttribute("pageTitle", "User Management");
         return "users";
@@ -1593,6 +1649,8 @@ public class PageController {
         try {
             userService.deleteUser(userId);
             return "redirect:/views/users?success=User deleted successfully";
+        } catch (IllegalStateException e) {
+            return "redirect:/views/users?error=" + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
             return "redirect:/views/users?error=Failed to delete user: " + e.getMessage();
         }

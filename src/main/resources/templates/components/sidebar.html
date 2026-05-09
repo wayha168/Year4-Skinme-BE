@@ -57,8 +57,8 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#saleMenu" role="button" aria-expanded="false"
-        aria-controls="saleMenu" data-tooltip="Sales Management" data-turbo="false">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#saleMenu" role="button"
+        aria-expanded="false" aria-controls="saleMenu" data-tooltip="Sales Management" data-turbo="false">
         <i class="bi bi-cart-check"></i>
         <span class="nav-link-text">Sales Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
@@ -86,8 +86,8 @@
 
     <li class="nav-separator"></li>
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#userMenu" role="button" aria-expanded="false"
-        aria-controls="userMenu" data-tooltip="User Menu" data-turbo="false">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#userMenu" role="button"
+        aria-expanded="false" aria-controls="userMenu" data-tooltip="User Menu" data-turbo="false">
         <i class="bi bi-person-badge"></i>
         <span class="nav-link-text">User Menu</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
@@ -97,7 +97,8 @@
           <i class="bi bi-bag"></i>
           <span class="nav-link-text">User Orders</span>
         </a>
-        <a th:href="@{/views/user-feedback}" class="nav-link sub-nav-link" data-tooltip="User Feedback" data-turbo="false">
+        <a th:href="@{/views/user-feedback}" class="nav-link sub-nav-link" data-tooltip="User Feedback"
+          data-turbo="false">
           <i class="bi bi-stars"></i>
           <span class="nav-link-text">User Feedback</span>
         </a>
@@ -116,8 +117,8 @@
 
     <li class="nav-separator"></li>
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#chatMenu" role="button" aria-expanded="false"
-        aria-controls="chatMenu" data-tooltip="Chat" data-turbo="false">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#chatMenu" role="button"
+        aria-expanded="false" aria-controls="chatMenu" data-tooltip="Chat" data-turbo="false">
         <i class="bi bi-chat-square-text"></i>
         <span class="nav-link-text">Chat</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
@@ -137,20 +138,20 @@
     <li class="nav-separator"></li>
   </ul>
 
-  <div class="sidebar-lang-switcher">
+  <!-- <div class="sidebar-lang-switcher">
     <span class="nav-link-text text-muted small me-2">Language</span>
     <a th:href="@{/views/set-lang(lang='en')}" class="lang-btn" data-tooltip="English" data-turbo="false"
       th:classappend="${currentLocale == 'en'} ? 'lang-btn-active' : ''">EN</a>
     <span class="lang-sep">|</span>
     <a th:href="@{/views/set-lang(lang='km')}" class="lang-btn" data-tooltip="Khmer" data-turbo="false"
       th:classappend="${currentLocale == 'km'} ? 'lang-btn-active' : ''">KM</a>
-  </div>
+  </div> -->
 
-  <div class="sidebar-footer">
+  <!-- <div class="sidebar-footer">
     <a href="#" class="nav-link" data-tooltip="Logout" data-turbo="false" onclick="handleLogout(event);">
       <i class="bi bi-box-arrow-right"></i> <span class="nav-link-text">Logout</span>
     </a>
-  </div>
+  </div> -->
 </div>
 
 

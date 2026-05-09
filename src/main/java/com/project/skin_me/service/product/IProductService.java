@@ -14,6 +14,9 @@ public interface IProductService {
     Product addProduct(AddProductRequest request);
 
     Product getProductById(Long id);
+    Product getProductByBarcode(String barcode);
+    Product generateBarcodeForProduct(Long productId);
+    String generateBarcodeImage(String barcode);
 
     void deleteProductById(Long id);
 

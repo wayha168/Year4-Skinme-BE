@@ -1,6 +1,7 @@
 <!doctype html>
 <html
   xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
   lang="en"
   th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
@@ -95,6 +96,14 @@
                 <span class="summary-label">Order Date</span>
                 <span class="summary-value" th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MM/dd/yyyy') : 'N/A'}">Date</span>
               </div>
+              <div class="summary-line" th:with="sub=${order.itemsSubtotalAmount != null ? order.itemsSubtotalAmount : order.orderTotalAmount}">
+                <span class="summary-label">Subtotal</span>
+                <span class="summary-value" th:text="'$' + ${#numbers.formatDecimal(sub != null ? sub : 0, 1, 2)}">$0.00</span>
+              </div>
+              <div class="summary-line" th:if="${order.deliveryFeeAmount != null and order.deliveryFeeAmount.signum() > 0}">
+                <span class="summary-label">Delivery</span>
+                <span class="summary-value" th:text="'$' + ${#numbers.formatDecimal(order.deliveryFeeAmount, 1, 2)}">$1.00</span>
+              </div>
               <div class="summary-line">
                 <span class="summary-label">Total Amount</span>
                 <span class="summary-value info-value badge-gradient" th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount != null ? order.orderTotalAmount : 0, 1, 2)}">$0.00</span>
@@ -148,6 +157,28 @@
             </div>
           </div>
         </div>
+
+        <!-- Admin: delivery workflow -->
+        <div class="card detail-card no-print" sec:authorize="hasRole('ROLE_ADMIN')" th:if="${order}">
+          <div class="card-header detail-header">
+            <h5 class="mb-0"><i class="bi bi-truck"></i> Admin — Delivery</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">Mark this order as shipped, then as delivered when the customer receives it.</p>
+            <div class="d-flex gap-2 flex-wrap">
+              <button type="button" class="btn btn-outline-primary" id="btnAdminShip"
+                      th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAID' or order.orderStatus.name() == 'SUCCESS')}">
+                <i class="bi bi-box-seam"></i> Mark shipped
+              </button>
+              <button type="button" class="btn btn-outline-success" id="btnAdminDeliver"
+                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'SHIPPED'}">
+                <i class="bi bi-check2-circle"></i> Mark delivered
+              </button>
+              <span class="text-muted small align-self-center"
+                    th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">This order is delivered.</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="container-fluid px-4 mb-5" th:unless="${order}">
@@ -161,6 +192,61 @@
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
+          var API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
+          function orderPutHeaders() {
+            var h = { 'Accept': 'application/json' };
+            var c = document.querySelector('meta[name="_csrf"]');
+            var ch = document.querySelector('meta[name="_csrf_header"]');
+            if (c && ch) {
+              h[ch.getAttribute('content') || 'X-CSRF-TOKEN'] = c.getAttribute('content') || c.content;
+            }
+            return h;
+          }
+          var el = document.getElementById('orderDetailsContent');
+          var oid = el && el.getAttribute('data-order-id');
+          var btnShip = document.getElementById('btnAdminShip');
+          var btnDel = document.getElementById('btnAdminDeliver');
+          if (btnShip && oid) {
+            btnShip.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Mark order as shipped',
+                message: 'Order #' + oid + ' will be marked as shipped and a tracking number will be assigned.',
+                confirmText: 'Mark shipped',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/orders/' + oid + '/ship', { method: 'PUT', credentials: 'same-origin', headers: orderPutHeaders() })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order marked as shipped', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) { if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error'); });
+              });
+            });
+          }
+          if (btnDel && oid) {
+            btnDel.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Mark order as delivered',
+                message: 'Confirm that order #' + oid + ' has been delivered to the customer.',
+                confirmText: 'Mark delivered',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/orders/' + oid + '/deliver', { method: 'PUT', credentials: 'same-origin', headers: orderPutHeaders() })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order marked as delivered', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) { if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error'); });
+              });
+            });
+          }
+
           var btnPrint = document.getElementById('btnPrintOrder');
           if (btnPrint) btnPrint.addEventListener('click', function() { window.print(); });
 
