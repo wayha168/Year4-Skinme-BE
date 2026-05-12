@@ -57,13 +57,13 @@
     <li class="nav-separator"></li>
 
     <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#saleMenu" role="button"
-        aria-expanded="false" aria-controls="saleMenu" data-tooltip="Sales Management" data-turbo="false">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#orderMenu" role="button"
+        aria-expanded="false" aria-controls="orderMenu" data-tooltip="Order Management" data-turbo="false">
         <i class="bi bi-cart-check"></i>
-        <span class="nav-link-text">Sales Management</span>
+        <span class="nav-link-text">Order Management</span>
         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
       </a>
-      <div class="collapse" id="saleMenu" data-bs-parent="#sidebar-nav">
+      <div class="collapse" id="orderMenu" data-bs-parent="#sidebar-nav">
         <a th:href="@{/views/orders}" class="nav-link sub-nav-link" data-tooltip="Orders Record" data-turbo="false">
           <i class="bi bi-bag-check"></i>
           <span class="nav-link-text">Orders Record</span>
@@ -77,6 +77,17 @@
           <i class="bi bi-qr-code"></i>
           <span class="nav-link-text">KHQR Bank Accounts</span>
         </a>
+      </div>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#deliveryMenu" role="button"
+        aria-expanded="false" aria-controls="deliveryMenu" data-tooltip="Delivery Management" data-turbo="false">
+        <i class="bi bi-truck"></i>
+        <span class="nav-link-text">Delivery Management</span>
+        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
+      </a>
+      <div class="collapse" id="deliveryMenu" data-bs-parent="#sidebar-nav">
         <a th:href="@{/views/delivery}" class="nav-link sub-nav-link" data-tooltip="Delivery Record" data-turbo="false">
           <i class="bi bi-truck"></i>
           <span class="nav-link-text">Delivery Record</span>

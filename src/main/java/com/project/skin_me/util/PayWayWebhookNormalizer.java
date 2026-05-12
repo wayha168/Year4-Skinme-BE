@@ -2,6 +2,7 @@ package com.project.skin_me.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 /**
@@ -16,7 +17,9 @@ public final class PayWayWebhookNormalizer {
             String merchantRef,
             String transactionId,
             boolean success,
-            String payerAccount
+            String payerAccount,
+            BigDecimal amount,
+            String currency
     ) {}
 
     public static Optional<NormalizedPayWayWebhook> parse(JsonNode root) {
@@ -38,11 +41,21 @@ public final class PayWayWebhookNormalizer {
         String payer = firstNonBlank(
                 text(root, "payer_account"),
                 text(root, "payerAccount"));
+        BigDecimal amount = firstAmount(
+                number(root, "payment_amount"),
+                number(root, "original_amount"),
+                number(root, "amount"));
+        String currency = firstNonBlank(
+                text(root, "payment_currency"),
+                text(root, "original_currency"),
+                text(root, "currency"));
         return Optional.of(new NormalizedPayWayWebhook(
                 merchantRef.trim(),
                 transactionId != null ? transactionId : "",
                 success,
-                payer != null ? payer : ""));
+                payer != null ? payer : "",
+                amount,
+                currency != null ? currency.trim().toUpperCase() : ""));
     }
 
     private static String text(JsonNode root, String field) {
@@ -66,6 +79,37 @@ public final class PayWayWebhookNormalizer {
         }
         for (String v : values) {
             if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    private static BigDecimal number(JsonNode root, String field) {
+        JsonNode n = root.get(field);
+        if (n == null || n.isNull()) {
+            return null;
+        }
+        if (n.isNumber() || n.isTextual()) {
+            String raw = n.asText();
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            try {
+                return new BigDecimal(raw.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static BigDecimal firstAmount(BigDecimal... values) {
+        if (values == null) {
+            return null;
+        }
+        for (BigDecimal v : values) {
+            if (v != null) {
                 return v;
             }
         }
