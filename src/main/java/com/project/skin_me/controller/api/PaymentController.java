@@ -268,6 +268,18 @@ public class PaymentController {
                 .compareTo(requested.setScale(2, RoundingMode.HALF_UP)) == 0;
     }
 
+    private static boolean payWayAmountMatchesPayment(BigDecimal expected, BigDecimal received, String currency) {
+        if (expected == null || received == null) {
+            return true; // Some channels may omit amount; keep backward compatibility.
+        }
+        if ("KHR".equalsIgnoreCase(currency)) {
+            return expected.setScale(0, RoundingMode.HALF_UP)
+                    .compareTo(received.setScale(0, RoundingMode.HALF_UP)) == 0;
+        }
+        return expected.setScale(2, RoundingMode.HALF_UP)
+                .compareTo(received.setScale(2, RoundingMode.HALF_UP)) == 0;
+    }
+
     private void applyDeliveryToOrder(Order order, Map<String, Object> body) {
         if (body.get("deliveryStreet") != null) order.setDeliveryStreet(String.valueOf(body.get("deliveryStreet")));
         if (body.get("deliveryCity") != null) order.setDeliveryCity(String.valueOf(body.get("deliveryCity")));
@@ -773,6 +785,15 @@ public class PaymentController {
             payment.setMethod(PaymentMethod.KHQR);
         }
         if (n.success()) {
+            if (!payWayAmountMatchesPayment(payment.getAmount(), n.amount(), n.currency())) {
+                log.warn("PayWay webhook: amount mismatch for order {}. expected={} received={} currency={}",
+                        payment.getOrder().getId(), payment.getAmount(), n.amount(), n.currency());
+                return ResponseEntity.badRequest().body(new ApiResponse("Amount mismatch", Map.of(
+                        "merchant_ref", merchantRef,
+                        "expectedAmount", payment.getAmount(),
+                        "receivedAmount", n.amount(),
+                        "currency", n.currency())));
+            }
             if (payment.getStatus() != OrderStatus.SUCCESS) {
                 payment.setStatus(OrderStatus.SUCCESS);
                 payment.setTransactionTime(LocalDateTime.now());
@@ -802,7 +823,7 @@ public class PaymentController {
     @GetMapping("/generate-khqr")
     public ResponseEntity<ApiResponse> generateKhqr(
             @RequestParam Long orderId,
-            @RequestParam Double amount,
+            @RequestParam BigDecimal amount,
             @RequestParam(defaultValue = "USD") String currency,
             @RequestParam(defaultValue = "aba") String gateway) {
         try {
@@ -816,7 +837,7 @@ public class PaymentController {
                 currency = "USD";
             }
 
-            BigDecimal amountDecimal = BigDecimal.valueOf(amount);
+            BigDecimal amountDecimal = amount;
             if (!khqrAmountMatchesOrder(order.getOrderTotalAmount(), amountDecimal, currency)) {
                 return ResponseEntity.status(400).body(new ApiResponse(
                         "Amount must match order total. Expected " + order.getOrderTotalAmount()
