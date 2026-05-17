@@ -2,6 +2,7 @@ package com.project.skin_me.controller.api;
 
 import com.project.skin_me.dto.PosCalculateResultDto;
 import com.project.skin_me.dto.PosLineItemDto;
+import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.enums.PaymentMethod;
 import com.project.skin_me.model.Order;
@@ -41,25 +42,52 @@ public class AdminPosController {
 
     @PostMapping("/calculate")
     public ResponseEntity<ApiResponse> calculate(@RequestBody Map<String, Object> body) {
-        List<PosLineItemDto> items = parseLineItems(body);
-        PosCalculateResultDto result = posService.calculate(items);
-        return ResponseEntity.ok(new ApiResponse("OK", result));
+        try {
+            List<PosLineItemDto> items = parseLineItems(body);
+            PosCalculateResultDto result = posService.calculate(items);
+            return ResponseEntity.ok(new ApiResponse("OK", result));
+        } catch (IllegalArgumentException | ResourceNotFoundException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        }
     }
 
     @PostMapping("/checkout")
     public ResponseEntity<ApiResponse> checkout(
             @RequestBody Map<String, Object> body,
             Authentication authentication) {
-        User cashier = resolveCashier(authentication);
-        List<PosLineItemDto> items = parseLineItems(body);
-        String fulfillmentType = body.get("fulfillmentType") != null ? body.get("fulfillmentType").toString() : "PICKUP";
-        Order order = posService.createPosOrder(cashier, items, fulfillmentType);
+        try {
+            User cashier = resolveCashier(authentication);
+            List<PosLineItemDto> items = parseLineItems(body);
+            String fulfillmentType = body.get("fulfillmentType") != null ? body.get("fulfillmentType").toString() : "PICKUP";
+            Order order = posService.createPosOrder(cashier, items, fulfillmentType);
 
-        PosCalculateResultDto calc = posService.calculate(items);
-        return ResponseEntity.ok(new ApiResponse("Order created", Map.of(
-                "orderId", order.getOrderId(),
-                "total", order.getOrderTotalAmount(),
-                "calculation", calc)));
+            PosCalculateResultDto calc = posService.calculate(items);
+            String summaryMarkdown = posService.buildOrderSummaryMarkdown(order, cashierDisplayName(cashier));
+            return ResponseEntity.ok(new ApiResponse("Order created", Map.of(
+                    "orderId", order.getOrderId(),
+                    "total", order.getOrderTotalAmount(),
+                    "calculation", calc,
+                    "summaryMarkdown", summaryMarkdown)));
+        } catch (IllegalArgumentException | ResourceNotFoundException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/summary/{orderId}")
+    public ResponseEntity<ApiResponse> orderSummary(
+            @PathVariable Long orderId,
+            Authentication authentication) {
+        try {
+            User cashier = resolveCashier(authentication);
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+            String markdown = posService.buildOrderSummaryMarkdown(order, cashierDisplayName(cashier));
+            return ResponseEntity.ok(new ApiResponse("OK", Map.of(
+                    "orderId", orderId,
+                    "summaryMarkdown", markdown)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        }
     }
 
     @PostMapping("/pay/cash")
@@ -116,13 +144,18 @@ public class AdminPosController {
             return ResponseEntity.badRequest().body(new ApiResponse("orderId is required", null));
         }
         User cashier = resolveCashier(authentication);
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         try {
             Map<String, Object> result = posService.completePayment(order, cashier, method, cardLast4);
             return ResponseEntity.ok(new ApiResponse("Payment completed", result));
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            String msg = e.getMessage() != null && !e.getMessage().isBlank()
+                    ? e.getMessage()
+                    : "Payment could not be completed";
+            return ResponseEntity.badRequest().body(new ApiResponse(msg, null));
         }
     }
 

@@ -313,11 +313,24 @@ public class OrderService implements IOrderService {
             product.setInventory(product.getInventory() - item.getQuantity());
             productRepository.save(product);
         }
-        // Update popular products
-        popularProductService.saveFromOrder(managedOrder);
-        // Remove cart (optional: user may already have no cart)
-        cartService.getUserActiveCart(managedOrder.getUser())
-                .ifPresent(cart -> cartService.removeCart(cart.getId()));
+        // Update popular products (non-fatal for in-store POS)
+        try {
+            popularProductService.saveFromOrder(managedOrder);
+        } catch (Exception e) {
+            if (!managedOrder.isPosOrder()) {
+                throw e;
+            }
+            System.err.println("POS: skipped popular-product update: " + e.getMessage());
+        }
+        // Remove cart (optional: POS/admin may have no active cart)
+        try {
+            cartService.getUserActiveCart(managedOrder.getUser())
+                    .ifPresent(cart -> cartService.removeCart(cart.getId()));
+        } catch (Exception e) {
+            if (!managedOrder.isPosOrder()) {
+                throw e;
+            }
+        }
         // Resolve payment:
         // 1) prefer by order (expected for KHQR/PayWay)
         // 2) fallback to transactionRef if present

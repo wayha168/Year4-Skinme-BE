@@ -212,6 +212,29 @@
         </div>
       </div>
 
+      <!-- Cash payment modal -->
+      <div class="modal fade" id="cashModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-cash-coin me-1"></i> Cash payment</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2">Review the order summary, then process the cash payment.</p>
+              <div id="cashSummaryLoading" class="text-muted small" style="display:none">Loading order summary...</div>
+              <div id="cashSummaryRender" class="receipt-render"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-success" id="btnProcessCash" disabled>
+                <i class="bi bi-check2-circle"></i> Process payment
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Card modal -->
       <div class="modal fade" id="cardModal" tabindex="-1">
         <div class="modal-dialog modal-sm">
@@ -282,6 +305,7 @@
           let products = [];
           let cart = [];
           let pendingOrderId = null;
+          let lastCalc = null;
           let calcDebounce = null;
           let paymentBusy = false;
           let khqrPollTimer = null;
@@ -293,7 +317,10 @@
           }
 
           function cartPayload() {
-            return { items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity })) };
+            return {
+              fulfillmentType: "PICKUP",
+              items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity })),
+            };
           }
 
           function localCartTotal() {
@@ -326,8 +353,58 @@
               ...opts,
             });
             const json = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(json.message || "Request failed");
+            if (!res.ok) {
+              const msg =
+                json.message ||
+                json.error ||
+                (Array.isArray(json.errors) ? json.errors.join(", ") : null) ||
+                "Request failed (" + res.status + ")";
+              throw new Error(msg);
+            }
             return json.data != null ? json.data : json;
+          }
+
+          function escapeMdCell(text) {
+            return (text || "").replace(/\|/g, "\\|");
+          }
+
+          function buildLocalSummaryMarkdown(orderId, calc) {
+            const lines =
+              calc?.lines?.length > 0
+                ? calc.lines
+                : cart.map((c) => ({
+                    productName: c.name,
+                    quantity: c.quantity,
+                    unitPrice: c.price,
+                    lineTotal: (Number(c.price) || 0) * c.quantity,
+                  }));
+            let md = "# " + SHOP + "\n\n";
+            md += "| | |\n|---|---|\n";
+            md += "| **Order** | #" + (orderId || "—") + " |\n";
+            md += "| **Cashier** | " + escapeMdCell(CASHIER) + " |\n";
+            md += "| **Status** | Awaiting payment |\n";
+            md += "| **Payment** | Cash |\n\n";
+            md += "### Items\n\n";
+            md += "| Product | Qty | Price | Total |\n";
+            md += "|---------|-----|-------|-------|\n";
+            if (!lines.length) {
+              md += "| — | — | — | — |\n";
+            } else {
+              lines.forEach((line) => {
+                const name = escapeMdCell(line.productName || line.name || "Item");
+                const qty = line.quantity || 0;
+                const unit = Number(line.unitPrice ?? line.price ?? 0);
+                const lineTotal = Number(line.lineTotal ?? unit * qty);
+                md += "| " + name + " | " + qty + " | " + money(unit) + " | " + money(lineTotal) + " |\n";
+              });
+            }
+            const sub = calc?.subtotal != null ? Number(calc.subtotal) : localCartTotal();
+            const total = calc?.total != null ? Number(calc.total) : sub;
+            md += "\n---\n\n**Subtotal:** " + money(sub) + "\n\n";
+            md += "**Delivery:** $0.00 *(pickup)*\n\n";
+            md += "## **Total: " + money(total) + "**\n\n";
+            md += "*Tap Processing to complete this cash sale.*\n";
+            return md;
           }
 
           function renderProducts(filter) {
@@ -464,6 +541,7 @@
                   method: "POST",
                   body: JSON.stringify(cartPayload()),
                 });
+                lastCalc = data;
                 $("lblSubtotal").textContent = money(data.subtotal);
                 $("lblTotal").textContent = money(data.total);
               } catch (e) {
@@ -491,41 +569,126 @@
 
           async function checkout() {
             if (pendingOrderId) {
-              return { orderId: pendingOrderId, total: localCartTotal() };
+              return {
+                orderId: pendingOrderId,
+                total: lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(),
+                calculation: lastCalc,
+              };
             }
             const data = await api("/admin/pos/checkout", {
               method: "POST",
               body: JSON.stringify(cartPayload()),
             });
             pendingOrderId = data.orderId;
+            if (data.calculation) lastCalc = data.calculation;
             return data;
+          }
+
+          function renderMarkdown(targetId, markdown) {
+            const el = $(targetId);
+            if (!el) return;
+            const text = markdown || "";
+            if (typeof marked !== "undefined") {
+              try {
+                if (typeof marked.setOptions === "function") marked.setOptions({ gfm: true, breaks: true });
+              } catch (ignore) {}
+              el.innerHTML = marked.parse(text, { gfm: true, breaks: true });
+            } else {
+              el.innerHTML = "<pre>" + escapeHtml(text) + "</pre>";
+            }
           }
 
           function showReceipt(markdown) {
             $("receiptMarkdown").textContent = markdown || "";
-            $("receiptRender").innerHTML = typeof marked !== "undefined" ? marked.parse(markdown || "") : "<pre>" + escapeHtml(markdown) + "</pre>";
+            renderMarkdown("receiptRender", markdown);
             bootstrap.Modal.getOrCreateInstance($("receiptModal")).show();
           }
 
+          function setCashModalBusy(busy) {
+            const btn = $("btnProcessCash");
+            if (!btn) return;
+            btn.disabled = busy || !pendingOrderId;
+            if (busy) {
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+            } else {
+              btn.innerHTML = '<i class="bi bi-check2-circle"></i> Process payment';
+            }
+          }
+
+          async function loadCashSummary(summaryMarkdown, calc) {
+            const loading = $("cashSummaryLoading");
+            const render = $("cashSummaryRender");
+            const btn = $("btnProcessCash");
+            let md =
+              summaryMarkdown ||
+              buildLocalSummaryMarkdown(pendingOrderId, calc || lastCalc);
+            if (loading) loading.style.display = "none";
+            if (render) render.innerHTML = "";
+            if (!summaryMarkdown && pendingOrderId) {
+              if (loading) loading.style.display = "block";
+              if (btn) btn.disabled = true;
+              try {
+                const data = await api("/admin/pos/summary/" + pendingOrderId);
+                if (data.summaryMarkdown) md = data.summaryMarkdown;
+              } catch (e) {
+                /* keep local fallback */
+              }
+              if (loading) loading.style.display = "none";
+            }
+            renderMarkdown("cashSummaryRender", md);
+            if (btn) btn.disabled = !pendingOrderId;
+          }
+
           async function payCash() {
-            if (paymentBusy) return;
+            if (paymentBusy || !cart.length) return;
             paymentBusy = true;
             renderCart();
+            const cashModal = bootstrap.Modal.getOrCreateInstance($("cashModal"));
+            $("cashSummaryRender").innerHTML = "";
+            $("cashSummaryLoading").style.display = "block";
+            $("btnProcessCash").disabled = true;
+            cashModal.show();
             try {
-              await checkout();
+              const chk = await checkout();
+              const calc = chk.calculation || lastCalc;
+              const md =
+                chk.summaryMarkdown ||
+                buildLocalSummaryMarkdown(chk.orderId || pendingOrderId, calc);
+              await loadCashSummary(md, calc);
+            } catch (e) {
+              bootstrap.Modal.getInstance($("cashModal"))?.hide();
+              if (typeof showToast === "function") showToast(e.message, "error");
+            } finally {
+              paymentBusy = false;
+              renderCart();
+            }
+          }
+
+          async function confirmCashPayment() {
+            if (paymentBusy || !pendingOrderId) return;
+            paymentBusy = true;
+            setCashModalBusy(true);
+            renderCart();
+            try {
               const result = await api("/admin/pos/pay/cash", {
                 method: "POST",
-                body: JSON.stringify({ orderId: pendingOrderId }),
+                body: JSON.stringify({ orderId: Number(pendingOrderId) }),
               });
+              bootstrap.Modal.getInstance($("cashModal"))?.hide();
               cart = [];
               pendingOrderId = null;
+              lastCalc = null;
               renderCart();
-              showReceipt(result.receiptMarkdown);
+              const receiptMd = result?.receiptMarkdown || "";
+              if (receiptMd) {
+                showReceipt(receiptMd);
+              }
               if (typeof showToast === "function") showToast("Cash payment complete", "success");
             } catch (e) {
               if (typeof showToast === "function") showToast(e.message, "error");
             } finally {
               paymentBusy = false;
+              setCashModalBusy(false);
               renderCart();
             }
           }
@@ -660,14 +823,17 @@
             });
             $("productSearch").addEventListener("input", (e) => renderProducts(e.target.value));
             $("btnPayCash").addEventListener("click", payCash);
+            $("btnProcessCash").addEventListener("click", confirmCashPayment);
             $("btnPayCard").addEventListener("click", payCard);
             $("btnConfirmCard").addEventListener("click", confirmCard);
+            $("cashModal").addEventListener("hidden.bs.modal", () => setCashModalBusy(false));
             $("btnPayKhqr").addEventListener("click", payKhqr);
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
             $("btnClearCart").addEventListener("click", () => {
               stopKhqrPolling();
               cart = [];
               pendingOrderId = null;
+              lastCalc = null;
               renderCart();
             });
             $("khqrModal").addEventListener("hidden.bs.modal", stopKhqrPolling);

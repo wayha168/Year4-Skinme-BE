@@ -117,40 +117,59 @@ public class PosService implements IPosService {
     @Override
     @Transactional
     public Map<String, Object> completePayment(Order order, User cashier, PaymentMethod method, String cardLast4) {
-        // POS UI can click the payment button multiple times; be idempotent.
-        if (order.getOrderStatus() == OrderStatus.PAID || order.getOrderStatus() == OrderStatus.DELIVERED) {
-            Order loaded = orderRepository.findByIdWithOrderItemsAndProducts(order.getOrderId()).orElse(order);
-            Payment existingPayment = paymentRepository.findByOrder(loaded).orElse(null);
+        Long orderId = order != null ? order.getOrderId() : null;
+        if (orderId == null) {
+            throw new IllegalArgumentException("Invalid order");
+        }
 
-            String receipt = buildReceiptMarkdown(loaded, displayName(cashier));
+        Order managed = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+
+        // POS UI can click the payment button multiple times; be idempotent.
+        if (managed.getOrderStatus() == OrderStatus.PAID || managed.getOrderStatus() == OrderStatus.DELIVERED) {
+            if (isPickupOrder(managed) && managed.getOrderStatus() == OrderStatus.PAID) {
+                markPickupDelivered(managed);
+                managed = orderRepository.findByIdWithOrderItemsAndProducts(orderId).orElse(managed);
+            }
+            Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
+
+            String receipt = buildReceiptMarkdown(managed, displayName(cashier));
             Map<String, Object> result = new HashMap<>();
-            result.put("orderId", loaded.getOrderId());
+            result.put("orderId", managed.getOrderId());
             result.put("paymentId", existingPayment != null ? existingPayment.getId() : null);
-            result.put("status", loaded.getOrderStatus() != null ? loaded.getOrderStatus().name() : "PAID");
+            result.put("status", managed.getOrderStatus() != null ? managed.getOrderStatus().name() : "PAID");
             result.put("receiptMarkdown", receipt);
             return result;
         }
 
-        String txRef = "POS-" + method.name() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        if (managed.getOrderStatus() != OrderStatus.PAYMENT_PENDING
+                && managed.getOrderStatus() != OrderStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Order cannot be paid in status: " + managed.getOrderStatus());
+        }
 
-        Payment payment = paymentRepository.findByOrder(order).orElse(null);
+        String txRef = "POS-" + method.name() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String cashierName = displayName(cashier);
+
+        Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
         if (payment == null) {
             payment = Payment.builder()
-                    .order(order)
-                    .amount(order.getOrderTotalAmount())
+                    .order(managed)
+                    .amount(managed.getOrderTotalAmount())
                     .method(method)
                     .status(OrderStatus.SUCCESS)
                     .transactionRef(txRef)
                     .transactionTime(LocalDateTime.now())
-                    .message("POS " + method.name() + " — cashier: " + displayName(cashier))
+                    .message("POS " + method.name() + " - cashier: " + cashierName)
                     .build();
         } else {
+            payment.setOrder(managed);
             payment.setMethod(method);
-            payment.setAmount(order.getOrderTotalAmount());
+            payment.setAmount(managed.getOrderTotalAmount());
             payment.setStatus(OrderStatus.SUCCESS);
             payment.setTransactionRef(txRef);
             payment.setTransactionTime(LocalDateTime.now());
-            payment.setMessage("POS " + method.name() + " — cashier: " + displayName(cashier));
+            payment.setMessage("POS " + method.name() + " - cashier: " + cashierName);
         }
 
         if (method == PaymentMethod.CREDIT_CARD && cardLast4 != null && !cardLast4.isBlank()) {
@@ -163,19 +182,34 @@ public class PosService implements IPosService {
 
         paymentRepository.save(payment);
 
-        orderService.confirmOrderPayment(order);
-        if (isPickupOrder(order)) {
-            markPickupDelivered(order);
+        orderService.confirmOrderPayment(managed);
+        if (isPickupOrder(managed)) {
+            markPickupDelivered(managed);
         }
 
-        String receipt = buildReceiptMarkdown(order, displayName(cashier));
+        Order fresh = orderRepository.findByIdWithOrderItemsAndProducts(orderId).orElse(managed);
+        String receipt = buildReceiptMarkdown(fresh, cashierName);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("orderId", order.getOrderId());
+        result.put("orderId", fresh.getOrderId());
         result.put("paymentId", payment.getId());
-        result.put("status", order.getOrderStatus().name());
+        result.put("status", fresh.getOrderStatus() != null ? fresh.getOrderStatus().name() : OrderStatus.PAID.name());
         result.put("receiptMarkdown", receipt);
         return result;
+    }
+
+    @Override
+    public String buildOrderSummaryMarkdown(Order order, String cashierDisplayName) {
+        Order loaded = orderRepository.findByIdWithOrderItemsAndProducts(order.getOrderId())
+                .orElse(order);
+        StringBuilder md = appendReceiptHeader(new StringBuilder(), loaded, cashierDisplayName);
+        md.append("| **Status** | Awaiting payment |\n");
+        md.append("| **Payment** | Cash |\n\n");
+        appendItemsTable(md, loaded);
+        appendTotalsSection(md, loaded);
+        md.append("---\n\n");
+        md.append("*Confirm payment to complete this order.*\n");
+        return md.toString();
     }
 
     @Override
@@ -183,8 +217,25 @@ public class PosService implements IPosService {
         Order loaded = orderRepository.findByIdWithOrderItemsAndProducts(order.getOrderId())
                 .orElse(order);
 
+        StringBuilder md = appendReceiptHeader(new StringBuilder(), loaded, cashierDisplayName);
+        md.append("| **Fulfillment** | ").append(isPickupOrder(loaded) ? "Pickup (in-store)" : "Delivery").append(" |\n\n");
+        appendItemsTable(md, loaded);
+        appendTotalsSection(md, loaded);
+
+        Payment pay = paymentRepository.findByOrderId(loaded.getOrderId()).orElse(null);
+        if (pay != null) {
+            md.append("**Payment:** ")
+                    .append(formatPaymentMethod(pay.getMethod()))
+                    .append("\n\n");
+        }
+
+        md.append("---\n\n");
+        md.append("*Thank you for shopping at ").append(shopName).append("!*\n");
+        return md.toString();
+    }
+
+    private StringBuilder appendReceiptHeader(StringBuilder md, Order loaded, String cashierDisplayName) {
         DateTimeFormatter dt = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
-        StringBuilder md = new StringBuilder();
         md.append("# ").append(shopName).append("\n\n");
         md.append("**").append(shopAddress).append("**\n");
         if (shopPhone != null && !shopPhone.isBlank()) {
@@ -195,38 +246,51 @@ public class PosService implements IPosService {
         md.append("| **Order** | #").append(loaded.getOrderId()).append(" |\n");
         md.append("| **Date** | ").append(LocalDateTime.now().format(dt)).append(" |\n");
         md.append("| **Cashier** | ").append(cashierDisplayName != null ? cashierDisplayName : "—").append(" |\n");
-        md.append("| **Fulfillment** | Pickup (in-store) |\n\n");
+        return md;
+    }
+
+    private void appendItemsTable(StringBuilder md, Order loaded) {
         md.append("### Items\n\n");
         md.append("| Product | Qty | Price | Total |\n");
         md.append("|---------|-----|-------|-------|\n");
 
-        if (loaded.getOrderItems() != null) {
+        if (loaded.getOrderItems() != null && !loaded.getOrderItems().isEmpty()) {
             for (OrderItem item : loaded.getOrderItems()) {
                 String name = item.getProduct() != null ? item.getProduct().getName() : "Item";
                 BigDecimal unit = item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO;
                 BigDecimal line = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
                 md.append("| ").append(escapeMdCell(name)).append(" | ")
-                        .append(item.getQuantity()).append(" | $")
-                        .append(unit).append(" | $").append(line).append(" |\n");
+                        .append(item.getQuantity()).append(" | ")
+                        .append(formatMoney(unit)).append(" | ")
+                        .append(formatMoney(line)).append(" |\n");
             }
+        } else {
+            md.append("| — | — | — | — |\n");
         }
+    }
 
+    private void appendTotalsSection(StringBuilder md, Order loaded) {
+        BigDecimal subtotal = loaded.getItemsSubtotalAmount() != null
+                ? loaded.getItemsSubtotalAmount()
+                : loaded.getOrderTotalAmount();
         md.append("\n---\n\n");
-        md.append("**Subtotal:** $").append(loaded.getItemsSubtotalAmount() != null ? loaded.getItemsSubtotalAmount()
-                : loaded.getOrderTotalAmount()).append("\n\n");
+        md.append("**Subtotal:** ").append(formatMoney(subtotal)).append("\n\n");
         md.append("**Delivery:** $0.00 *(pickup)*\n\n");
-        md.append("## **Total: $").append(loaded.getOrderTotalAmount()).append("**\n\n");
+        md.append("## **Total: ").append(formatMoney(loaded.getOrderTotalAmount())).append("**\n\n");
+    }
 
-        Payment pay = paymentRepository.findByOrder(loaded).orElse(null);
-        if (pay != null) {
-            md.append("**Payment:** ")
-                    .append(pay.getMethod() != null ? pay.getMethod().name().replace('_', ' ') : "—")
-                    .append("\n\n");
+    private static String formatMoney(BigDecimal amount) {
+        if (amount == null) {
+            return "$0.00";
         }
+        return "$" + amount.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
 
-        md.append("---\n\n");
-        md.append("*Thank you for shopping at ").append(shopName).append("!*\n");
-        return md.toString();
+    private static String formatPaymentMethod(PaymentMethod method) {
+        if (method == null) {
+            return "—";
+        }
+        return method.name().replace('_', ' ');
     }
 
     private boolean isPickupOrder(Order order) {

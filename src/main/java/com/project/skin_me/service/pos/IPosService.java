@@ -18,4 +18,7 @@ public interface IPosService {
     Map<String, Object> completePayment(Order order, User cashier, PaymentMethod method, String cardLast4);
 
     String buildReceiptMarkdown(Order order, String cashierDisplayName);
+
+    /** Pre-payment order summary for POS cash/card confirmation modals. */
+    String buildOrderSummaryMarkdown(Order order, String cashierDisplayName);
 }

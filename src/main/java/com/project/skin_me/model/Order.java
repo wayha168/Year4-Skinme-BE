@@ -119,4 +119,12 @@ public class Order {
     public void setPosOrder(boolean posOrder) {
         this.isPosOrder = posOrder;
     }
+
+    /** In-store pickup (POS or checkout pickup option), not courier delivery. */
+    public boolean isPickupFulfillment() {
+        if (deliveryAddressFull == null || deliveryAddressFull.isBlank()) {
+            return false;
+        }
+        return deliveryAddressFull.toUpperCase().contains("PICKUP");
+    }
 }
