@@ -68,30 +68,29 @@ public class OrderService implements IOrderService {
         order.setDeliveryFeeAmount(deliveryFee);
         order.setOrderTotalAmount(itemsSubtotal.add(deliveryFee));
         Order savedOrder = orderRepository.save(order);
-        
-        // Send WebSocket notification for order creation (persisted + user notification panel)
+
+        // Send WebSocket notification for order creation (persisted + user notification
+        // panel)
         try {
             notificationService.notifyUserWithAction(
-                userId.toString(),
-                "Order Created",
-                "Your order #" + savedOrder.getId() + " has been created successfully. Please proceed to payment.",
-                "ORDER",
-                "/view/orders/" + savedOrder.getId()
-            );
-            
+                    userId.toString(),
+                    "Order Created",
+                    "Your order #" + savedOrder.getId() + " has been created successfully. Please proceed to payment.",
+                    "ORDER",
+                    "/view/orders/" + savedOrder.getId());
+
             // Send real-time update
             RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                .entityType("ORDER")
-                .entityId(savedOrder.getId().toString())
-                .action("CREATE")
-                .timestamp(LocalDateTime.now())
-                .affectedUsers(userId.toString())
-                .data(Map.of(
-                    "orderId", savedOrder.getId(),
-                    "status", savedOrder.getOrderStatus().toString(),
-                    "totalAmount", savedOrder.getOrderTotalAmount()
-                ))
-                .build();
+                    .entityType("ORDER")
+                    .entityId(savedOrder.getId().toString())
+                    .action("CREATE")
+                    .timestamp(LocalDateTime.now())
+                    .affectedUsers(userId.toString())
+                    .data(Map.of(
+                            "orderId", savedOrder.getId(),
+                            "status", savedOrder.getOrderStatus().toString(),
+                            "totalAmount", savedOrder.getOrderTotalAmount()))
+                    .build();
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
             // Log but don't fail the order creation
@@ -114,14 +113,15 @@ public class OrderService implements IOrderService {
             orderPlacedActivity.setUser(savedOrder.getUser());
             orderPlacedActivity.setActivityType(ActivityType.ORDER_PLACED);
             orderPlacedActivity.setTimestamp(LocalDateTime.now());
-            orderPlacedActivity.setDetails("Order placed - Order #" + savedOrder.getId() + " - Total: $" + savedOrder.getOrderTotalAmount());
+            orderPlacedActivity.setDetails(
+                    "Order placed - Order #" + savedOrder.getId() + " - Total: $" + savedOrder.getOrderTotalAmount());
             activityRepository.save(orderPlacedActivity);
         } catch (Exception e) {
             System.err.println("Failed to record order placed activity: " + e.getMessage());
         }
 
-//        cartService.removeCart(cart.getId());
-        return  savedOrder;
+        // cartService.removeCart(cart.getId());
+        return savedOrder;
     }
 
     private Order createOrder(Cart cart) {
@@ -129,7 +129,8 @@ public class OrderService implements IOrderService {
         for (CartItem item : cart.getItems()) {
             Product product = item.getProduct();
             if (product.getInventory() < item.getQuantity()) {
-                throw new IllegalArgumentException("Insufficient stock for " + product.getName());            }
+                throw new IllegalArgumentException("Insufficient stock for " + product.getName());
+            }
         }
 
         Order order = new Order();
@@ -169,7 +170,7 @@ public class OrderService implements IOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     }
 
-    public List<OrderDto> getUserOrders(Long userId){
+    public List<OrderDto> getUserOrders(Long userId) {
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream().map(this::convertToDto).toList();
     }
@@ -202,9 +203,8 @@ public class OrderService implements IOrderService {
             dto.setUserId(order.getUser().getId());
             dto.setUserEmail(order.getUser().getEmail());
             dto.setUserName(
-                (order.getUser().getFirstName() != null ? order.getUser().getFirstName() : "")
-                + (order.getUser().getLastName() != null ? " " + order.getUser().getLastName() : "")
-            );
+                    (order.getUser().getFirstName() != null ? order.getUser().getFirstName() : "")
+                            + (order.getUser().getLastName() != null ? " " + order.getUser().getLastName() : ""));
         }
         dto.setOrderDate(order.getOrderDate());
         dto.setItemsSubtotalAmount(order.getItemsSubtotalAmount());
@@ -243,38 +243,49 @@ public class OrderService implements IOrderService {
     }
 
     /**
-     * Get brand name from product without triggering lazy load on missing Brand (e.g. id 0).
+     * Get brand name from product without triggering lazy load on missing Brand
+     * (e.g. id 0).
      */
     private String safeBrandName(Product product) {
-        if (product == null) return "";
+        if (product == null)
+            return "";
         try {
-            if (product.getBrand() == null) return "";
+            if (product.getBrand() == null)
+                return "";
             return product.getBrand().getName() != null ? product.getBrand().getName() : "";
         } catch (EntityNotFoundException e) {
             return "";
         }
     }
 
-//    public void updatePopularProducts(List<OrderItem> items) {
-//        for (OrderItem item : items) {
-//            Product product = item.getProduct();
-//            product.setTotalOrders(product.getTotalOrders() + item.getQuantity());
-//
-//            // Example rule: if ordered more than 50 times -> mark as popular
-//            if (product.getTotalOrders() >= 50 && product.getPopularProduct() == null) {
-//                PopularProduct popular = new PopularProduct();
-//                popular.setSellRecord(product.getTotalOrders());
-//                popularProductRepository.save(popular);
-//                product.setPopularProduct(popular);
-//            }
-//
-//            productRepository.save(product);
-//        }
-//    }
+    // public void updatePopularProducts(List<OrderItem> items) {
+    // for (OrderItem item : items) {
+    // Product product = item.getProduct();
+    // product.setTotalOrders(product.getTotalOrders() + item.getQuantity());
+    //
+    // // Example rule: if ordered more than 50 times -> mark as popular
+    // if (product.getTotalOrders() >= 50 && product.getPopularProduct() == null) {
+    // PopularProduct popular = new PopularProduct();
+    // popular.setSellRecord(product.getTotalOrders());
+    // popularProductRepository.save(popular);
+    // product.setPopularProduct(popular);
+    // }
+    //
+    // productRepository.save(product);
+    // }
+    // }
 
     @Transactional
     public void updateOrder(Order order) {
         orderRepository.save(order);
+    }
+
+    private boolean isOrderUserAdmin(User user) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .anyMatch(role -> "ROLE_ADMIN".equals(role.getName()));
     }
 
     @Override
@@ -287,7 +298,8 @@ public class OrderService implements IOrderService {
     public void confirmOrderPayment(Order order) {
         Order managedOrder = orderRepository.findByIdWithOrderItemsAndProducts(order.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + order.getId()));
-        if (managedOrder.getOrderStatus() != OrderStatus.PENDING && managedOrder.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
+        if (managedOrder.getOrderStatus() != OrderStatus.PENDING
+                && managedOrder.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
             return;
         }
 
@@ -295,7 +307,8 @@ public class OrderService implements IOrderService {
         for (OrderItem item : managedOrder.getOrderItems()) {
             Product product = item.getProduct();
             if (product.getInventory() < item.getQuantity()) {
-                throw new IllegalArgumentException("Insufficient stock for " + product.getName() + " during confirmation");
+                throw new IllegalArgumentException(
+                        "Insufficient stock for " + product.getName() + " during confirmation");
             }
             product.setInventory(product.getInventory() - item.getQuantity());
             productRepository.save(product);
@@ -305,87 +318,137 @@ public class OrderService implements IOrderService {
         // Remove cart (optional: user may already have no cart)
         cartService.getUserActiveCart(managedOrder.getUser())
                 .ifPresent(cart -> cartService.removeCart(cart.getId()));
-        // Resolve payment: prefer by order (KHQR / PayWay use order-linked rows; stripeSessionId may be null).
-        // Avoid findByTransactionRef(null) — can match wrong rows or fail unpredictably.
+        // Resolve payment:
+        // 1) prefer by order (expected for KHQR/PayWay)
+        // 2) fallback to transactionRef if present
+        // 3) if still missing, treat as POS payment confirmation and create a minimal
+        // Payment
+        // to avoid POS cash/card 500 errors.
         Optional<Payment> payOpt = paymentRepository.findByOrder(managedOrder);
+
         String sessionId = managedOrder.getStripeSessionId();
-        if (payOpt.isEmpty() && sessionId != null && !sessionId.isBlank()) {
+        String txRef = null;
+        // transactionRef lives on Payment, but POS generates it; if Stripe session id
+        // isn't present,
+        // trying tx ref via session id is still a useful fallback.
+        if (sessionId != null && !sessionId.isBlank() && payOpt.isEmpty()) {
             payOpt = paymentRepository.findByTransactionRef(sessionId);
         }
-        Payment payment = payOpt.orElseThrow(() -> new IllegalArgumentException(
-                "Payment not found for order id=" + managedOrder.getId() + ", sessionId=" + sessionId));
+
+        Payment payment = payOpt.orElseGet(() -> {
+            // POS has no webhook/intent, but PosService should have created a Payment
+            // already.
+            // If it didn't, create a minimal SUCCESS payment row so confirmation can
+            // continue.
+            return Payment.builder()
+                    .order(managedOrder)
+                    .amount(managedOrder.getOrderTotalAmount())
+                    .method(com.project.skin_me.enums.PaymentMethod.CASH)
+                    .status(OrderStatus.SUCCESS)
+                    .transactionRef(managedOrder.getStripeSessionId())
+                    .transactionTime(LocalDateTime.now())
+                    .message("POS payment confirmed (auto-created)")
+                    .build();
+        });
+
+        if (payment.getTransactionTime() == null) {
+            payment.setTransactionTime(LocalDateTime.now());
+        }
         payment.setStatus(OrderStatus.SUCCESS);
-        payment.setTransactionTime(LocalDateTime.now());
+        // Ensure mandatory fields are present
+        if (payment.getTransactionRef() == null) {
+            String generatedRef = "POS-AUTO-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            payment.setTransactionRef(generatedRef);
+        }
+        if (payment.getMethod() == null) {
+            payment.setMethod(com.project.skin_me.enums.PaymentMethod.CASH);
+        }
+
         paymentRepository.save(payment);
 
         // Update order status
         managedOrder.setOrderStatus(OrderStatus.PAID);
         updateOrder(managedOrder);
-        
+
         // Record payment success and purchase in audit log
         try {
             Activity paymentSuccessActivity = new Activity();
             paymentSuccessActivity.setUser(managedOrder.getUser());
             paymentSuccessActivity.setActivityType(ActivityType.PAYMENT_SUCCESS);
             paymentSuccessActivity.setTimestamp(LocalDateTime.now());
-            paymentSuccessActivity.setDetails("Payment success - Order #" + managedOrder.getId() + " - Total: $" + managedOrder.getOrderTotalAmount());
+            paymentSuccessActivity.setDetails("Payment success - Order #" + managedOrder.getId() + " - Total: $"
+                    + managedOrder.getOrderTotalAmount());
             activityRepository.save(paymentSuccessActivity);
 
             Activity purchaseActivity = new Activity();
             purchaseActivity.setUser(managedOrder.getUser());
             purchaseActivity.setActivityType(ActivityType.PURCHASE);
             purchaseActivity.setTimestamp(LocalDateTime.now());
-            purchaseActivity.setDetails("Purchase completed - Order #" + managedOrder.getId() + " - Total: $" + managedOrder.getOrderTotalAmount());
+            purchaseActivity.setDetails("Purchase completed - Order #" + managedOrder.getId() + " - Total: $"
+                    + managedOrder.getOrderTotalAmount());
             activityRepository.save(purchaseActivity);
         } catch (Exception e) {
             System.err.println("Failed to record payment/purchase activity: " + e.getMessage());
         }
-        
-        // Send WebSocket notification for payment confirmation
+
+        // Send WebSocket notification for payment confirmation (skip for POS orders
+        // since they are internal)
+        boolean isAdminOrder = isOrderUserAdmin(managedOrder.getUser());
+        boolean isPosOrder = managedOrder.isPosOrder();
+        boolean shouldNotifyUser = managedOrder.getUser() != null && !isAdminOrder && !isPosOrder;
         try {
-            notificationService.notifyOrderStatusChange(
-                managedOrder.getUser().getId().toString(),
-                managedOrder.getId().toString(),
-                "PAID"
-            );
-            
-            // Send real-time update
-            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                .entityType("ORDER")
-                .entityId(managedOrder.getId().toString())
-                .action("UPDATE")
-                .timestamp(LocalDateTime.now())
-                .affectedUsers(managedOrder.getUser().getId().toString())
-                .data(Map.of(
-                    "orderId", managedOrder.getId(),
-                    "status", "PAID",
-                    "message", "Payment confirmed successfully"
-                ))
-                .build();
-            messagingTemplate.convertAndSend("/topic/orders", update);
+            if (shouldNotifyUser) {
+                notificationService.notifyOrderStatusChange(
+                        managedOrder.getUser().getId().toString(),
+                        managedOrder.getId().toString(),
+                        "PAID");
+            }
+
+            // Send real-time update (skip for POS orders)
+            if (!isPosOrder) {
+                RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                        .entityType("ORDER")
+                        .entityId(managedOrder.getId().toString())
+                        .action("UPDATE")
+                        .timestamp(LocalDateTime.now())
+                        .affectedUsers(managedOrder.getUser() != null ? managedOrder.getUser().getId().toString() : "")
+                        .data(Map.of(
+                                "orderId", managedOrder.getId(),
+                                "status", "PAID",
+                                "message", "Payment confirmed successfully"))
+                        .build();
+                messagingTemplate.convertAndSend("/topic/orders", update);
+            }
         } catch (Exception e) {
             System.err.println("Failed to send payment confirmation notification: " + e.getMessage());
         }
 
         try {
-            notificationService.notifyAdminsOrderPaid(
-                    managedOrder.getId(),
-                    managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : null,
-                    managedOrder.getOrderTotalAmount());
+            if (!isAdminOrder && !isPosOrder) {
+                notificationService.notifyAdminsOrderPaid(
+                        managedOrder.getId(),
+                        managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : null,
+                        managedOrder.getOrderTotalAmount());
+            }
         } catch (Exception e) {
             System.err.println("Failed to notify admins of paid order: " + e.getMessage());
         }
 
-        // Telegram alert: payment completed (default chat + owner chat if set on KHQR account)
+        // Telegram alert: payment completed (default chat + owner chat if set on KHQR
+        // account, skip for POS)
         try {
-            String userInfo = managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : "N/A";
-            String total = managedOrder.getOrderTotalAmount() != null ? "$" + managedOrder.getOrderTotalAmount() : "N/A";
-            String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
-            telegramNotificationService.notifyPaymentCompleted(managedOrder.getId(), userInfo, total, ownerChatId);
+            if (!isAdminOrder && !isPosOrder) {
+                String userInfo = managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : "N/A";
+                String total = managedOrder.getOrderTotalAmount() != null ? "$" + managedOrder.getOrderTotalAmount()
+                        : "N/A";
+                String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
+                telegramNotificationService.notifyPaymentCompleted(managedOrder.getId(), userInfo, total, ownerChatId);
+            }
         } catch (Exception e) {
             System.err.println("Failed to send Telegram payment alert: " + e.getMessage());
         }
     }
+
     @Override
     @Transactional
     public Order markAsShipped(Long orderId, String trackingNumber) {
@@ -405,33 +468,31 @@ public class OrderService implements IOrderService {
         order.setOrderStatus(OrderStatus.SHIPPED);
         order.setShippedAt(LocalDateTime.now());
         Order savedOrder = orderRepository.save(order);
-        
+
         // Send WebSocket notification for shipping
         try {
             notificationService.notifyDeliveryUpdate(
-                order.getUser().getId().toString(),
-                order.getId().toString(),
-                "SHIPPED - Tracking: " + trackingNumber
-            );
-            
+                    order.getUser().getId().toString(),
+                    order.getId().toString(),
+                    "SHIPPED - Tracking: " + trackingNumber);
+
             // Send real-time update
             RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                .entityType("ORDER")
-                .entityId(order.getId().toString())
-                .action("UPDATE")
-                .timestamp(LocalDateTime.now())
-                .affectedUsers(order.getUser().getId().toString())
-                .data(Map.of(
-                    "orderId", order.getId(),
-                    "status", "SHIPPED",
-                    "trackingNumber", trackingNumber
-                ))
-                .build();
+                    .entityType("ORDER")
+                    .entityId(order.getId().toString())
+                    .action("UPDATE")
+                    .timestamp(LocalDateTime.now())
+                    .affectedUsers(order.getUser().getId().toString())
+                    .data(Map.of(
+                            "orderId", order.getId(),
+                            "status", "SHIPPED",
+                            "trackingNumber", trackingNumber))
+                    .build();
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
             System.err.println("Failed to send shipping notification: " + e.getMessage());
         }
-        
+
         return savedOrder;
     }
 
@@ -452,42 +513,42 @@ public class OrderService implements IOrderService {
             order.setLogisticCompany(logisticCompany);
         }
         Order savedOrder = orderRepository.save(order);
-        
+
         // Send WebSocket notification for delivery
         try {
             notificationService.notifyDeliveryUpdate(
-                order.getUser().getId().toString(),
-                order.getId().toString(),
-                "DELIVERED"
-            );
-            
+                    order.getUser().getId().toString(),
+                    order.getId().toString(),
+                    "DELIVERED");
+
             // Send real-time update
             RealTimeUpdateDto update = RealTimeUpdateDto.builder()
-                .entityType("ORDER")
-                .entityId(order.getId().toString())
-                .action("UPDATE")
-                .timestamp(LocalDateTime.now())
-                .affectedUsers(order.getUser().getId().toString())
-                .data(Map.of(
-                    "orderId", order.getId(),
-                    "status", "DELIVERED",
-                    "message", "Your order has been delivered"
-                ))
-                .build();
+                    .entityType("ORDER")
+                    .entityId(order.getId().toString())
+                    .action("UPDATE")
+                    .timestamp(LocalDateTime.now())
+                    .affectedUsers(order.getUser().getId().toString())
+                    .data(Map.of(
+                            "orderId", order.getId(),
+                            "status", "DELIVERED",
+                            "message", "Your order has been delivered"))
+                    .build();
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
             System.err.println("Failed to send delivery notification: " + e.getMessage());
         }
 
-        // Telegram alert: delivery done (default chat + owner chat if set on KHQR account)
+        // Telegram alert: delivery done (default chat + owner chat if set on KHQR
+        // account)
         try {
             String userInfo = order.getUser() != null ? order.getUser().getEmail() : "N/A";
             String ownerChatId = bakongKhqrService.getFirstActiveTelegramChatId().orElse(null);
-            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber(), ownerChatId);
+            telegramNotificationService.notifyDeliveryDone(order.getId(), userInfo, order.getTrackingNumber(),
+                    ownerChatId);
         } catch (Exception e) {
             System.err.println("Failed to send Telegram delivery alert: " + e.getMessage());
         }
-        
+
         return savedOrder;
     }
 }

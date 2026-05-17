@@ -4,5 +4,6 @@ public enum PaymentMethod {
     BAKONG_QR,
     CREDIT_CARD,
     CASH_ON_DELIVERY,
+    CASH,
     KHQR
 }

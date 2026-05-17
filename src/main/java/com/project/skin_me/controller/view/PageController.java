@@ -147,6 +147,12 @@ public class PageController {
     @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.generic-label:KHQR (any bank)}")
     private String dashboardKhqrGenericLabel;
 
+    @org.springframework.beans.factory.annotation.Value("${app.pos.shop-name:SkinMe Store}")
+    private String posShopName;
+
+    @org.springframework.beans.factory.annotation.Value("${app.pos.shop-address:Phnom Penh, Cambodia}")
+    private String posShopAddress;
+
     @GetMapping("/login-page")
     public String loginPage(Model model,
             HttpServletRequest request,
@@ -283,6 +289,28 @@ public class PageController {
         addDashboardCheckoutConfigAttributes(model);
         model.addAttribute("pageTitle", "Admin Dashboard");
         return "dashboard";
+    }
+
+    @GetMapping("/views/pos")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String posPage(Model model, Authentication authentication) {
+        model.addAttribute("pageTitle", "Point of Sale");
+        model.addAttribute("posShopName", posShopName);
+        model.addAttribute("posShopAddress", posShopAddress);
+        String cashierName = "Admin";
+        if (authentication != null && authentication.getName() != null) {
+            cashierName = userRepository.findByEmail(authentication.getName())
+                    .map(u -> {
+                        String first = u.getFirstName() != null ? u.getFirstName().trim() : "";
+                        String last = u.getLastName() != null ? u.getLastName().trim() : "";
+                        String full = (first + " " + last).trim();
+                        return full.isEmpty() ? u.getEmail() : full;
+                    })
+                    .orElse(authentication.getName());
+        }
+        model.addAttribute("cashierName", cashierName);
+        addDashboardCheckoutConfigAttributes(model);
+        return "pos";
     }
 
     /** Values from application.properties / env for dashboard KHQR & checkout summary. */
@@ -1048,9 +1076,12 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            Pageable recentPageable = PageRequest.of(0, 10, Sort.by("orderId").descending());
+            model.addAttribute("recentOrders", orderService.getAllUserOrders(recentPageable).getContent());
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load orders: " + e.getMessage());
             model.addAttribute("orders", List.<OrderDto>of());
+            model.addAttribute("recentOrders", List.<OrderDto>of());
             model.addAttribute("totalOrders", 0L);
             model.addAttribute("totalRevenue", BigDecimal.ZERO);
             model.addAttribute("orderStatusCounts", List.<OrderStatusCountDto>of());

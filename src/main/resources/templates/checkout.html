@@ -6,8 +6,41 @@
     <link rel="stylesheet" href="/css/common.css" />
     <style>
       .checkout-container {
-        max-width: 800px;
+        max-width: 1180px;
         margin: 0 auto;
+      }
+
+      .checkout-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 20px;
+        align-items: start;
+      }
+
+      .checkout-main {
+        min-width: 0;
+      }
+
+      .checkout-sidebar {
+        position: sticky;
+        top: 88px;
+      }
+
+      .checkout-section {
+        background: white;
+        padding: 24px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      .checkout-section h5 {
+        margin-bottom: 16px;
+        color: #111827;
+        font-weight: 600;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 12px;
       }
 
       .card-element {
@@ -35,10 +68,10 @@
 
       .payment-form,
       .delivery-form {
-        background: #f8f9fa;
-        padding: 30px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+        margin-bottom: 0;
       }
 
       .order-summary {
@@ -46,6 +79,99 @@
         padding: 20px;
         border-radius: 8px;
         margin-bottom: 20px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .summary-total {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 14px;
+        margin: 16px 0;
+      }
+
+      .order-summary table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+
+      .order-summary th,
+      .order-summary td {
+        border: 1px solid #e5e7eb;
+        padding: 0.75rem 0.9rem;
+        text-align: left;
+      }
+
+      .order-summary th {
+        background: #f8fafc;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .order-summary td {
+        background: white;
+      }
+
+      .order-summary .totals-row td {
+        font-weight: 700;
+        color: #111827;
+        border-top: 2px solid #d1d5db;
+      }
+
+      .btn-print-invoice {
+        margin-top: 12px;
+        float: right;
+      }
+
+      .form-label {
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 8px;
+      }
+
+      .form-control,
+      .form-select {
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+      }
+
+      .form-control:focus,
+      .form-select:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+      }
+
+      @media print {
+        .delivery-form,
+        .payment-form,
+        .btn-print-invoice,
+        .page-header,
+        nav,
+        .address-input-group,
+        .payment-method-option,
+        .khqr-card,
+        .btn-use-map,
+        .checkout-container > :not(.order-summary),
+        .btn-outline-secondary {
+          display: none !important;
+        }
+
+        body {
+          background: white;
+          color: #111827;
+        }
+
+        .checkout-container {
+          max-width: 100%;
+          padding: 0;
+          margin: 0;
+        }
+
+        .order-summary {
+          box-shadow: none;
+          border: none;
+        }
       }
 
       #map {
@@ -56,12 +182,12 @@
       }
 
       .payment-method-option {
-        border: 2px solid #ddd;
+        border: 1px solid #d1d5db;
         border-radius: 8px;
         padding: 15px;
-        margin-bottom: 15px;
         cursor: pointer;
         transition: all 0.3s;
+        min-height: 94px;
       }
 
       .payment-method-option:hover {
@@ -72,10 +198,40 @@
       .payment-method-option.selected {
         border-color: #0066cc;
         background-color: #e6f2ff;
+        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.08);
       }
 
       .payment-method-option input[type="radio"] {
         margin-right: 10px;
+      }
+
+      .payment-options-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .payment-status {
+        border: 1px solid #dbeafe;
+        background: #eff6ff;
+        color: #1e3a8a;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        margin-top: 14px;
+      }
+
+      .payment-status.success {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+        color: #166534;
+      }
+
+      .payment-status.error {
+        border-color: #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
       }
 
       /* KHQR / ABA Digital Standard design */
@@ -201,6 +357,20 @@
       .btn-use-map {
         margin-top: 10px;
       }
+
+      @media (max-width: 992px) {
+        .checkout-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .checkout-sidebar {
+          position: static;
+        }
+
+        .payment-options-grid {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </th:block>
   <meta charset="UTF-8" />
@@ -238,11 +408,39 @@
             <strong style="color: #0066cc; font-size: 1.2rem;"
               th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount, 1, 2)}">$0.00</strong>
           </div>
+
+          <button type="button" class="btn btn-outline-secondary btn-sm btn-print-invoice" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print Invoice
+          </button>
+
+          <div th:if="${order.orderItems != null}">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th style="width: 90px;">Qty</th>
+                  <th style="width: 120px;">Unit</th>
+                  <th style="width: 120px;">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="item : ${order.orderItems}">
+                  <td>
+                    <strong th:text="${item.product != null ? item.product.name : 'Item'}">Product Name</strong>
+                  </td>
+                  <td th:text="${item.quantity}">1</td>
+                  <td th:text="'$' + ${#numbers.formatDecimal(item.price, 1, 2)}">$0.00</td>
+                  <td th:text="'$' + ${#numbers.formatDecimal(item.price != null ? item.price.multiply(T(java.math.BigDecimal).valueOf(item.quantity)) : 0, 1, 2)}">$0.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Delivery Address Section -->
-        <div class="delivery-form">
-          <h5 class="mb-4"><i class="bi bi-geo-alt"></i> Delivery Address</h5>
+        <div class="checkout-section">
+          <div class="delivery-form">
+            <h5><i class="bi bi-geo-alt"></i> Delivery Address</h5>
 
           <div class="mb-3">
             <label for="address-search" class="form-label">Search Address on Map</label>
@@ -298,32 +496,36 @@
             </div>
           </form>
         </div>
+        </div>
 
         <!-- Payment Method Selection -->
-        <div class="payment-form">
-          <h5 class="mb-4"><i class="bi bi-credit-card-2-front"></i> Payment Method</h5>
+        <div class="checkout-section">
+          <div class="payment-form">
+            <h5><i class="bi bi-credit-card-2-front"></i> Payment Method</h5>
 
-          <div class="payment-method-option" onclick="selectPaymentMethod('stripe')">
+          <div class="payment-options-grid">
+          <div class="payment-method-option selected" onclick="selectPaymentMethod('stripe', this)">
             <input type="radio" name="payment-method" id="payment-stripe" value="stripe" checked />
             <label for="payment-stripe" style="cursor: pointer;">
-              <strong><i class="bi bi-credit-card"></i> Credit/Debit Card (Stripe)</strong>
-              <p class="text-muted mb-0" style="font-size: 0.9rem;">Pay securely with your card</p>
+              <strong><i class="bi bi-credit-card"></i> Credit/Debit Card</strong>
+              <p class="text-muted mb-0" style="font-size: 0.9rem;">Pay securely with Stripe</p>
             </label>
           </div>
 
-          <div class="payment-method-option" onclick="selectPaymentMethod('aba')">
+          <div class="payment-method-option" onclick="selectPaymentMethod('aba', this)">
             <input type="radio" name="payment-method" id="payment-aba" value="aba" />
             <label for="payment-aba" style="cursor: pointer;">
-              <strong><i class="bi bi-qr-code"></i> ABA Payment (ABA Mobile)</strong>
-              <p class="text-muted mb-0" style="font-size: 0.9rem;">Scan with ABA Mobile app</p>
+              <strong><i class="bi bi-qr-code"></i> ABA Mobile</strong>
+              <p class="text-muted mb-0" style="font-size: 0.9rem;">Pay by ABA KHQR</p>
             </label>
           </div>
-          <div class="payment-method-option" onclick="selectPaymentMethod('khqr')">
+          <div class="payment-method-option" onclick="selectPaymentMethod('khqr', this)">
             <input type="radio" name="payment-method" id="payment-khqr" value="khqr" />
             <label for="payment-khqr" style="cursor: pointer;">
-              <strong><i class="bi bi-qr-code"></i> KHQR Payment (any bank)</strong>
-              <p class="text-muted mb-0" style="font-size: 0.9rem;">Scan with any KHQR-supported banking app</p>
+              <strong><i class="bi bi-qr-code"></i> KHQR</strong>
+              <p class="text-muted mb-0" style="font-size: 0.9rem;">Any supported bank app</p>
             </label>
+          </div>
           </div>
 
           <!-- Stripe Payment Form -->
@@ -383,8 +585,11 @@
                     Scan with <strong>ABA Mobile</strong> or any <strong>KHQR</strong> supported banking app
                   </p>
                   <button type="button" id="verify-khqr-payment" class="btn btn-success">
-                    <i class="bi bi-check-circle"></i> I've Completed Payment
+                    <i class="bi bi-arrow-clockwise"></i> Check Payment Status
                   </button>
+                  <div id="khqr-payment-status" class="payment-status">
+                    Waiting for PayWay webhook after the customer scans and pays.
+                  </div>
                 </div>
               </div>
             </div>
@@ -395,6 +600,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
   </th:block>
 
@@ -417,6 +623,9 @@
 
       // Initialize Google Maps
       function initMap() {
+        if (!window.google || !google.maps || !document.getElementById('map')) {
+          return;
+        }
         // Default location: Phnom Penh, Cambodia
         const defaultLocation = { lat: 11.5564, lng: 104.9282 };
 
@@ -539,17 +748,20 @@
       }
 
       // Payment method selection (stripe | aba | khqr)
-      function selectPaymentMethod(method) {
+      function selectPaymentMethod(method, optionEl) {
         document.querySelectorAll('.payment-method-option').forEach(opt => {
           opt.classList.remove('selected');
         });
-        event.currentTarget.classList.add('selected');
+        if (optionEl) {
+          optionEl.classList.add('selected');
+        }
 
         document.querySelector(`#payment-${method}`).checked = true;
 
         if (method === 'stripe') {
           document.getElementById('stripe-payment-section').style.display = 'block';
           document.getElementById('khqr-payment-section').style.display = 'none';
+          stopKhqrPolling();
         } else if (method === 'aba' || method === 'khqr') {
           khqrCurrentGateway = method;
           document.getElementById('stripe-payment-section').style.display = 'none';
@@ -563,6 +775,29 @@
       const KHQR_USD_TO_KHR = /*[[${khqrUsdToKhrRate != null ? khqrUsdToKhrRate : 4100}]]*/ 4100;
       let khqrCurrentGateway = 'aba';
       let khqrCurrentCurrency = 'USD';
+      let khqrPollTimer = null;
+      let khqrAddressSaved = false;
+
+      function stopKhqrPolling() {
+        if (khqrPollTimer) {
+          clearInterval(khqrPollTimer);
+          khqrPollTimer = null;
+        }
+      }
+
+      function setKhqrStatus(message, type) {
+        const el = document.getElementById('khqr-payment-status');
+        if (!el) return;
+        el.textContent = message;
+        el.className = 'payment-status' + (type ? ' ' + type : '');
+      }
+
+      function startKhqrPolling() {
+        stopKhqrPolling();
+        khqrPollTimer = setInterval(function () {
+          checkKhqrPaymentStatus(false);
+        }, 5000);
+      }
 
       function updateKhqrInstruction() {
         const el = document.getElementById('khqr-instruction-text');
@@ -611,15 +846,48 @@
             document.getElementById('khqr-amount-display').textContent = formatKhqrAmount(amountUsd, currency);
             document.getElementById('khqr-qr-image-container').innerHTML =
               '<img src="' + d.qrImage + '" alt="' + gatewayLabel + ' Payment QR Code" width="300" height="300" />';
+            setKhqrStatus('Waiting for PayWay webhook after the customer scans and pays.', '');
+            startKhqrPolling();
           } else {
             document.getElementById('khqr-qr-image-container').innerHTML =
               '<p class="text-danger small mb-0">Failed to generate QR code. Please try again.</p>';
+            setKhqrStatus(data.message || 'Failed to generate QR code.', 'error');
           }
         } catch (error) {
           console.error('Error loading KHQR:', error);
           document.getElementById('khqr-qr-image-container').innerHTML =
             '<p class="text-danger small mb-0">Error loading QR code. Please try again.</p>';
+          setKhqrStatus(error.message || 'Error loading QR code.', 'error');
         }
+      }
+
+      async function checkKhqrPaymentStatus(showWaiting) {
+        const orderIdEl = document.getElementById('order-id');
+        if (!orderIdEl || !orderIdEl.value) return false;
+        try {
+          const response = await fetch(`/api/v1/payment/status/${orderIdEl.value}`, {
+            credentials: 'same-origin'
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || 'Unable to check payment status');
+          }
+          const status = data.data || {};
+          if (status.paid) {
+            stopKhqrPolling();
+            setKhqrStatus('Payment received from PayWay. Redirecting...', 'success');
+            window.location.href = '/payment-success?orderId=' + orderIdEl.value;
+            return true;
+          }
+          if (showWaiting) {
+            setKhqrStatus('Still waiting for PayWay webhook. Please check again after the bank app confirms payment.', '');
+          }
+        } catch (error) {
+          if (showWaiting) {
+            setKhqrStatus(error.message || 'Unable to check payment status.', 'error');
+          }
+        }
+        return false;
       }
 
       document.getElementById('khqr-currency-usd').addEventListener('click', function () {
@@ -656,7 +924,9 @@
         },
       });
 
-      cardElement.mount('#card-element');
+      if (document.getElementById('card-element')) {
+        cardElement.mount('#card-element');
+      }
 
       // Handle real-time validation errors from the card Element
       cardElement.on('change', function (event) {
@@ -670,7 +940,7 @@
 
       // Handle Stripe form submission
       const form = document.getElementById('payment-form');
-      form.addEventListener('submit', async function (event) {
+      if (form) form.addEventListener('submit', async function (event) {
         event.preventDefault();
 
         // Validate delivery address
@@ -810,25 +1080,24 @@
         }
       }
 
-      // Handle KHQR payment verification
+      // KHQR is confirmed by PayWay webhook; this button only saves delivery and checks status.
       document.getElementById('verify-khqr-payment').addEventListener('click', async function () {
         if (!validateDeliveryAddress()) {
           alert('Please fill in all required delivery address fields');
           return;
         }
 
-        try {
-          await saveDeliveryAddress();
-        } catch (error) {
-          alert('Failed to save delivery address: ' + error.message);
-          return;
+        if (!khqrAddressSaved) {
+          try {
+            await saveDeliveryAddress();
+            khqrAddressSaved = true;
+          } catch (error) {
+            alert('Failed to save delivery address: ' + error.message);
+            return;
+          }
         }
 
-        const orderId = document.getElementById('order-id').value;
-        const amount = document.getElementById('amount-cents').value / 100;
-
-        // Redirect to payment verification page
-        window.location.href = `/payment-verify-khqr?orderId=${orderId}&amount=${amount}`;
+        await checkKhqrPaymentStatus(true);
       });
     </script>
   </th:block>
