@@ -67,8 +67,15 @@ public class ProductFeedbackController {
         }
     }
 
+    @GetMapping("/product/all-feedback")
+    public ResponseEntity<ApiResponse> listAllVisibleFeedback() {
+        Pageable pageable = PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<ProductFeedbackDto> result = productFeedbackService.listAllVisible(pageable);
+        return ResponseEntity.ok(new ApiResponse("OK", result));
+    }
+
     /** Public: approved feedback only for storefront. */
-    @GetMapping("/product/{productId}")
+    @GetMapping("/product/{productId:\\d+}")
     public ResponseEntity<ApiResponse> listForProduct(
             @PathVariable Long productId,
             @RequestParam(defaultValue = "0") int page,
@@ -77,4 +84,5 @@ public class ProductFeedbackController {
         Page<ProductFeedbackDto> result = productFeedbackService.listVisibleForProduct(productId, pageable);
         return ResponseEntity.ok(new ApiResponse("OK", result));
     }
+
 }

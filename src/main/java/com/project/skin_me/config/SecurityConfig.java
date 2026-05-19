@@ -29,6 +29,7 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
@@ -63,6 +64,7 @@ public class SecurityConfig {
                         "/api/v1/users/**", "/api/v1/products/**", "/api/v1/categories/**",
                         "/api/v1/images/**", "/api/v1/payment/webhook", "/api/v1/payment/webhook/payway",
                         "/api/v1/payment/verify-success",
+                        "/api/v1/feedback/product/all-feedback", "/api/v1/feedback/product/**",
                         "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/**", "/api/v1/lang",
                         "/v3/api-docs/**",
                         "/swagger-ui/**", "/swagger-ui.html", "/swagger-resources/**",
@@ -116,7 +118,8 @@ public class SecurityConfig {
                                                                 "/favicon.ico")
                                                 .permitAll()
                                                 .requestMatchers(PUBLIC_API).permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/feedback/product/**")
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/feedback/product/all-feedback",
+                                                                "/api/v1/feedback/product/**")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(ADMIN_URLS).hasRole("ADMIN")
@@ -124,6 +127,8 @@ public class SecurityConfig {
                                                 .requestMatchers("/dashboard", "/views/**").hasRole("ADMIN")
                                                 .anyRequest().authenticated())
                                 .exceptionHandling(e -> e
+                                                .defaultAuthenticationEntryPointFor(jwtAuthEntryPoint,
+                                                                new AntPathRequestMatcher("/api/**"))
                                                 .authenticationEntryPoint(authenticationEntryPoint())
                                                 .accessDeniedHandler(accessDeniedHandler()))
                                 .formLogin(form -> form
@@ -202,19 +207,7 @@ public class SecurityConfig {
 
         @Bean
         public AuthenticationEntryPoint authenticationEntryPoint() {
-                return (request, response, authException) -> {
-                        String requestUri = request.getRequestURI();
-
-                        // For API requests, return JSON error
-                        if (requestUri.startsWith("/api/")) {
-                                jwtAuthEntryPoint.commence(request, response, authException);
-                        } else {
-                                // For web requests, always redirect to login page
-                                // Spring Security will handle saving the original request
-                                new LoginUrlAuthenticationEntryPoint("/login-page")
-                                                .commence(request, response, authException);
-                        }
-                };
+                return new LoginUrlAuthenticationEntryPoint("/login-page");
         }
 
         /**
@@ -226,6 +219,14 @@ public class SecurityConfig {
         @Bean
         public AccessDeniedHandler accessDeniedHandler() {
                 return (request, response, accessDeniedException) -> {
+                        if (request.getRequestURI().startsWith("/api/")) {
+                                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                response.setContentType("application/json");
+                                response.getWriter().write(
+                                                "{\"error\":\"Forbidden\",\"message\":\"You don't have permission to access this resource\"}");
+                                return;
+                        }
+
                         if (request.getSession(false) != null) {
                                 request.getSession().invalidate();
                         }
@@ -302,6 +303,9 @@ public class SecurityConfig {
                                                 .title("Skin Me API")
                                                 .version("1.0")
                                                 .description("API documentation for Skin Me project"))
+                                .addServersItem(new io.swagger.v3.oas.models.servers.Server()
+                                                .url("/")
+                                                .description("Current server"))
                                 .addServersItem(new io.swagger.v3.oas.models.servers.Server()
                                                 .url("https://backend.skinme.store")
                                                 .description("Production server"))

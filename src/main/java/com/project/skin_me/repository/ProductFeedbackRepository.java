@@ -14,6 +14,8 @@ public interface ProductFeedbackRepository extends JpaRepository<ProductFeedback
     Page<ProductFeedback> findByProduct_IdAndVisibleOnFrontendTrueOrderByCreatedAtDesc(Long productId,
             Pageable pageable);
 
+    Page<ProductFeedback> findByVisibleOnFrontendTrueOrderByCreatedAtDesc(Pageable pageable);
+
     Page<ProductFeedback> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     long countByVisibleOnFrontendTrue();

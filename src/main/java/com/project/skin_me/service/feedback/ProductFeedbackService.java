@@ -95,6 +95,14 @@ public class ProductFeedbackService implements IProductFeedbackService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<ProductFeedbackDto> listAllVisible(Pageable pageable) {
+        return productFeedbackRepository
+                .findByVisibleOnFrontendTrueOrderByCreatedAtDesc(pageable)
+                .map(this::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<ProductFeedbackDto> listAllForAdmin(Pageable pageable) {
         return productFeedbackRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toDto);
     }
