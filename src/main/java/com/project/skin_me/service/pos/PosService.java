@@ -317,6 +317,31 @@ public class PosService implements IPosService {
         orderRepository.save(managed);
     }
 
+    @Override
+    @Transactional
+    public void cancelPosOrder(Long orderId) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+
+        // Only cancel if it’s still pending; never override already-paid/completed states.
+        if (order.getOrderStatus() == OrderStatus.PAID
+                || order.getOrderStatus() == OrderStatus.SUCCESS
+                || order.getOrderStatus() == OrderStatus.DELIVERED
+                || order.getOrderStatus() == OrderStatus.COMPLETED  
+                || order.getOrderStatus() == OrderStatus.CANCELLED) {
+
+            return;
+        }
+
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+    }
+
+
     private List<PosLineDetailDto> buildLineDetails(List<PosLineItemDto> items) {
         List<PosLineDetailDto> lines = new ArrayList<>();
         for (PosLineItemDto item : items) {

@@ -145,6 +145,44 @@
         .khqr-status.success { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
         .khqr-status.error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
         .pos-search { margin-bottom: 0.75rem; }
+
+        /* POS modals should fit screen; scrolling only inside modal-body */
+.pos-modal-fit .modal-dialog {
+          max-width: min(980px, 100vw);
+          margin: 1rem auto;
+        }
+        .pos-modal-fit .modal-content {
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          border-radius: 14px;
+          box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
+          overflow: hidden;
+          max-height: calc(100vh - 2rem);
+        }
+        .pos-modal-fit .modal-header {
+          background: linear-gradient(180deg, rgba(248, 250, 252, 1), rgba(255, 255, 255, 1));
+          border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+          padding: 0.9rem 1rem;
+        }
+        .pos-modal-fit .modal-body {
+          max-height: calc(100vh - 2rem - 130px);
+          overflow-y: auto;
+          padding: 1rem;
+        }
+        /* ensure header/footer are not compressed by the scroll area */
+        .pos-modal-fit .modal-footer {
+          flex-shrink: 0;
+          padding: 0.9rem 1rem;
+          border-top: 1px solid rgba(226, 232, 240, 0.9);
+          background: rgba(255, 255, 255, 0.98);
+        }
+        /* reduce modal overlay harshness */
+        .modal-backdrop {
+          background-color: rgba(2, 6, 23, 0.35);
+        }
+        /* avoid cramped buttons */
+        .pos-modal-fit .modal-footer .btn {
+          border-radius: 10px;
+        }
       </style>
     </th:block>
     <title th:text="${pageTitle ?: 'Point of Sale'}">Point of Sale</title>
@@ -213,7 +251,7 @@
       </div>
 
       <!-- Cash payment modal -->
-      <div class="modal fade" id="cashModal" tabindex="-1">
+      <div class="modal fade pos-modal-fit" id="cashModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
           <div class="modal-content">
             <div class="modal-header">
@@ -236,7 +274,7 @@
       </div>
 
       <!-- Card modal -->
-      <div class="modal fade" id="cardModal" tabindex="-1">
+      <div class="modal fade pos-modal-fit" id="cardModal" tabindex="-1">
         <div class="modal-dialog modal-sm">
           <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Card payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -253,7 +291,7 @@
       </div>
 
       <!-- KHQR modal -->
-      <div class="modal fade" id="khqrModal" tabindex="-1">
+      <div class="modal fade pos-modal-fit" id="khqrModal" tabindex="-1">
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Scan KHQR to pay</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -262,14 +300,20 @@
               <img id="khqrImage" alt="KHQR" style="display:none" />
               <p class="small text-muted mt-2" id="khqrAmount"></p>
               <button type="button" class="btn btn-success mt-2" id="btnVerifyKhqr">Check payment status</button>
-              <div id="khqrStatus" class="khqr-status">Waiting for PayWay webhook after customer payment.</div>
+            <div id="khqrStatus" class="khqr-status">Waiting for PayWay webhook after customer payment.</div>
+            <div class="mt-3 d-flex gap-2 justify-content-end">
+              <button type="button" class="btn btn-outline-danger" id="btnCancelKhqr">
+                <i class="bi bi-x-circle"></i> Cancel order
+              </button>
+            </div>
+
             </div>
           </div>
         </div>
       </div>
 
       <!-- Receipt modal -->
-      <div class="modal fade" id="receiptModal" tabindex="-1">
+      <div class="modal fade pos-modal-fit" id="receiptModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
           <div class="modal-content">
             <div class="modal-header">
@@ -734,19 +778,31 @@
 
           async function payKhqr() {
             try {
+              if (!cart.length) return;
+              // If user already has a pending order, don't create/trigger another one accidentally.
+              if (paymentBusy) return;
+              paymentBusy = true;
+
               const chk = await checkout();
               const total = chk.total || chk.calculation?.total;
+
               $("khqrImage").style.display = "none";
               $("khqrLoading").style.display = "block";
               bootstrap.Modal.getOrCreateInstance($("khqrModal")).show();
+
+              const oid = pendingOrderId;
               const khqr = await api(
-                "/payment/generate-khqr?orderId=" + pendingOrderId + "&amount=" + total + "&currency=USD&gateway=aba"
+                "/payment/generate-khqr?orderId=" + oid + "&amount=" + total + "&currency=USD&gateway=aba"
               );
+
               $("khqrLoading").style.display = "none";
               setKhqrStatus("Waiting for PayWay webhook after customer payment.", "");
               startKhqrPolling();
+
               if (khqr.qrImage) {
-                $("khqrImage").src = khqr.qrImage.startsWith("data:") ? khqr.qrImage : "data:image/png;base64," + khqr.qrImage;
+                $("khqrImage").src = khqr.qrImage.startsWith("data:")
+                  ? khqr.qrImage
+                  : "data:image/png;base64," + khqr.qrImage;
                 $("khqrImage").style.display = "block";
               }
               $("khqrAmount").textContent = "Amount: " + money(total) + " (≈ " + Math.round(Number(total) * KHQR_RATE) + " KHR)";
@@ -754,21 +810,32 @@
               $("khqrLoading").textContent = e.message;
               setKhqrStatus(e.message, "error");
               if (typeof showToast === "function") showToast(e.message, "error");
+            } finally {
+              paymentBusy = false;
             }
           }
 
+
           async function completeKhqrOrder() {
-            await api("/admin/pos/complete-pickup/" + pendingOrderId, { method: "POST" });
-            const rec = await api("/admin/pos/receipt/" + pendingOrderId);
+            const oid = pendingOrderId;
+            if (!oid) return;
+
+            // If user cancelled/closed the modal, we must not complete the order or show receipt.
+            // (Cancel will set pendingOrderId=null and stop polling.)
+            if (!pendingOrderId) return;
+
+            await api("/admin/pos/complete-pickup/" + oid, { method: "POST" });
+            const rec = await api("/admin/pos/receipt/" + oid);
             bootstrap.Modal.getInstance($("khqrModal"))?.hide();
             stopKhqrPolling();
             cart = [];
-            const oid = pendingOrderId;
             pendingOrderId = null;
+            lastCalc = null;
             renderCart();
             showReceipt(rec.receiptMarkdown);
             if (typeof showToast === "function") showToast("KHQR payment received - order #" + oid, "success");
           }
+
 
           async function checkKhqrStatus(showWaiting) {
             try {
@@ -790,22 +857,10 @@
           }
 
           async function verifyKhqr() {
+            // Keep polling logic in one place (checkKhqrStatus) to avoid duplicate requests.
             return await checkKhqrStatus(true);
-            try {
-              await api("/payment/verify-khqr/" + pendingOrderId, { method: "POST" });
-              await api("/admin/pos/complete-pickup/" + pendingOrderId, { method: "POST" });
-              const rec = await api("/admin/pos/receipt/" + pendingOrderId);
-              bootstrap.Modal.getInstance($("khqrModal"))?.hide();
-              cart = [];
-              const oid = pendingOrderId;
-              pendingOrderId = null;
-              renderCart();
-              showReceipt(rec.receiptMarkdown);
-              if (typeof showToast === "function") showToast("KHQR payment verified — order #" + oid, "success");
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-            }
           }
+
 
           async function loadProducts() {
             const data = await api("/admin/pos/products");
@@ -829,14 +884,33 @@
             $("cashModal").addEventListener("hidden.bs.modal", () => setCashModalBusy(false));
             $("btnPayKhqr").addEventListener("click", payKhqr);
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
+            $("btnCancelKhqr").addEventListener("click", () => {
+              // Front-end cancellation only clears local pending order so polling/completion won't run.
+              // Back-end cancel endpoint should be added to delete/set CANCELLED to stop websocket notifications.
+              pendingOrderId = null;
+              lastCalc = null;
+              stopKhqrPolling();
+              paymentBusy = false;
+              cart = [];
+              renderCart();
+              bootstrap.Modal.getInstance($("khqrModal"))?.hide();
+            });
             $("btnClearCart").addEventListener("click", () => {
+
               stopKhqrPolling();
               cart = [];
               pendingOrderId = null;
               lastCalc = null;
               renderCart();
             });
-            $("khqrModal").addEventListener("hidden.bs.modal", stopKhqrPolling);
+          $("khqrModal").addEventListener("hidden.bs.modal", () => {
+              // If user closes/cancels KHQR modal, we must not complete the order later.
+              stopKhqrPolling();
+              pendingOrderId = null;
+              lastCalc = null;
+              paymentBusy = false;
+            });
+
             $("btnPrintReceipt").addEventListener("click", () => {
               const w = window.open("", "_blank");
               w.document.write("<html><head><title>Receipt - " + SHOP + "</title></head><body>" + $("receiptRender").innerHTML + "</body></html>");

@@ -21,4 +21,10 @@ public interface IPosService {
 
     /** Pre-payment order summary for POS cash/card confirmation modals. */
     String buildOrderSummaryMarkdown(Order order, String cashierDisplayName);
+
+    /**
+     * Cancel POS/internal order that is still pending payment (prevents completing
+     * later).
+     */
+    void cancelPosOrder(Long orderId);
 }

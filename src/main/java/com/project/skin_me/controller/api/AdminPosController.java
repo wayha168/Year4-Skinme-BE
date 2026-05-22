@@ -58,7 +58,8 @@ public class AdminPosController {
         try {
             User cashier = resolveCashier(authentication);
             List<PosLineItemDto> items = parseLineItems(body);
-            String fulfillmentType = body.get("fulfillmentType") != null ? body.get("fulfillmentType").toString() : "PICKUP";
+            String fulfillmentType = body.get("fulfillmentType") != null ? body.get("fulfillmentType").toString()
+                    : "PICKUP";
             Order order = posService.createPosOrder(cashier, items, fulfillmentType);
 
             PosCalculateResultDto calc = posService.calculate(items);
@@ -105,8 +106,19 @@ public class AdminPosController {
         return completePay(body, authentication, PaymentMethod.CREDIT_CARD, cardLast4);
     }
 
+    @PostMapping("/cancel/{orderId}")
+    public ResponseEntity<ApiResponse> cancelPosOrder(@PathVariable Long orderId) {
+        try {
+            posService.cancelPosOrder(orderId);
+            return ResponseEntity.ok(new ApiResponse("Order cancelled", Map.of("orderId", orderId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
     @PostMapping("/complete-pickup/{orderId}")
     public ResponseEntity<ApiResponse> completePickup(@PathVariable Long orderId) {
+
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         if (order.getDeliveryAddressFull() == null || !order.getDeliveryAddressFull().contains("PICKUP")) {
