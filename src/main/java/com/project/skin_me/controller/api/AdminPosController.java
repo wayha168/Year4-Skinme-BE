@@ -151,13 +151,8 @@ public class AdminPosController {
             Authentication authentication,
             PaymentMethod method,
             String cardLast4) {
-        Long orderId = body.get("orderId") != null ? Long.parseLong(body.get("orderId").toString()) : null;
-        if (orderId == null) {
-            return ResponseEntity.badRequest().body(new ApiResponse("orderId is required", null));
-        }
         User cashier = resolveCashier(authentication);
-        Order order = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        Order order = resolveOrderForPayment(body, cashier);
         try {
             Map<String, Object> result = posService.completePayment(order, cashier, method, cardLast4);
             return ResponseEntity.ok(new ApiResponse("Payment completed", result));
@@ -169,6 +164,27 @@ public class AdminPosController {
                     : "Payment could not be completed";
             return ResponseEntity.badRequest().body(new ApiResponse(msg, null));
         }
+    }
+
+    /**
+     * Resolves an existing pending POS order, or creates one from cart items when the cashier
+     * confirms payment (no order row until Process payment).
+     */
+    private Order resolveOrderForPayment(Map<String, Object> body, User cashier) {
+        Long orderId = null;
+        if (body.get("orderId") != null && !body.get("orderId").toString().isBlank()) {
+            orderId = Long.parseLong(body.get("orderId").toString());
+        }
+        if (orderId != null) {
+            Long existingId = orderId;
+            return orderRepository.findByIdWithOrderItemsAndProducts(existingId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found: " + existingId));
+        }
+        List<PosLineItemDto> items = parseLineItems(body);
+        String fulfillmentType = body.get("fulfillmentType") != null
+                ? body.get("fulfillmentType").toString()
+                : "PICKUP";
+        return posService.createPosOrder(cashier, items, fulfillmentType);
     }
 
     @SuppressWarnings("unchecked")

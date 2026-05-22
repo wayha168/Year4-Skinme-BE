@@ -983,6 +983,8 @@ public class PageController {
                     .orElseThrow(() -> new RuntimeException("Order not found"));
             model.addAttribute("order", order);
             paymentRepository.findByOrder(order).ifPresent(p -> model.addAttribute("payment", p));
+            model.addAttribute("posShopName", posShopName);
+            model.addAttribute("posShopAddress", posShopAddress);
             model.addAttribute("pageTitle", "Order Details #" + orderId);
         } catch (Exception e) {
             model.addAttribute("error", "Order not found: " + e.getMessage());

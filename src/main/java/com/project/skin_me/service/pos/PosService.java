@@ -202,58 +202,52 @@ public class PosService implements IPosService {
     public String buildOrderSummaryMarkdown(Order order, String cashierDisplayName) {
         Order loaded = orderRepository.findByIdWithOrderItemsAndProducts(order.getOrderId())
                 .orElse(order);
-        StringBuilder md = appendReceiptHeader(new StringBuilder(), loaded, cashierDisplayName);
-        md.append("| **Status** | Awaiting payment |\n");
-        md.append("| **Payment** | Cash |\n\n");
-        appendItemsTable(md, loaded);
-        appendTotalsSection(md, loaded);
-        md.append("---\n\n");
-        md.append("*Confirm payment to complete this order.*\n");
-        return md.toString();
+        return buildInvoiceMarkdown(loaded, cashierDisplayName, true, null);
     }
 
     @Override
     public String buildReceiptMarkdown(Order order, String cashierDisplayName) {
         Order loaded = orderRepository.findByIdWithOrderItemsAndProducts(order.getOrderId())
                 .orElse(order);
-
-        StringBuilder md = appendReceiptHeader(new StringBuilder(), loaded, cashierDisplayName);
-        md.append("| **Fulfillment** | ").append(isPickupOrder(loaded) ? "Pickup (in-store)" : "Delivery").append(" |\n\n");
-        appendItemsTable(md, loaded);
-        appendTotalsSection(md, loaded);
-
         Payment pay = paymentRepository.findByOrderId(loaded.getOrderId()).orElse(null);
-        if (pay != null) {
-            md.append("**Payment:** ")
-                    .append(formatPaymentMethod(pay.getMethod()))
-                    .append("\n\n");
-        }
-
-        md.append("---\n\n");
-        md.append("*Thank you for shopping at ").append(shopName).append("!*\n");
-        return md.toString();
+        return buildInvoiceMarkdown(loaded, cashierDisplayName, false, pay);
     }
 
-    private StringBuilder appendReceiptHeader(StringBuilder md, Order loaded, String cashierDisplayName) {
-        DateTimeFormatter dt = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
-        md.append("# ").append(shopName).append("\n\n");
-        md.append("**").append(shopAddress).append("**\n");
+    private String buildInvoiceMarkdown(Order loaded, String cashierDisplayName, boolean awaitingPayment,
+            Payment pay) {
+        DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        String invoiceNo = loaded.getOrderId() != null ? "INV-" + String.format("%04d", loaded.getOrderId()) : "INV-0000";
+        String issueDate = LocalDateTime.now().format(dateFmt);
+        String cashier = cashierDisplayName != null ? cashierDisplayName : "—";
+        String fulfillment = isPickupOrder(loaded) ? "Pickup (in-store)" : "Delivery";
+
+        StringBuilder md = new StringBuilder();
+        md.append("<div class=\"pos-invoice\">\n\n");
+        md.append("<div class=\"pos-invoice-header\">\n\n");
+        md.append("## ").append(escapeMdInline(shopName.toUpperCase())).append("\n\n");
+        md.append(escapeMdInline(shopAddress)).append("  \n");
         if (shopPhone != null && !shopPhone.isBlank()) {
-            md.append("Tel: ").append(shopPhone).append("\n");
+            md.append("Tel: ").append(escapeMdInline(shopPhone)).append("  \n");
         }
-        md.append("\n---\n\n");
-        md.append("| | |\n|---|---|\n");
-        md.append("| **Order** | #").append(loaded.getOrderId()).append(" |\n");
-        md.append("| **Date** | ").append(LocalDateTime.now().format(dt)).append(" |\n");
-        md.append("| **Cashier** | ").append(cashierDisplayName != null ? cashierDisplayName : "—").append(" |\n");
-        return md;
-    }
+        md.append("\n</div>\n\n");
 
-    private void appendItemsTable(StringBuilder md, Order loaded) {
-        md.append("### Items\n\n");
-        md.append("| Product | Qty | Price | Total |\n");
-        md.append("|---------|-----|-------|-------|\n");
+        md.append("<div class=\"pos-invoice-meta\">\n\n");
+        md.append("| **BILL TO** | **INVOICE** |\n");
+        md.append("|:---|---:|\n");
+        md.append("| Walk-in customer | **Invoice No:** ").append(invoiceNo).append(" |\n");
+        md.append("| ").append(fulfillment).append(" | **Issue Date:** ").append(issueDate).append(" |\n");
+        md.append("| Cashier: ").append(escapeMdInline(cashier)).append(" | ");
+        if (awaitingPayment) {
+            md.append("**Status:** Awaiting payment |\n");
+        } else if (pay != null) {
+            md.append("**Payment:** ").append(formatPaymentMethod(pay.getMethod())).append(" |\n");
+        } else {
+            md.append("**Status:** Paid |\n");
+        }
+        md.append("\n</div>\n\n");
 
+        md.append("| Description | Quantity | Unit Price | Amount |\n");
+        md.append("|:---|---:|---:|---:|\n");
         if (loaded.getOrderItems() != null && !loaded.getOrderItems().isEmpty()) {
             for (OrderItem item : loaded.getOrderItems()) {
                 String name = item.getProduct() != null ? item.getProduct().getName() : "Item";
@@ -267,16 +261,32 @@ public class PosService implements IPosService {
         } else {
             md.append("| — | — | — | — |\n");
         }
-    }
 
-    private void appendTotalsSection(StringBuilder md, Order loaded) {
         BigDecimal subtotal = loaded.getItemsSubtotalAmount() != null
                 ? loaded.getItemsSubtotalAmount()
                 : loaded.getOrderTotalAmount();
-        md.append("\n---\n\n");
-        md.append("**Subtotal:** ").append(formatMoney(subtotal)).append("\n\n");
-        md.append("**Delivery:** $0.00 *(pickup)*\n\n");
-        md.append("## **Total: ").append(formatMoney(loaded.getOrderTotalAmount())).append("**\n\n");
+        md.append("\n<div class=\"pos-invoice-totals\">\n\n");
+        md.append("| | |\n");
+        md.append("|:---|---:|\n");
+        md.append("| **Subtotal** | ").append(formatMoney(subtotal)).append(" |\n");
+        md.append("| **Delivery** | $0.00 |\n");
+        md.append("| **Total** | **").append(formatMoney(loaded.getOrderTotalAmount())).append("** |\n");
+        md.append("\n</div>\n\n");
+
+        if (awaitingPayment) {
+            md.append("*Tap **Process payment** to complete this sale.*\n\n");
+        } else {
+            md.append("*Thank you for shopping at ").append(escapeMdInline(shopName)).append("!*\n\n");
+        }
+        md.append("</div>\n");
+        return md.toString();
+    }
+
+    private static String escapeMdInline(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("|", "\\|");
     }
 
     private static String formatMoney(BigDecimal amount) {
@@ -382,9 +392,6 @@ public class PosService implements IPosService {
     }
 
     private static String escapeMdCell(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.replace("|", "\\|");
+        return escapeMdInline(text);
     }
 }

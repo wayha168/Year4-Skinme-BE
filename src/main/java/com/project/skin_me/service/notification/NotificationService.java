@@ -145,6 +145,28 @@ public class NotificationService {
     }
 
     /**
+     * In-app + WebSocket notification for admins when a POS sale is completed (after payment is processed).
+     */
+    @Transactional
+    public void notifyAdminsPosSaleCompleted(Long orderId, BigDecimal totalAmount, String paymentMethod) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String amt = totalAmount != null ? "$" + totalAmount.stripTrailingZeros().toPlainString() : "N/A";
+        String method = (paymentMethod != null && !paymentMethod.isBlank()) ? paymentMethod : "POS";
+        String message = "POS sale #" + orderId + " · " + amt + " · " + method;
+        String actionUrl = "/views/orders/" + orderId;
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "POS sale completed", message, "ORDER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of POS sale {}: {}", admin.getId(), orderId, e.getMessage());
+            }
+        }
+    }
+
+    /**
      * In-app notification for each admin when an order is paid (bell panel + persisted).
      */
     @Transactional
