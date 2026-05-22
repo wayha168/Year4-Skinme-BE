@@ -264,7 +264,7 @@
               <div id="cashSummaryRender" class="receipt-render"></div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelCashReview">Cancel</button>
               <button type="button" class="btn btn-success" id="btnProcessCash" disabled>
                 <i class="bi bi-check2-circle"></i> Process payment
               </button>
@@ -272,6 +272,7 @@
           </div>
         </div>
       </div>
+
 
       <!-- Card modal -->
       <div class="modal fade pos-modal-fit" id="cardModal" tabindex="-1">
@@ -718,7 +719,11 @@
                 method: "POST",
                 body: JSON.stringify({ orderId: Number(pendingOrderId) }),
               });
+
+              // IMPORTANT: hide modal AFTER payment is confirmed.
+              // cashModal.hidden handler will see paymentBusy and not cancel the order.
               bootstrap.Modal.getInstance($("cashModal"))?.hide();
+
               cart = [];
               pendingOrderId = null;
               lastCalc = null;
@@ -881,12 +886,45 @@
             $("btnProcessCash").addEventListener("click", confirmCashPayment);
             $("btnPayCard").addEventListener("click", payCard);
             $("btnConfirmCard").addEventListener("click", confirmCard);
-            $("cashModal").addEventListener("hidden.bs.modal", () => setCashModalBusy(false));
+
+            // If user clicks Cancel (or closes) on cash review modal,
+            // we MUST cancel the pending POS order on the backend and clear local state.
+            $("cashModal").addEventListener("hidden.bs.modal", async () => {
+              // Cancel/close on cash review => do NOT confirm/order payment.
+              // If user already processed payment, paymentBusy will be false again after finally,
+              // so we must use a stronger guard: order should already be processed (payment exists/paid).
+              // For POS flow, we cancel only when it still looks like a pending payment from UI state.
+              if (!pendingOrderId) {
+                setCashModalBusy(false);
+                return;
+              }
+
+              const oid = Number(pendingOrderId);
+              const shouldCancel = !paymentBusy;
+              setCashModalBusy(false);
+              if (!shouldCancel) return;
+
+              try {
+                await api("/admin/pos/cancel/" + oid, { method: "POST" });
+              } catch (e) {
+                // Even if cancel fails, clear local state to avoid double-processing.
+              }
+
+              pendingOrderId = null;
+              lastCalc = null;
+              cart = [];
+              renderCart();
+            });
+
+            $("btnCancelCashReview").addEventListener("click", () => {
+              // Explicit cancel button. Order cancellation is handled by hidden.bs.modal.
+              // This click handler only prevents accidental cash processing.
+              setCashModalBusy(false);
+            });
+
             $("btnPayKhqr").addEventListener("click", payKhqr);
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
             $("btnCancelKhqr").addEventListener("click", () => {
-              // Front-end cancellation only clears local pending order so polling/completion won't run.
-              // Back-end cancel endpoint should be added to delete/set CANCELLED to stop websocket notifications.
               pendingOrderId = null;
               lastCalc = null;
               stopKhqrPolling();
