@@ -614,6 +614,7 @@
     <div class="content-section">
       <h2 class="section-title"><i class="bi bi-lightning-fill"></i> Quick Actions</h2>
       <div class="action-buttons">
+        <a href="/views/pos" class="btn-primary" sec:authorize="hasRole('ADMIN')"> <i class="bi bi-shop"></i> Point of Sale </a>
         <a href="/views/categories" class="btn-primary"> <i class="bi bi-tags"></i> View Categories </a>
         <a href="/views/products" class="btn-primary"> <i class="bi bi-box-seam"></i> View Products </a>
         <a href="/views/promotions" class="btn-primary" sec:authorize="hasRole('ADMIN')"> <i class="bi bi-tag"></i> View Promotions </a>

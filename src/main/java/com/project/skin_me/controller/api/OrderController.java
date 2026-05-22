@@ -2,6 +2,8 @@ package com.project.skin_me.controller.api;
 
 import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.enums.LogisticCompany;
+import com.project.skin_me.enums.OrderStatus;
+import com.project.skin_me.enums.PaymentMethod;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
@@ -9,6 +11,7 @@ import com.project.skin_me.model.User;
 import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.service.delivery.IDeliveryService;
 import com.project.skin_me.service.order.IOrderService;
+import com.project.skin_me.service.pos.IPosService;
 import com.project.skin_me.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +31,7 @@ public class OrderController {
     private final IOrderService orderService;
     private final IDeliveryService deliveryService;
     private final IUserService userService;
+    private final IPosService posService;
 
     @PostMapping("/order")
     public ResponseEntity<ApiResponse> createOrder(@RequestBody(required = false) Map<String, Object> body) {
@@ -96,6 +100,46 @@ public class OrderController {
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error fetching orders: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * Pickup orders paid in cash: mark payment successful and complete the order (DELIVERED).
+     */
+    @PostMapping("/{orderId}/confirm-cash-pickup")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse> confirmCashPickup(
+            @PathVariable Long orderId) {
+        try {
+            User admin = userService.getAuthenticatedUser();
+            Order order = orderService.getOrderById(orderId);
+            if (!order.isPickupFulfillment()) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse("This action is only available for pickup orders", null));
+            }
+            OrderStatus status = order.getOrderStatus();
+            if (status == OrderStatus.DELIVERED) {
+                OrderDto dto = orderService.convertToDto(order);
+                return ResponseEntity.ok(new ApiResponse("Order is already completed", dto));
+            }
+            if (status != OrderStatus.PAYMENT_PENDING
+                    && status != OrderStatus.PENDING
+                    && status != OrderStatus.PAID) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse(
+                                "Cannot confirm cash payment for order in status: " + status, null));
+            }
+            posService.completePayment(order, admin, PaymentMethod.CASH, null);
+            Order updated = orderService.getOrderById(orderId);
+            return ResponseEntity.ok(new ApiResponse("Order completed — cash payment recorded",
+                    orderService.convertToDto(updated)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.status(BAD_REQUEST).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Error completing pickup order: " + e.getMessage(), null));
         }
     }
 

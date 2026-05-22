@@ -30,7 +30,10 @@ public class Order {
     @Column(name = "items_subtotal_amount", precision = 12, scale = 2)
     private BigDecimal itemsSubtotalAmount;
 
-    /** Flat delivery charge when subtotal is below threshold and free delivery does not apply. */
+    /**
+     * Flat delivery charge when subtotal is below threshold and free delivery does
+     * not apply.
+     */
     @Column(name = "delivery_fee_amount", precision = 12, scale = 2)
     private BigDecimal deliveryFeeAmount;
 
@@ -50,7 +53,10 @@ public class Order {
     private LocalDateTime shippedAt;
     private LocalDateTime deliveredAt;
 
-    /** Preferred courier: set at checkout (before payment) via delivery API; optional override when marking delivered. */
+    /**
+     * Preferred courier: set at checkout (before payment) via delivery API;
+     * optional override when marking delivered.
+     */
     @Enumerated(EnumType.STRING)
     private LogisticCompany logisticCompany;
 
@@ -61,20 +67,23 @@ public class Order {
     @Column(name = "delivery_city", length = 100)
     private String deliveryCity;
 
-    @Column(name = "delivery_province", length = 100)
-    private String deliveryProvince;
+@Column(name = "delivery_province", length = 100)
+     private String deliveryProvince;
 
-    @Column(name = "delivery_postal_code", length = 20)
-    private String deliveryPostalCode;
+     @Column(name = "delivery_postal_code", length = 20)
+     private String deliveryPostalCode;
 
-    @Column(name = "delivery_latitude")
-    private Double deliveryLatitude;
+     @Column(name = "delivery_latitude")
+     private Double deliveryLatitude;
 
-    @Column(name = "delivery_longitude")
-    private Double deliveryLongitude;
+     @Column(name = "delivery_longitude")
+     private Double deliveryLongitude;
 
-    @Column(name = "delivery_address_full", length = 1000)
-    private String deliveryAddressFull;
+     @Column(name = "delivery_address_full", length = 1000)
+     private String deliveryAddressFull;
+
+     @Column(name = "is_pos_order")
+     private Boolean isPosOrder = false;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
@@ -101,5 +110,21 @@ public class Order {
 
     public void setDeliveredAt(LocalDateTime now) {
         this.deliveredAt = now;
+    }
+
+    public boolean isPosOrder() {
+        return Boolean.TRUE.equals(isPosOrder);
+    }
+
+    public void setPosOrder(boolean posOrder) {
+        this.isPosOrder = posOrder;
+    }
+
+    /** In-store pickup (POS or checkout pickup option), not courier delivery. */
+    public boolean isPickupFulfillment() {
+        if (deliveryAddressFull == null || deliveryAddressFull.isBlank()) {
+            return false;
+        }
+        return deliveryAddressFull.toUpperCase().contains("PICKUP");
     }
 }

@@ -13,6 +13,8 @@ public interface IProductFeedbackService {
 
     Page<ProductFeedbackDto> listVisibleForProduct(Long productId, Pageable pageable);
 
+    Page<ProductFeedbackDto> listAllVisible(Pageable pageable);
+
     Page<ProductFeedbackDto> listAllForAdmin(Pageable pageable);
 
     ProductFeedbackDto setVisible(Long feedbackId, boolean visible);

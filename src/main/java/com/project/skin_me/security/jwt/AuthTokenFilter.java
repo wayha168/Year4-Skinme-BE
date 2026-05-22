@@ -28,6 +28,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             "/swagger",
             "/webjars",
             "/api/v1/auth",
+            "/api/v1/feedback/product",
             "/login-page",
             "/login",
             "/signup",

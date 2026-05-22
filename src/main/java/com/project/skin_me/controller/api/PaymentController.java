@@ -67,6 +67,9 @@ public class PaymentController {
     @Value("${api.prefix:/api/v1}")
     private String apiPrefix;
 
+    @Value("${payment.khqr.usd-to-khr-rate:4100}")
+    private int khqrUsdToKhrRate;
+
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -256,12 +259,14 @@ public class PaymentController {
         return "KHQR".equals(p) || "ABA".equals(p) || "ABA_KHQR".equals(p) || "PAYWAY".equals(p) || "PAYWAY_KHQR".equals(p);
     }
 
-    private static boolean khqrAmountMatchesOrder(BigDecimal orderTotal, BigDecimal requested, String currency) {
+    private static boolean khqrAmountMatchesOrder(BigDecimal orderTotal, BigDecimal requested, String currency,
+            int usdToKhrRate) {
         if (orderTotal == null || requested == null) {
             return false;
         }
         if ("KHR".equalsIgnoreCase(currency)) {
-            return orderTotal.setScale(0, RoundingMode.HALF_UP)
+            BigDecimal expectedKhr = orderTotal.multiply(BigDecimal.valueOf(usdToKhrRate));
+            return expectedKhr.setScale(0, RoundingMode.HALF_UP)
                     .compareTo(requested.setScale(0, RoundingMode.HALF_UP)) == 0;
         }
         return orderTotal.setScale(2, RoundingMode.HALF_UP)
@@ -838,9 +843,13 @@ public class PaymentController {
             }
 
             BigDecimal amountDecimal = amount;
-            if (!khqrAmountMatchesOrder(order.getOrderTotalAmount(), amountDecimal, currency)) {
+            if (!khqrAmountMatchesOrder(order.getOrderTotalAmount(), amountDecimal, currency, khqrUsdToKhrRate)) {
+                BigDecimal expected = "KHR".equalsIgnoreCase(currency)
+                        ? order.getOrderTotalAmount().multiply(BigDecimal.valueOf(khqrUsdToKhrRate))
+                                .setScale(0, RoundingMode.HALF_UP)
+                        : order.getOrderTotalAmount().setScale(2, RoundingMode.HALF_UP);
                 return ResponseEntity.status(400).body(new ApiResponse(
-                        "Amount must match order total. Expected " + order.getOrderTotalAmount()
+                        "Amount must match order total. Expected " + expected
                                 + " " + currency + " for order " + orderId + ".", null));
             }
 
@@ -882,6 +891,44 @@ public class PaymentController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error generating KHQR: " + e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/status/{orderId}")
+    public ResponseEntity<ApiResponse> getPaymentStatus(@PathVariable Long orderId) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+            Optional<Payment> paymentOpt = paymentRepository.findByOrder(order);
+            Payment payment = paymentOpt.orElse(null);
+
+            boolean paid = order.getOrderStatus() == OrderStatus.PAID
+                    || order.getOrderStatus() == OrderStatus.DELIVERED
+                    || (payment != null && payment.getStatus() == OrderStatus.SUCCESS);
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("orderId", order.getId());
+            data.put("orderStatus", order.getOrderStatus() != null ? order.getOrderStatus().name() : null);
+            data.put("paid", paid);
+            data.put("posOrder", order.isPosOrder());
+            if (payment != null) {
+                data.put("paymentId", payment.getId());
+                data.put("paymentStatus", payment.getStatus() != null ? payment.getStatus().name() : null);
+                data.put("paymentMethod", payment.getMethod() != null ? payment.getMethod().name() : null);
+                data.put("transactionRef", payment.getTransactionRef());
+                data.put("transactionTime", payment.getTransactionTime());
+                data.put("message", payment.getMessage());
+            } else {
+                data.put("paymentStatus", null);
+                data.put("paymentMethod", null);
+            }
+
+            return ResponseEntity.ok(new ApiResponse("Payment status", data));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse("Error loading payment status: " + e.getMessage(), null));
         }
     }
 

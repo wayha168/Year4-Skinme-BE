@@ -117,16 +117,38 @@
                 <span th:if="${order.orderStatus != null and (order.orderStatus.name() == 'COMPLETED' or order.orderStatus.name() == 'SUCCESS' or order.orderStatus.name() == 'DELIVERED')}" class="status-badge-active"><i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span></span>
                 <span th:if="${order.orderStatus == null or (order.orderStatus.name() != 'COMPLETED' and order.orderStatus.name() != 'SUCCESS' and order.orderStatus.name() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
               </div>
+              <div class="summary-line" th:if="${payment != null}">
+                <span class="summary-label">Payment</span>
+                <span class="summary-value" th:text="${payment.method != null ? #strings.replace(payment.method.name(), '_', ' ') : '—'}">CASH</span>
+              </div>
+              <div class="summary-line" th:if="${order.pickupFulfillment}">
+                <span class="summary-label">Fulfillment</span>
+                <span class="summary-value">Pickup (in-store)</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 3. Delivery -->
+        <!-- 3. Delivery / Pickup -->
         <div class="card detail-card summary-card summary-card--delivery mb-4">
           <div class="card-header detail-header">
-            <h5 class="mb-0 text-white"><i class="bi bi-truck"></i> Delivery</h5>
+            <h5 class="mb-0 text-white">
+              <i class="bi" th:classappend="${order.pickupFulfillment} ? ' bi-shop' : ' bi-truck'"></i>
+              <span th:text="${order.pickupFulfillment} ? 'Pickup' : 'Delivery'">Delivery</span>
+            </h5>
           </div>
           <div class="card-body">
+            <div th:if="${order.pickupFulfillment}" class="alert alert-info py-2 small mb-2">
+              <i class="bi bi-info-circle"></i> Customer picks up in store. Collect cash at pickup, then use <strong>Order success</strong> below when payment is received.
+            </div>
+
+            <!-- Admin cancel (POS/internal orders) -->
+            <div class="d-flex gap-2 flex-wrap mb-3" sec:authorize="hasRole('ROLE_ADMIN')" th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAYMENT_PENDING' or order.orderStatus.name() == 'PENDING')}" >
+              <button type="button" class="btn btn-outline-danger" id="btnCancelOrder">
+                <i class="bi bi-x-circle"></i> Cancel order
+              </button>
+            </div>
+
             <div th:if="${order.trackingNumber != null and order.trackingNumber != ''}" class="mb-1">
               <span class="text-muted">Tracking:</span> <span class="fw-semibold" th:text="${order.trackingNumber}">-</span>
             </div>
@@ -158,24 +180,42 @@
           </div>
         </div>
 
-        <!-- Admin: delivery workflow -->
+        <!-- Admin: pickup cash / delivery workflow -->
         <div class="card detail-card no-print" sec:authorize="hasRole('ROLE_ADMIN')" th:if="${order}">
           <div class="card-header detail-header">
-            <h5 class="mb-0"><i class="bi bi-truck"></i> Admin — Delivery</h5>
+            <h5 class="mb-0">
+              <i class="bi" th:classappend="${order.pickupFulfillment} ? ' bi-cash-coin' : ' bi-truck'"></i>
+              <span th:text="${order.pickupFulfillment} ? 'Admin — Pickup (cash)' : 'Admin — Delivery'">Admin</span>
+            </h5>
           </div>
           <div class="card-body">
-            <p class="text-muted small mb-2">Mark this order as shipped, then as delivered when the customer receives it.</p>
-            <div class="d-flex gap-2 flex-wrap">
-              <button type="button" class="btn btn-outline-primary" id="btnAdminShip"
-                      th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAID' or order.orderStatus.name() == 'SUCCESS')}">
-                <i class="bi bi-box-seam"></i> Mark shipped
-              </button>
-              <button type="button" class="btn btn-outline-success" id="btnAdminDeliver"
-                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'SHIPPED'}">
-                <i class="bi bi-check2-circle"></i> Mark delivered
-              </button>
-              <span class="text-muted small align-self-center"
-                    th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">This order is delivered.</span>
+            <div th:if="${order.pickupFulfillment}">
+              <p class="text-muted small mb-2">Customer pays in cash at pickup. When payment is received, mark the order as paid and completed.</p>
+              <div class="d-flex gap-2 flex-wrap mb-3">
+                <button type="button" class="btn btn-success" id="btnConfirmCashPickup"
+                        th:if="${order.orderStatus != null and order.orderStatus.name() != 'DELIVERED'}">
+                  <i class="bi bi-check2-circle"></i> Order success — cash received
+                </button>
+                <span class="text-muted small align-self-center"
+                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">
+                  <i class="bi bi-check-circle text-success"></i> Pickup completed and payment recorded.
+                </span>
+              </div>
+            </div>
+            <div th:unless="${order.pickupFulfillment}">
+              <p class="text-muted small mb-2">Mark this order as shipped, then as delivered when the customer receives it.</p>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-primary" id="btnAdminShip"
+                        th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAID' or order.orderStatus.name() == 'SUCCESS')}">
+                  <i class="bi bi-box-seam"></i> Mark shipped
+                </button>
+                <button type="button" class="btn btn-outline-success" id="btnAdminDeliver"
+                        th:if="${order.orderStatus != null and order.orderStatus.name() == 'SHIPPED'}">
+                  <i class="bi bi-check2-circle"></i> Mark delivered
+                </button>
+                <span class="text-muted small align-self-center"
+                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">This order is delivered.</span>
+              </div>
             </div>
           </div>
         </div>
@@ -193,8 +233,11 @@
       <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
           var API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
-          function orderPutHeaders() {
+          function orderApiHeaders(method) {
             var h = { 'Accept': 'application/json' };
+            if (method && method !== 'GET') {
+              h['Content-Type'] = 'application/json';
+            }
             var c = document.querySelector('meta[name="_csrf"]');
             var ch = document.querySelector('meta[name="_csrf_header"]');
             if (c && ch) {
@@ -206,6 +249,37 @@
           var oid = el && el.getAttribute('data-order-id');
           var btnShip = document.getElementById('btnAdminShip');
           var btnDel = document.getElementById('btnAdminDeliver');
+          var btnCashPickup = document.getElementById('btnConfirmCashPickup');
+          var btnCancelOrder = document.getElementById('btnCancelOrder');
+
+          if (btnCashPickup && oid) {
+            btnCashPickup.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Complete pickup order',
+                message: 'Confirm cash payment received for order #' + oid + '. The order will be marked as PAID and completed.',
+                confirmText: 'Order success',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                btnCashPickup.disabled = true;
+                fetch(API_PREFIX + '/orders/' + oid + '/confirm-cash-pickup', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: orderApiHeaders('POST')
+                })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order completed — cash payment recorded', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) {
+                    btnCashPickup.disabled = false;
+                    if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error');
+                  });
+              });
+            });
+          }
           if (btnShip && oid) {
             btnShip.addEventListener('click', function() {
               showConfirmModal({
@@ -216,7 +290,7 @@
                 danger: false
               }).then(function(ok) {
                 if (!ok) return;
-                fetch(API_PREFIX + '/orders/' + oid + '/ship', { method: 'PUT', credentials: 'same-origin', headers: orderPutHeaders() })
+                fetch(API_PREFIX + '/orders/' + oid + '/ship', { method: 'PUT', credentials: 'same-origin', headers: orderApiHeaders('PUT') })
                   .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
                   .then(function() {
                     if (typeof showToast === 'function') showToast('Order marked as shipped', 'success');
@@ -226,9 +300,38 @@
               });
             });
           }
+          if (btnCancelOrder && oid) {
+            btnCancelOrder.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Cancel order',
+                message: 'Cancel order #' + oid + '. No further payment/completion actions will be allowed.',
+                confirmText: 'Cancel order',
+                cancelText: 'Keep order',
+                danger: true
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/admin/pos/cancel/' + oid, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: orderApiHeaders('POST')
+                })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order cancelled', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) {
+                    if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error');
+                  });
+              });
+            });
+          }
+
           if (btnDel && oid) {
             btnDel.addEventListener('click', function() {
+
               showConfirmModal({
+
                 title: 'Mark order as delivered',
                 message: 'Confirm that order #' + oid + ' has been delivered to the customer.',
                 confirmText: 'Mark delivered',
@@ -236,7 +339,7 @@
                 danger: false
               }).then(function(ok) {
                 if (!ok) return;
-                fetch(API_PREFIX + '/orders/' + oid + '/deliver', { method: 'PUT', credentials: 'same-origin', headers: orderPutHeaders() })
+                fetch(API_PREFIX + '/orders/' + oid + '/deliver', { method: 'PUT', credentials: 'same-origin', headers: orderApiHeaders('PUT') })
                   .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
                   .then(function() {
                     if (typeof showToast === 'function') showToast('Order marked as delivered', 'success');
