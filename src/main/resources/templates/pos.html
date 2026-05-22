@@ -130,8 +130,56 @@
           max-height: 400px;
           overflow-y: auto;
         }
-        .receipt-render h1 { font-size: 1.25rem; }
-        .receipt-render table { width: 100%; font-size: 0.85rem; }
+        .receipt-render {
+          font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+          color: #111;
+          line-height: 1.45;
+        }
+        .receipt-render .pos-invoice { max-width: 720px; margin: 0 auto; }
+        .receipt-render .pos-invoice-header h2 {
+          font-size: 1.1rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          margin: 0 0 0.35rem;
+        }
+        .receipt-render .pos-invoice-meta table,
+        .receipt-render table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.875rem;
+          margin: 1rem 0;
+        }
+        .receipt-render thead th,
+        .receipt-render table thead th,
+        .receipt-render table tr:first-child th {
+          background: #f1f5f9;
+          font-weight: 700;
+          text-transform: uppercase;
+          font-size: 0.72rem;
+          letter-spacing: 0.03em;
+        }
+        .receipt-render th,
+        .receipt-render td {
+          border: 1px solid #111;
+          padding: 0.5rem 0.65rem;
+        }
+        .receipt-render th:last-child,
+        .receipt-render td:last-child,
+        .receipt-render .pos-invoice-totals td:last-child {
+          text-align: right;
+        }
+        .receipt-render .pos-invoice-totals {
+          margin-top: 0.5rem;
+          margin-left: auto;
+          max-width: 280px;
+        }
+        .receipt-render .pos-invoice-totals table { margin: 0; }
+        .receipt-render .pos-invoice-totals tr:last-child td {
+          font-weight: 700;
+          border-top: 2px solid #111;
+          border-bottom: 2px solid #111;
+        }
+        .receipt-render em { color: #64748b; font-size: 0.8rem; }
         .khqr-box img { max-width: 220px; display: block; margin: 0 auto; }
         .khqr-status {
           border: 1px solid #dbeafe;
@@ -297,17 +345,21 @@
           <div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Scan KHQR to pay</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body text-center khqr-box">
-              <div id="khqrLoading" class="text-muted">Generating QR...</div>
+              <p class="small text-muted mb-2">Review the amount, then generate the QR code. No order is saved until you process.</p>
+              <p class="fw-semibold mb-3" id="khqrAmountPreview"></p>
+              <div id="khqrLoading" class="text-muted" style="display:none">Generating QR...</div>
               <img id="khqrImage" alt="KHQR" style="display:none" />
               <p class="small text-muted mt-2" id="khqrAmount"></p>
-              <button type="button" class="btn btn-success mt-2" id="btnVerifyKhqr">Check payment status</button>
-            <div id="khqrStatus" class="khqr-status">Waiting for PayWay webhook after customer payment.</div>
-            <div class="mt-3 d-flex gap-2 justify-content-end">
-              <button type="button" class="btn btn-outline-danger" id="btnCancelKhqr">
-                <i class="bi bi-x-circle"></i> Cancel order
+              <button type="button" class="btn btn-dark mt-2" id="btnProcessKhqr">
+                <i class="bi bi-qr-code"></i> Generate QR &amp; process
               </button>
+              <button type="button" class="btn btn-success mt-2" id="btnVerifyKhqr" style="display:none">Check payment status</button>
+              <div id="khqrStatus" class="khqr-status" style="display:none">Waiting for PayWay webhook after customer payment.</div>
             </div>
-
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-danger" id="btnCancelKhqr" data-bs-dismiss="modal">
+                <i class="bi bi-x-circle"></i> Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -413,7 +465,7 @@
             return (text || "").replace(/\|/g, "\\|");
           }
 
-          function buildLocalSummaryMarkdown(orderId, calc) {
+          function buildLocalSummaryMarkdown(calc) {
             const lines =
               calc?.lines?.length > 0
                 ? calc.lines
@@ -423,15 +475,26 @@
                     unitPrice: c.price,
                     lineTotal: (Number(c.price) || 0) * c.quantity,
                   }));
-            let md = "# " + SHOP + "\n\n";
-            md += "| | |\n|---|---|\n";
-            md += "| **Order** | #" + (orderId || "—") + " |\n";
-            md += "| **Cashier** | " + escapeMdCell(CASHIER) + " |\n";
-            md += "| **Status** | Awaiting payment |\n";
-            md += "| **Payment** | Cash |\n\n";
-            md += "### Items\n\n";
-            md += "| Product | Qty | Price | Total |\n";
-            md += "|---------|-----|-------|-------|\n";
+            const sub = calc?.subtotal != null ? Number(calc.subtotal) : localCartTotal();
+            const total = calc?.total != null ? Number(calc.total) : sub;
+            const today = new Date();
+            const issueDate =
+              String(today.getDate()).padStart(2, "0") +
+              "." +
+              String(today.getMonth() + 1).padStart(2, "0") +
+              "." +
+              today.getFullYear();
+
+            let md = '<div class="pos-invoice">\n\n';
+            md += '<div class="pos-invoice-header">\n\n## ' + escapeHtml(SHOP.toUpperCase()) + "\n\n";
+            md += "*Walk-in · Pickup (in-store)*  \n\n</div>\n\n";
+            md += '<div class="pos-invoice-meta">\n\n';
+            md += "| **BILL TO** | **INVOICE** |\n";
+            md += "|:---|---:|\n";
+            md += "| Walk-in customer | **Issue Date:** " + issueDate + " |\n";
+            md += "| Cashier: " + escapeMdCell(CASHIER) + " | **Status:** Awaiting payment |\n\n</div>\n\n";
+            md += "| Description | Quantity | Unit Price | Amount |\n";
+            md += "|:---|---:|---:|---:|\n";
             if (!lines.length) {
               md += "| — | — | — | — |\n";
             } else {
@@ -443,12 +506,12 @@
                 md += "| " + name + " | " + qty + " | " + money(unit) + " | " + money(lineTotal) + " |\n";
               });
             }
-            const sub = calc?.subtotal != null ? Number(calc.subtotal) : localCartTotal();
-            const total = calc?.total != null ? Number(calc.total) : sub;
-            md += "\n---\n\n**Subtotal:** " + money(sub) + "\n\n";
-            md += "**Delivery:** $0.00 *(pickup)*\n\n";
-            md += "## **Total: " + money(total) + "**\n\n";
-            md += "*Tap Processing to complete this cash sale.*\n";
+            md += '\n<div class="pos-invoice-totals">\n\n';
+            md += "| | |\n|:---|---:|\n";
+            md += "| **Subtotal** | " + money(sub) + " |\n";
+            md += "| **Delivery** | $0.00 |\n";
+            md += "| **Total** | **" + money(total) + "** |\n\n</div>\n\n";
+            md += "*Tap **Process payment** to save the order and complete this sale.*\n\n</div>";
             return md;
           }
 
@@ -652,7 +715,7 @@
           function setCashModalBusy(busy) {
             const btn = $("btnProcessCash");
             if (!btn) return;
-            btn.disabled = busy || !pendingOrderId;
+            btn.disabled = busy || !cart.length;
             if (busy) {
               btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
             } else {
@@ -660,64 +723,51 @@
             }
           }
 
-          async function loadCashSummary(summaryMarkdown, calc) {
+          async function loadCashSummary(calc) {
             const loading = $("cashSummaryLoading");
-            const render = $("cashSummaryRender");
-            const btn = $("btnProcessCash");
-            let md =
-              summaryMarkdown ||
-              buildLocalSummaryMarkdown(pendingOrderId, calc || lastCalc);
             if (loading) loading.style.display = "none";
-            if (render) render.innerHTML = "";
-            if (!summaryMarkdown && pendingOrderId) {
-              if (loading) loading.style.display = "block";
-              if (btn) btn.disabled = true;
-              try {
-                const data = await api("/admin/pos/summary/" + pendingOrderId);
-                if (data.summaryMarkdown) md = data.summaryMarkdown;
-              } catch (e) {
-                /* keep local fallback */
-              }
-              if (loading) loading.style.display = "none";
-            }
-            renderMarkdown("cashSummaryRender", md);
-            if (btn) btn.disabled = !pendingOrderId;
+            renderMarkdown("cashSummaryRender", buildLocalSummaryMarkdown(calc || lastCalc));
+            const btn = $("btnProcessCash");
+            if (btn) btn.disabled = !cart.length;
+          }
+
+          async function ensureCalculated() {
+            if (lastCalc || !cart.length) return lastCalc;
+            const data = await api("/admin/pos/calculate", {
+              method: "POST",
+              body: JSON.stringify(cartPayload()),
+            });
+            lastCalc = data;
+            $("lblSubtotal").textContent = money(data.subtotal);
+            $("lblTotal").textContent = money(data.total);
+            return lastCalc;
           }
 
           async function payCash() {
             if (paymentBusy || !cart.length) return;
-            paymentBusy = true;
-            renderCart();
+            try {
+              await ensureCalculated();
+            } catch (e) {
+              if (typeof showToast === "function") showToast(e.message, "error");
+              return;
+            }
             const cashModal = bootstrap.Modal.getOrCreateInstance($("cashModal"));
             $("cashSummaryRender").innerHTML = "";
-            $("cashSummaryLoading").style.display = "block";
-            $("btnProcessCash").disabled = true;
+            $("btnProcessCash").disabled = false;
             cashModal.show();
-            try {
-              const chk = await checkout();
-              const calc = chk.calculation || lastCalc;
-              const md =
-                chk.summaryMarkdown ||
-                buildLocalSummaryMarkdown(chk.orderId || pendingOrderId, calc);
-              await loadCashSummary(md, calc);
-            } catch (e) {
-              bootstrap.Modal.getInstance($("cashModal"))?.hide();
-              if (typeof showToast === "function") showToast(e.message, "error");
-            } finally {
-              paymentBusy = false;
-              renderCart();
-            }
+            await loadCashSummary(lastCalc);
           }
 
           async function confirmCashPayment() {
-            if (paymentBusy || !pendingOrderId) return;
+            if (paymentBusy || !cart.length) return;
             paymentBusy = true;
             setCashModalBusy(true);
             renderCart();
             try {
+              const payload = cartPayload();
               const result = await api("/admin/pos/pay/cash", {
                 method: "POST",
-                body: JSON.stringify({ orderId: Number(pendingOrderId) }),
+                body: JSON.stringify(payload),
               });
 
               // IMPORTANT: hide modal AFTER payment is confirmed.
@@ -743,29 +793,21 @@
           }
 
           async function payCard() {
-            if (paymentBusy) return;
-            paymentBusy = true;
-            renderCart();
-            try {
-              await checkout();
-              bootstrap.Modal.getOrCreateInstance($("cardModal")).show();
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-            } finally {
-              paymentBusy = false;
-              renderCart();
-            }
+            if (paymentBusy || !cart.length) return;
+            bootstrap.Modal.getOrCreateInstance($("cardModal")).show();
           }
 
           async function confirmCard() {
-            if (paymentBusy) return;
+            if (paymentBusy || !cart.length) return;
             paymentBusy = true;
             renderCart();
             try {
               const last4 = $("cardLast4").value.trim();
+              const payload = cartPayload();
+              payload.cardLast4 = last4 || null;
               const result = await api("/admin/pos/pay/card", {
                 method: "POST",
-                body: JSON.stringify({ orderId: pendingOrderId, cardLast4: last4 || null }),
+                body: JSON.stringify(payload),
               });
               bootstrap.Modal.getInstance($("cardModal"))?.hide();
               cart = [];
@@ -781,26 +823,50 @@
             }
           }
 
+          function resetKhqrModal() {
+            stopKhqrPolling();
+            $("khqrImage").style.display = "none";
+            $("khqrImage").src = "";
+            $("khqrLoading").style.display = "none";
+            $("btnProcessKhqr").style.display = "";
+            $("btnProcessKhqr").disabled = false;
+            $("btnVerifyKhqr").style.display = "none";
+            $("khqrStatus").style.display = "none";
+            $("khqrAmount").textContent = "";
+          }
+
           async function payKhqr() {
+            if (!cart.length || paymentBusy) return;
             try {
-              if (!cart.length) return;
-              // If user already has a pending order, don't create/trigger another one accidentally.
-              if (paymentBusy) return;
-              paymentBusy = true;
+              await ensureCalculated();
+            } catch (e) {
+              if (typeof showToast === "function") showToast(e.message, "error");
+              return;
+            }
+            const total = lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal();
+            resetKhqrModal();
+            $("khqrAmountPreview").textContent =
+              "Total: " + money(total) + " (≈ " + Math.round(total * KHQR_RATE) + " KHR)";
+            bootstrap.Modal.getOrCreateInstance($("khqrModal")).show();
+          }
 
+          async function processKhqr() {
+            if (paymentBusy || !cart.length) return;
+            paymentBusy = true;
+            $("btnProcessKhqr").disabled = true;
+            $("khqrLoading").style.display = "block";
+            try {
               const chk = await checkout();
-              const total = chk.total || chk.calculation?.total;
-
-              $("khqrImage").style.display = "none";
-              $("khqrLoading").style.display = "block";
-              bootstrap.Modal.getOrCreateInstance($("khqrModal")).show();
-
+              const total = chk.total || chk.calculation?.total || localCartTotal();
               const oid = pendingOrderId;
               const khqr = await api(
                 "/payment/generate-khqr?orderId=" + oid + "&amount=" + total + "&currency=USD&gateway=aba"
               );
 
               $("khqrLoading").style.display = "none";
+              $("btnProcessKhqr").style.display = "none";
+              $("btnVerifyKhqr").style.display = "";
+              $("khqrStatus").style.display = "block";
               setKhqrStatus("Waiting for PayWay webhook after customer payment.", "");
               startKhqrPolling();
 
@@ -810,10 +876,13 @@
                   : "data:image/png;base64," + khqr.qrImage;
                 $("khqrImage").style.display = "block";
               }
-              $("khqrAmount").textContent = "Amount: " + money(total) + " (≈ " + Math.round(Number(total) * KHQR_RATE) + " KHR)";
+              $("khqrAmount").textContent =
+                "Amount: " + money(total) + " (≈ " + Math.round(Number(total) * KHQR_RATE) + " KHR)";
             } catch (e) {
-              $("khqrLoading").textContent = e.message;
+              $("khqrLoading").style.display = "none";
+              $("btnProcessKhqr").disabled = false;
               setKhqrStatus(e.message, "error");
+              $("khqrStatus").style.display = "block";
               if (typeof showToast === "function") showToast(e.message, "error");
             } finally {
               paymentBusy = false;
@@ -889,50 +958,13 @@
 
             // If user clicks Cancel (or closes) on cash review modal,
             // we MUST cancel the pending POS order on the backend and clear local state.
-            $("cashModal").addEventListener("hidden.bs.modal", async () => {
-              // Cancel/close on cash review => do NOT confirm/order payment.
-              // If user already processed payment, paymentBusy will be false again after finally,
-              // so we must use a stronger guard: order should already be processed (payment exists/paid).
-              // For POS flow, we cancel only when it still looks like a pending payment from UI state.
-              if (!pendingOrderId) {
-                setCashModalBusy(false);
-                return;
-              }
-
-              const oid = Number(pendingOrderId);
-              const shouldCancel = !paymentBusy;
-              setCashModalBusy(false);
-              if (!shouldCancel) return;
-
-              try {
-                await api("/admin/pos/cancel/" + oid, { method: "POST" });
-              } catch (e) {
-                // Even if cancel fails, clear local state to avoid double-processing.
-              }
-
-              pendingOrderId = null;
-              lastCalc = null;
-              cart = [];
-              renderCart();
-            });
-
-            $("btnCancelCashReview").addEventListener("click", () => {
-              // Explicit cancel button. Order cancellation is handled by hidden.bs.modal.
-              // This click handler only prevents accidental cash processing.
+            $("cashModal").addEventListener("hidden.bs.modal", () => {
               setCashModalBusy(false);
             });
 
             $("btnPayKhqr").addEventListener("click", payKhqr);
+            $("btnProcessKhqr").addEventListener("click", processKhqr);
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
-            $("btnCancelKhqr").addEventListener("click", () => {
-              pendingOrderId = null;
-              lastCalc = null;
-              stopKhqrPolling();
-              paymentBusy = false;
-              cart = [];
-              renderCart();
-              bootstrap.Modal.getInstance($("khqrModal"))?.hide();
-            });
             $("btnClearCart").addEventListener("click", () => {
 
               stopKhqrPolling();
@@ -941,12 +973,19 @@
               lastCalc = null;
               renderCart();
             });
-          $("khqrModal").addEventListener("hidden.bs.modal", () => {
-              // If user closes/cancels KHQR modal, we must not complete the order later.
+          $("khqrModal").addEventListener("hidden.bs.modal", async () => {
               stopKhqrPolling();
+              const oid = pendingOrderId ? Number(pendingOrderId) : null;
               pendingOrderId = null;
-              lastCalc = null;
               paymentBusy = false;
+              resetKhqrModal();
+              if (oid) {
+                try {
+                  await api("/admin/pos/cancel/" + oid, { method: "POST" });
+                } catch (e) {
+                  /* ignore */
+                }
+              }
             });
 
             $("btnPrintReceipt").addEventListener("click", () => {

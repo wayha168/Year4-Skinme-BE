@@ -437,7 +437,15 @@ public class OrderService implements IOrderService {
         }
 
         try {
-            if (!isAdminOrder && !isPosOrder) {
+            if (isPosOrder) {
+                String methodLabel = payment.getMethod() != null
+                        ? payment.getMethod().name().replace('_', ' ')
+                        : "POS";
+                notificationService.notifyAdminsPosSaleCompleted(
+                        managedOrder.getId(),
+                        managedOrder.getOrderTotalAmount(),
+                        methodLabel);
+            } else if (!isAdminOrder) {
                 notificationService.notifyAdminsOrderPaid(
                         managedOrder.getId(),
                         managedOrder.getUser() != null ? managedOrder.getUser().getEmail() : null,

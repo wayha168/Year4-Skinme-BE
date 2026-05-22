@@ -365,10 +365,12 @@
           
           // Subscribe to order updates
           window.webSocketClient.subscribeToOrders(function(update) {
-            if (typeof showToast === 'function' && update.data) {
-              const message = update.data.message || 'Order updated';
-              showToast(message, 'info', 5000);
-            }
+            if (typeof showToast !== 'function' || !update || !update.data) return;
+            var data = update.data;
+            if (data.posOrder === true && data.status !== 'PAID' && data.status !== 'DELIVERED') return;
+            if (update.action === 'CREATE' || update.action === 'PAYMENT_PENDING_KHQR') return;
+            var message = data.message || 'Order updated';
+            showToast(message, 'info', 5000);
           });
           /* New feedback: persisted notifications + /user/topic/notifications (toast + bell); optional /topic/feedback for other clients */
         }
