@@ -145,6 +145,10 @@
           <i class="bi bi-chat-square-text"></i>
           <span class="nav-link-text">Chat</span>
         </a>
+        <a th:href="@{/views/chat-history}" class="nav-link sub-nav-link" data-tooltip="Chat history" data-turbo="false">
+          <i class="bi bi-clock-history"></i>
+          <span class="nav-link-text">Chat history</span>
+        </a>
         <a th:href="@{/views/chat-activity}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
           data-tooltip="Chat Activity" data-turbo="false">
           <i class="bi bi-chat-dots"></i>
