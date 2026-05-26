@@ -5,6 +5,7 @@ import com.project.skin_me.model.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -60,4 +61,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT COUNT(o) > 0 FROM Order o JOIN o.orderItems oi WHERE o.orderId = :orderId AND o.user.id = :userId AND oi.product.id = :productId AND o.orderStatus = :status")
     boolean isDeliveredOrderWithProductForUser(@Param("orderId") Long orderId, @Param("userId") Long userId,
             @Param("productId") Long productId, @Param("status") OrderStatus status);
+
+    @Modifying
+    @Query("DELETE FROM Order o WHERE o.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

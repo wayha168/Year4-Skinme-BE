@@ -4,6 +4,7 @@ import com.project.skin_me.model.ChatMessage;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -38,4 +39,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     @Query(value = "SELECT DISTINCT cm FROM ChatMessage cm LEFT JOIN FETCH cm.user WHERE cm.user.id = :userId ORDER BY cm.timestamp DESC", countQuery = "SELECT COUNT(cm) FROM ChatMessage cm WHERE cm.user.id = :userId")
     Page<ChatMessage> findByUserIdWithUserOrderByTimestampDesc(@Param("userId") Long userId, Pageable pageable);
+
+    @Modifying
+    @Query("DELETE FROM ChatMessage cm WHERE cm.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

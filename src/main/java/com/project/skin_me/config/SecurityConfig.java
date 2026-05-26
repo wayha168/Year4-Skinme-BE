@@ -76,7 +76,7 @@ public class SecurityConfig {
         private static final String[] SECURED_API = {
                         "/api/v1/carts/**", "/api/v1/favorites/**", "/api/v1/cartItems/**",
                         "/api/v1/payment/**", "/api/v1/orders/**", "/api/v1/popular/user/**",
-                        "/api/v1/notifications/**", "/api/v1/feedback", "/api/v1/chat/**"
+                        "/api/v1/notifications/**", "/api/v1/feedback", "/v1/chat/**"
         };
 
         private static final String[] ADMIN_URLS = {

@@ -165,6 +165,10 @@ public class ChatbotService {
         return response.getBody();
     }
 
+    public Object postLog(ChatbotLogRequest request) {
+        return exchange(HttpMethod.POST, "/v1/chat/log", request, Object.class, false);
+    }
+
     public void populateUserContext(ChatbotChatRequest request, User user) {
         if (user == null) {
             return;

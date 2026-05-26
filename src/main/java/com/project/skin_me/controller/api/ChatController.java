@@ -25,7 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("${api.prefix}/chat")
+@RequestMapping("/v1/chat")
 public class ChatController {
 
     private final ChatbotService chatbotService;
@@ -62,8 +62,8 @@ public class ChatController {
         }
     }
 
-    /** Proxy POST /v1/chat — AI assistant + optional admin handoff. */
-    @PostMapping("/send")
+    /** POST /v1/chat — AI assistant + optional admin handoff. */
+    @PostMapping("")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse> sendMessage(@RequestBody ChatbotChatRequest request) {
         try {

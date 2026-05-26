@@ -558,7 +558,7 @@ public class PageController {
             categoryService.deleteCategoryById(categoryId);
             return "redirect:/views/categories?success=Category deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/categories?error=Failed to delete category: " + e.getMessage();
+            return "redirect:/views/categories?error=" + java.net.URLEncoder.encode("Failed to delete category: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -650,7 +650,7 @@ public class PageController {
             brandService.deleteBrandById(id);
             return "redirect:/views/brands?success=Brand deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/brands?error=Failed to delete brand: " + e.getMessage();
+            return "redirect:/views/brands?error=" + java.net.URLEncoder.encode("Failed to delete brand: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -851,7 +851,7 @@ public class PageController {
             productService.deleteProductById(productId);
             return "redirect:/views/products?success=Product deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/products?error=Failed to delete product: " + e.getMessage();
+            return "redirect:/views/products?error=" + java.net.URLEncoder.encode("Failed to delete product: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1813,7 +1813,7 @@ public class PageController {
         } catch (IllegalStateException e) {
             return "redirect:/views/users?error=" + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return "redirect:/views/users?error=Failed to delete user: " + e.getMessage();
+            return "redirect:/views/users?error=" + java.net.URLEncoder.encode("Failed to delete user: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1824,7 +1824,7 @@ public class PageController {
             userService.assignRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role assigned successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to assign role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder.encode("Failed to assign role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1835,7 +1835,7 @@ public class PageController {
             userService.removeRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role removed successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to remove role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder.encode("Failed to remove role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -2000,7 +2000,7 @@ public class PageController {
             bakongKhqrService.deleteById(id);
             return "redirect:/views/khqr-accounts?success=Bank account deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/khqr-accounts?error=Failed to delete: " + e.getMessage();
+            return "redirect:/views/khqr-accounts?error=" + java.net.URLEncoder.encode("Failed to delete: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 

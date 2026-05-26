@@ -8,6 +8,8 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -18,7 +20,6 @@ public class EmailService {
     @Value("${app.frontend.url:https://skinme.store}")
     private String frontendUrl;
 
-    /** Base URL for password reset link (e.g. https://backend.skinme.store). If set, reset emails use this for the link. */
     @Value("${app.backend.url:}")
     private String backendUrl;
 
@@ -36,7 +37,7 @@ public class EmailService {
             message.setSubject("Password Reset Request - SkinMe");
             
             String baseUrl = (backendUrl != null && !backendUrl.isBlank()) ? backendUrl.trim() : frontendUrl;
-            String resetUrl = baseUrl + "/reset-password?token=" + resetToken + "&email=" + java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
+            String resetUrl = baseUrl + "/reset-password?token=" + resetToken + "&email=" + java.net.URLEncoder.encode(toEmail, StandardCharsets.UTF_8);
             String emailBody = buildPasswordResetEmailBody(resetUrl, resetToken);
             
             message.setText(emailBody);
