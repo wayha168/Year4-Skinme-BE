@@ -61,12 +61,12 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.config.success", config));
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
-    /** POST /v1/chat — AI assistant + optional admin handoff. */
-    @PostMapping("")
+    /** POST /v1/chat and /v1/chat/send — AI assistant + optional admin handoff. */
+    @PostMapping({ "", "/send" })
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse> sendMessage(@RequestBody ChatbotChatRequest request) {
         try {
@@ -83,7 +83,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.send.success", response));
         } catch (Exception e) {
             return ResponseEntity.status(502)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -110,7 +110,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.send.success", response));
         } catch (Exception e) {
             return ResponseEntity.status(502)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -124,11 +124,13 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.sessions.success", sessions));
         } catch (Exception e) {
             return ResponseEntity.status(502)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
-    /** Session history from chatbot (admin: any session; user: own session only). */
+    /**
+     * Session history from chatbot (admin: any session; user: own session only).
+     */
     @GetMapping("/sessions/{sessionId}/history")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse> getSessionHistory(
@@ -140,14 +142,14 @@ public class ChatController {
                 String own = chatSessionService.getSessionId(currentUser);
                 if (!sessionId.equals(own)) {
                     return ResponseEntity.status(403)
-                            .body(ApiResponse.ofKey("api.error.generic", new Object[]{"Access denied"}, null));
+                            .body(ApiResponse.ofKey("api.error.generic", new Object[] { "Access denied" }, null));
                 }
             }
             ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, Math.min(limit, 500));
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.history.success", history));
         } catch (Exception e) {
             return ResponseEntity.status(502)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -165,12 +167,13 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.adminReply.success", response));
         } catch (Exception e) {
             return ResponseEntity.status(502)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
     /**
-     * Receive chat turn logs from chatbot service (when SPRING_BACKEND_URL is configured there).
+     * Receive chat turn logs from chatbot service (when SPRING_BACKEND_URL is
+     * configured there).
      * Also usable from authenticated clients.
      */
     @PostMapping("/log")
@@ -181,7 +184,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.log.success", result));
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -200,7 +203,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.history.success", chatHistory));
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -212,7 +215,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.aiResponses.success", aiResponses));
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -224,7 +227,7 @@ public class ChatController {
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.userAdmin.success", chats));
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 
@@ -295,6 +298,12 @@ public class ChatController {
     }
 
     private static boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(r -> "ADMIN".equalsIgnoreCase(r.getName()));
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .map(r -> r.getName())
+                .filter(StringUtils::hasText)
+                .anyMatch(name -> "ADMIN".equalsIgnoreCase(name) || "ROLE_ADMIN".equalsIgnoreCase(name));
     }
 }

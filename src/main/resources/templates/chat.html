@@ -121,6 +121,15 @@
           justify-content: center;
           flex-shrink: 0;
           position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.03);
+        }
+        .message-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
         .message-avatar.online::after {
           content: "";
@@ -287,20 +296,21 @@
         }
 
         .chat-layout {
-          display: flex;
-          flex-direction: column;
+          display: grid;
+          grid-template-columns: 1fr;
           gap: 16px;
           min-height: 500px;
+          align-items: stretch;
         }
         @media (min-width: 992px) {
           .chat-layout {
-            flex-direction: row;
+            grid-template-columns: 320px minmax(0, 1fr);
           }
         }
         .chat-sidebar {
           width: 100%;
-          max-width: 320px;
-          min-width: 280px;
+          max-width: 100%;
+          min-width: 0;
           background: #fafbff;
           border-radius: 24px;
           border: 1px solid #e5e7eb;
@@ -308,11 +318,44 @@
           display: flex;
           flex-direction: column;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+          align-self: stretch;
         }
         .chat-sidebar-header {
           padding: 18px 20px 12px;
           background: #fff;
           border-bottom: 1px solid #e5e7eb;
+        }
+        .user-account-card {
+          padding: 18px 20px;
+          background: #ffffff;
+          border-radius: 20px;
+          border: 1px solid #e5e7eb;
+          margin: 16px;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+        }
+        .user-account-card .avatar-large {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+          color: white;
+          font-weight: 700;
+          font-size: 1.2rem;
+          margin-right: 12px;
+        }
+        .user-account-card .account-title {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 4px;
+        }
+        .user-account-card .account-detail {
+          font-size: 0.88rem;
+          color: #475569;
+          line-height: 1.5;
         }
         .chat-sidebar-header h5 {
           margin: 0;
@@ -392,16 +435,21 @@
           white-space: nowrap;
         }
         .chat-main {
-          flex: 1;
+          /* Make the main chat column fill available viewport space so the page
+             itself doesn't scroll — only the message list will scroll internally. */
+          height: calc(100vh - 140px);
+          min-height: 420px;
           display: flex;
           flex-direction: column;
-          min-height: 0;
         }
         .chat-panel {
-          flex: 1;
+          /* Let the panel stretch to the parent height; messages area handles scrolling */
+          flex: 1 1 auto;
+          height: 100%;
           display: flex;
           flex-direction: column;
           border-radius: 24px;
+          position: relative;
           overflow: hidden;
           background: #ffffff;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
@@ -443,12 +491,15 @@
         }
         .chat-messages {
           flex: 1;
+          min-height: 0;
           overflow-y: auto;
           padding: 22px 26px;
           background: #eef2ff;
           display: flex;
           flex-direction: column;
+          justify-content: flex-end;
           gap: 12px;
+          scroll-behavior: smooth;
         }
         .message {
           display: flex;
@@ -512,6 +563,7 @@
         }
         .chat-input {
           flex: 1;
+          min-width: 0;
           padding: 14px 18px;
           border-radius: 999px;
           border: 1px solid #cbd5e1;
@@ -525,6 +577,7 @@
           color: white;
           border: none;
           font-weight: 700;
+          flex-shrink: 0;
         }
         .chat-send-btn:hover {
           opacity: 0.95;
@@ -543,6 +596,20 @@
         }
         .chat-tab + .chat-tab {
           margin-left: 8px;
+        }
+        @media (max-width: 576px) {
+          .chat-input-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+          .chat-input {
+            width: 100%;
+          }
+          .chat-send-btn {
+            width: 100%;
+            min-width: 0;
+          }
         }
       </style>
     </th:block>
@@ -565,10 +632,12 @@
           <div th:if="${historyWarning}" class="alert alert-warning" th:text="${historyWarning}"></div>
 
           <div class="chat-layout">
-            <aside th:if="${isAdmin}" class="chat-sidebar" id="session-sidebar">
+            <aside class="chat-sidebar" id="session-sidebar">
               <div class="chat-sidebar-header">
-                <div><h5>Message Center</h5></div>
-                <div class="chat-sidebar-search">
+                <div>
+                  <h5 th:text="${isAdmin} ? 'Message Center' : 'Your Account'">Chat</h5>
+                </div>
+                <div class="chat-sidebar-search" th:if="${isAdmin}">
                   <input
                     type="search"
                     class="form-control"
@@ -578,42 +647,71 @@
                 </div>
               </div>
               <div class="chat-list" id="session-list">
-                <button
-                  type="button"
-                  th:each="s : ${chatSessions}"
-                  class="chat-user-item"
-                  th:classappend="${sessionId != null and sessionId == s.sessionId} ? ' active' : ''"
-                  th:attr="data-session-id=${s.sessionId}"
-                  th:onclick="|selectSession('${s.sessionId}')|"
-                >
-                  <div
-                    class="chat-user-avatar"
-                    th:text="${s.userName != null ? #strings.toUpperCase(#strings.substring(s.userName, 0, 1)) : (s.userEmail != null ? #strings.toUpperCase(#strings.substring(s.userEmail, 0, 1)) : 'U')}"
+                <div th:if="${isAdmin}">
+                  <button
+                    type="button"
+                    th:each="s : ${chatSessions}"
+                    class="chat-user-item"
+                    th:classappend="${sessionId != null and sessionId == s.sessionId} ? ' active' : ''"
+                    th:attr="data-session-id=${s.sessionId}"
+                    th:onclick="|selectSession('${s.sessionId}')|"
                   >
-                    U
-                  </div>
-                  <div class="chat-user-meta">
-                    <span
-                      class="chat-user-name"
-                      th:text="${s.userName != null ? s.userName : (s.userEmail != null ? s.userEmail : s.sessionId)}"
-                      >User</span
+                    <div
+                      class="chat-user-avatar"
+                      th:text="${s.userName != null ? #strings.toUpperCase(#strings.substring(s.userName, 0, 1)) : (s.userEmail != null ? #strings.toUpperCase(#strings.substring(s.userEmail, 0, 1)) : 'U')}"
                     >
-                    <div class="chat-user-preview">
-                      <span th:text="${s.lastMessage != null ? s.lastMessage : 'No messages yet'}"
-                        >No messages yet</span
-                      >
+                      U
+                    </div>
+                    <div class="chat-user-meta">
                       <span
-                        class="user-online-badge"
-                        th:classappend="${s.online == true} ? '' : ' offline'"
-                        th:text="${s.online == true ? 'Online' : 'Offline'}"
-                        >Offline</span
+                        class="chat-user-name"
+                        th:text="${s.userName != null ? s.userName : (s.userEmail != null ? s.userEmail : s.sessionId)}"
+                        >User</span
                       >
+                      <div class="chat-user-preview">
+                        <span th:text="${s.lastMessage != null ? s.lastMessage : 'No messages yet'}"
+                          >No messages yet</span
+                        >
+                        <span
+                          class="user-online-badge"
+                          th:classappend="${s.online == true} ? '' : ' offline'"
+                          th:text="${s.online == true ? 'Online' : 'Offline'}"
+                          >Offline</span
+                        >
+                      </div>
+                    </div>
+                  </button>
+                  <p th:if="${#lists.isEmpty(chatSessions)}" class="text-muted small p-3 mb-0">
+                    No sessions yet.
+                  </p>
+                </div>
+                <div th:unless="${isAdmin}" class="p-4">
+                  <div class="user-account-card">
+                    <div class="d-flex align-items-center">
+                      <span
+                        class="avatar-large"
+                        th:text="${currentUserName != null ? #strings.toUpperCase(#strings.substring(currentUserName, 0, 1)) : (currentUserEmail != null ? #strings.toUpperCase(#strings.substring(currentUserEmail, 0, 1)) : 'U')}"
+                        >U</span
+                      >
+                      <div>
+                        <div
+                          class="account-title"
+                          th:text="${currentUserName != null ? currentUserName : 'User'}"
+                        >
+                          User
+                        </div>
+                        <div class="account-detail" th:text="${currentUserEmail}">user@email.com</div>
+                      </div>
+                    </div>
+                    <div class="mt-4 account-detail">
+                      <strong>Session:</strong>
+                      <span th:text="${sessionId != null ? sessionId : 'Not started yet'}">Session ID</span>
+                    </div>
+                    <div class="mt-3 account-detail text-muted">
+                      Use the chat box on the right to send messages and view replies.
                     </div>
                   </div>
-                </button>
-                <p th:if="${#lists.isEmpty(chatSessions)}" class="text-muted small p-3 mb-0">
-                  No sessions yet.
-                </p>
+                </div>
               </div>
             </aside>
 
@@ -627,7 +725,7 @@
                     >
                       <div
                         class="message-avatar"
-                        th:text="${selectedSessionUser.userName != null ? #strings.toUpperCase(#strings.substring(selectedSessionUser.userName, 0, 1)) : (selectedSessionUser.userEmail != null ? #strings.toUpperCase(#strings.substring(selectedSessionUser.userEmail, 0, 1)) : 'U')}"
+                        th:attr="data-sender=${selectedSessionUser.userEmail != null ? selectedSessionUser.userEmail : (selectedSessionUser.userName != null ? selectedSessionUser.userName : selectedSessionUser.userId)}"
                         th:classappend="${selectedSessionUser.online == true} ? ' online' : ''"
                       >
                         U
@@ -678,6 +776,12 @@
                     >Unable to connect to chat websocket. Messages may still work.</span
                   >
                 </div>
+                <div class="px-4 py-2 text-end">
+                  <button id="load-more-history" class="btn btn-sm btn-outline-secondary d-none">
+                    <i class="bi bi-arrow-repeat me-1"></i>
+                    Load more history
+                  </button>
+                </div>
 
                 <div class="chat-messages" id="chat-messages">
                   <div
@@ -687,6 +791,7 @@
                     class="message"
                   >
                     <div th:if="${message.sender != null}" class="message-meta">
+                      <div class="message-avatar" th:attr="data-sender=${message.sender}"></div>
                       <div class="message-sender" th:text="${message.sender}">Sender</div>
                       <span
                         class="message-time"
@@ -752,8 +857,11 @@
         const CHAT_ROLE = /*[[${chatRole}]]*/ "user";
 
         let chatbotWs = null;
+        var CHAT_WS_RETRIES_EXHAUSTED = false;
         let isAiMode = false;
         let chatFilter = "all";
+        // If the user manually scrolled up (not at bottom), don't auto-scroll on new messages
+        let userAtBottom = true;
 
         function selectSession(sessionId) {
           window.location.href = "/views/chat?session=" + encodeURIComponent(sessionId);
@@ -796,6 +904,9 @@
         }
 
         function setUserPresence(online, sessionId) {
+          // admin_connected payload is misused to represent "user online".
+          // Ensure UI state doesn't accidentally stay enabled across reloads.
+          document.body.dataset.adminConnected = online ? "true" : "false";
           const badge = document.getElementById("user-presence");
           if (badge) {
             badge.textContent = online ? "User online" : "User offline";
@@ -821,6 +932,19 @@
             if (chatFilter === "ai") show = kind === "ai";
             el.style.display = show ? "" : "none";
           });
+          scrollChatToBottom();
+        }
+
+        function scrollChatToBottom() {
+          const container = document.getElementById("chat-messages");
+          if (!container) return;
+          container.scrollTop = container.scrollHeight;
+        }
+
+        function showLoadMoreButton(show) {
+          const btn = document.getElementById("load-more-history");
+          if (!btn) return;
+          btn.classList.toggle("d-none", !show);
         }
 
         function escapeHtml(text) {
@@ -829,9 +953,51 @@
           return div.innerHTML;
         }
 
-        function displayMessage(message) {
-          const messagesContainer = document.getElementById("chat-messages");
-          if (!messagesContainer) return;
+        function avatarHtmlFor(sender) {
+          const name = sender || "U";
+          const initial = (name.charAt(0) || "U").toUpperCase();
+          // Simple deterministic color palette (old pattern-like gradients)
+          const palettes = [
+            "linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%)",
+            "linear-gradient(135deg,#10b981 0%,#059669 100%)",
+            "linear-gradient(135deg,#f97316 0%,#ef4444 100%)",
+            "linear-gradient(135deg,#f43f5e 0%,#f97316 100%)",
+            "linear-gradient(135deg,#06b6d4 0%,#0891b2 100%)",
+            "linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%)",
+          ];
+          let hash = 0;
+          for (let i = 0; i < name.length; i++) {
+            hash = (hash << 5) - hash + name.charCodeAt(i);
+            hash |= 0;
+          }
+          const idx = Math.abs(hash) % palettes.length;
+          return (
+            '<div class="message-avatar" style="background: ' +
+            palettes[idx] +
+            '">' +
+            escapeHtml(initial) +
+            "</div>"
+          );
+        }
+
+        function hydrateMessageAvatars() {
+          document.querySelectorAll(".message-avatar[data-sender]").forEach(function (avatarEl) {
+            if (avatarEl.dataset.hydrated === "true") return;
+            const sender = avatarEl.getAttribute("data-sender") || "";
+            const url = avatarImageUrlFor(sender);
+            avatarEl.innerHTML = '<img src="' + url + '" alt="' + escapeHtml(sender) + '" loading="lazy" />';
+            avatarEl.dataset.hydrated = "true";
+          });
+          document.querySelectorAll(".chat-user-avatar[data-sender]").forEach(function (avatarEl) {
+            if (avatarEl.dataset.hydrated === "true") return;
+            const sender = avatarEl.getAttribute("data-sender") || "";
+            const url = avatarImageUrlFor(sender);
+            avatarEl.innerHTML = '<img src="' + url + '" alt="' + escapeHtml(sender) + '" loading="lazy" />';
+            avatarEl.dataset.hydrated = "true";
+          });
+        }
+
+        function createMessageElement(message) {
           const type = message.type || message.role || "user";
           const fromCustomer = IS_ADMIN && type === "user";
           const messageDiv = document.createElement("div");
@@ -844,14 +1010,12 @@
           const timestamp = message.timestamp
             ? new Date(message.timestamp).toLocaleString()
             : new Date().toLocaleString();
-          const initial = (sender.charAt(0) || "U").toUpperCase();
-          const metaHtml = fromCustomer
-            ? '<div class="message-meta"><div class="message-avatar">' +
-              initial +
-              '</div><div class="message-sender">' +
-              escapeHtml(sender) +
-              "</div></div>"
-            : '<div class="message-sender">' + escapeHtml(sender) + "</div>";
+          const metaHtml =
+            '<div class="message-meta">' +
+            avatarHtmlFor(sender) +
+            '<div class="message-sender">' +
+            escapeHtml(sender) +
+            "</div></div>";
 
           messageDiv.innerHTML =
             metaHtml +
@@ -861,15 +1025,79 @@
             '<div class="message-time">' +
             escapeHtml(timestamp) +
             "</div></div>";
+          return messageDiv;
+        }
+
+        function displayMessage(message) {
+          const messagesContainer = document.getElementById("chat-messages");
+          if (!messagesContainer) return;
+          const messageDiv = createMessageElement(message);
           messagesContainer.appendChild(messageDiv);
-          if (IS_ADMIN && fromCustomer) {
+          if (IS_ADMIN && message.role === "user") {
             updateNewMessageIndicator(true);
           }
-          if (IS_ADMIN && type === "admin") {
+          if (IS_ADMIN && message.role === "admin") {
             updateNewMessageIndicator(false);
           }
           applyChatFilter();
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          // Only auto-scroll if the user is scrolled to bottom (or near it).
+          if (userAtBottom) scrollChatToBottom();
+          else updateNewMessageIndicator(true);
+        }
+
+        function renderChatHistory(messages) {
+          const container = document.getElementById("chat-messages");
+          if (!container) return;
+          const preserveScroll = container.scrollTop > 0;
+          const previousHeight = container.scrollHeight;
+          container.innerHTML = "";
+          messages.forEach(function (message) {
+            container.appendChild(createMessageElement(message));
+          });
+          applyChatFilter();
+          if (preserveScroll) {
+            container.scrollTop = container.scrollHeight - previousHeight;
+          } else {
+            scrollChatToBottom();
+          }
+        }
+
+        async function fetchChatHistory(limit) {
+          if (!SESSION_ID) return null;
+          const response = await fetch(
+            API_PREFIX +
+              "/chat/sessions/" +
+              encodeURIComponent(SESSION_ID) +
+              "/history?limit=" +
+              encodeURIComponent(limit),
+            { credentials: "same-origin" },
+          );
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.message || "Failed to load history");
+          return json.data;
+        }
+
+        async function loadMoreHistory() {
+          const button = document.getElementById("load-more-history");
+          if (!button || !SESSION_ID) return;
+          button.disabled = true;
+          const previousText = button.innerHTML;
+          button.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Loading...';
+          try {
+            const history = await fetchChatHistory(500);
+            if (history && Array.isArray(history.messages)) {
+              renderChatHistory(history.messages);
+            }
+          } catch (error) {
+            console.error(error);
+            if (typeof showToast === "function") {
+              showToast("Unable to load more history.", "danger");
+            }
+          } finally {
+            button.disabled = false;
+            button.innerHTML = previousText;
+            showLoadMoreButton(false);
+          }
         }
 
         function showOptions(options) {
@@ -947,7 +1175,7 @@
             session_id: SESSION_ID || null,
             use_database: !isAiMode,
           };
-          const data = await apiFetch("/chat/send", { method: "POST", body: JSON.stringify(payload) });
+          const data = await apiFetch("/chat", { method: "POST", body: JSON.stringify(payload) });
           if (data && data.session_id) {
             SESSION_ID = data.session_id;
             reconnectWebSocket();
@@ -961,7 +1189,12 @@
             });
           }
           if (data && data.options) showOptions(data.options);
-          if (data && data.admin_connected !== undefined) setUserPresence(!!data.admin_connected, SESSION_ID);
+          // Reset presence first, then apply if backend explicitly returns admin_connected.
+          // This prevents stale true state when switching users/sessions.
+          setUserPresence(false, SESSION_ID);
+          if (data && data.admin_connected !== undefined) {
+            setUserPresence(!!data.admin_connected, SESSION_ID);
+          }
           document.getElementById("message-input").value = "";
         }
 
@@ -1016,6 +1249,12 @@
         }
 
         function initChatbotWebSocket() {
+          if (CHAT_WS_RETRIES_EXHAUSTED) {
+            showChatWsAlert("WebSocket connection attempts exhausted. Messages will use API only.");
+            updateConnectionStatus(false);
+            return;
+          }
+
           if (!SESSION_ID || !WS_URL || typeof ChatbotWebSocket === "undefined") {
             updateConnectionStatus(false);
             return;
@@ -1034,6 +1273,11 @@
               updateConnectionStatus(false);
               showChatWsAlert("WebSocket error: " + (err && err.message ? err.message : "connection failed"));
             },
+            onExhausted: function () {
+              CHAT_WS_RETRIES_EXHAUSTED = true;
+              updateConnectionStatus(false);
+              showChatWsAlert("WebSocket connection attempts exhausted. Messages will use API only.");
+            },
             onPresence: function (p) {
               if (!p || p.online === undefined) return;
               const sid = p.sessionId;
@@ -1048,6 +1292,10 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
+          hydrateMessageAvatars();
+          // Hard reset on page load to avoid stale admin_connected state
+          setUserPresence(false, SESSION_ID);
+          updateConnectionStatus(false);
           document.querySelectorAll(".chat-tab[data-chat-filter]").forEach(function (btn) {
             btn.addEventListener("click", function () {
               chatFilter = btn.getAttribute("data-chat-filter") || "all";
@@ -1057,11 +1305,29 @@
               applyChatFilter();
             });
           });
-          initChatbotWebSocket();
+          // Defer websocket initialization until the chat session is confirmed by the remote chatbot service.
           applyChatFilter();
           updateNewMessageIndicator(false);
+          // Ensure initial scroll and track user's scroll position
+          scrollChatToBottom();
           const messagesContainer = document.getElementById("chat-messages");
-          if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          if (messagesContainer) {
+            // Track whether the user has scrolled away from the bottom
+            messagesContainer.addEventListener("scroll", function () {
+              const atBottom =
+                messagesContainer.scrollTop + messagesContainer.clientHeight >=
+                messagesContainer.scrollHeight - 50;
+              userAtBottom = !!atBottom;
+              if (userAtBottom) updateNewMessageIndicator(false);
+            });
+          }
+          const loadMoreBtn = document.getElementById("load-more-history");
+          if (loadMoreBtn) {
+            loadMoreBtn.addEventListener("click", loadMoreHistory);
+            if (SESSION_ID && messagesContainer && messagesContainer.children.length >= 100) {
+              showLoadMoreButton(true);
+            }
+          }
         });
       </script>
     </th:block>

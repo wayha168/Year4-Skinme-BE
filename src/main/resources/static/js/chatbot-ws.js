@@ -1,4 +1,3 @@
-
 (function (global) {
   function ChatbotWebSocket(options) {
     this.sessionId = options.sessionId;
@@ -8,9 +7,15 @@
     this.onOpen = options.onOpen || function () {};
     this.onClose = options.onClose || function () {};
     this.onError = options.onError || function () {};
+    this.onExhausted = options.onExhausted || function () {};
     this.ws = null;
     this.reconnectTimer = null;
     this.closedByUser = false;
+    // Reconnection policy
+    this.maxRetries = typeof options.maxRetries === "number" ? options.maxRetries : 5;
+    this.retryBackoffMs = typeof options.retryBackoffMs === "number" ? options.retryBackoffMs : 4000;
+    this.retryCount = 0;
+    this.exhausted = false;
   }
 
   ChatbotWebSocket.prototype.connect = function () {
@@ -52,6 +57,9 @@
       }
     }
     self.ws.onopen = function () {
+      // Reset retry policy on successful open
+      self.retryCount = 0;
+      self.exhausted = false;
       self.onOpen();
     };
     self.ws.onmessage = function (event) {
@@ -73,9 +81,23 @@
     if (self.reconnectTimer) {
       clearTimeout(self.reconnectTimer);
     }
+    // If we've exhausted retries, notify and stop attempting
+    if (self.maxRetries > 0 && self.retryCount >= self.maxRetries) {
+      self.exhausted = true;
+      try {
+        if (typeof self.onExhausted === "function") self.onExhausted();
+      } catch (e) {
+        console.error("onExhausted handler failed", e);
+      }
+      return;
+    }
+
+    // Increment retry counter and schedule with exponential backoff
+    self.retryCount = Math.max(0, self.retryCount) + 1;
+    var backoff = Math.min(60000, self.retryBackoffMs * Math.pow(2, self.retryCount - 1));
     self.reconnectTimer = setTimeout(function () {
       self.connect();
-    }, 4000);
+    }, backoff);
   };
 
   ChatbotWebSocket.prototype.disconnect = function () {

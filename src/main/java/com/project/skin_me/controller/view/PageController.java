@@ -1363,8 +1363,7 @@ public class PageController {
             Model model) {
         try {
             User currentUser = userService.getAuthenticatedUser();
-            boolean isAdmin = currentUser.getRoles().stream()
-                    .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
+            boolean isAdmin = isAdmin(currentUser);
 
             String sessionId = isAdmin
                     ? (session != null && !session.isBlank() ? session.trim() : null)
@@ -1395,7 +1394,7 @@ public class PageController {
 
             if (StringUtils.hasText(sessionId)) {
                 try {
-                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 100);
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 500);
                     if (history.getMessages() != null) {
                         chatHistory = history.getMessages();
                     }
@@ -1452,6 +1451,16 @@ public class PageController {
         for (ChatbotSessionSummary summary : sessions) {
             enrichSessionSummaryWithUserDetails(summary);
         }
+    }
+
+    private static boolean isAdmin(User user) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .map(role -> role.getName())
+                .filter(StringUtils::hasText)
+                .anyMatch(name -> "ADMIN".equalsIgnoreCase(name) || "ROLE_ADMIN".equalsIgnoreCase(name));
     }
 
     private void enrichSessionSummaryWithUserDetails(ChatbotSessionSummary summary) {
