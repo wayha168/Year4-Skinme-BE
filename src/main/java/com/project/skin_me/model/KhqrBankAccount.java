@@ -5,10 +5,6 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-/**
- * Bank account configuration for KHQR payment (ABA or generic KHQR).
- * Admin can add/edit/delete these; BakongKhqrService uses the active account for QR generation.
- */
 @Entity
 @Getter
 @Setter

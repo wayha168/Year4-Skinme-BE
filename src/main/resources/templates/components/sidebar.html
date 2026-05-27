@@ -132,31 +132,46 @@
       </div>
     </li>
 
-    <li class="nav-separator"></li>
-    <li class="nav-item">
-      <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#chatMenu" role="button"
-        aria-expanded="false" aria-controls="chatMenu" data-tooltip="Chat" data-turbo="false">
-        <i class="bi bi-chat-square-text"></i>
-        <span class="nav-link-text">Chat</span>
-        <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
-      </a>
-      <div class="collapse" id="chatMenu" data-bs-parent="#sidebar-nav">
-        <a th:href="@{/views/chat}" class="nav-link sub-nav-link" data-tooltip="Chat" data-turbo="false">
-          <i class="bi bi-chat-square-text"></i>
-          <span class="nav-link-text">Chat</span>
-        </a>
-        <a th:href="@{/views/chat-history}" class="nav-link sub-nav-link" data-tooltip="Chat history" data-turbo="false">
-          <i class="bi bi-clock-history"></i>
-          <span class="nav-link-text">Chat history</span>
-        </a>
-        <a th:href="@{/views/chat-activity}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
-          data-tooltip="Chat Activity" data-turbo="false">
-          <i class="bi bi-chat-dots"></i>
-          <span class="nav-link-text">Chat Activity</span>
-        </a>
-      </div>
-    </li>
-    <li class="nav-separator"></li>
+     <li class="nav-separator"></li>
+     <li class="nav-item">
+       <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#chatMenu" role="button"
+         aria-expanded="false" aria-controls="chatMenu" data-tooltip="Chat" data-turbo="false">
+         <i class="bi bi-chat-square-text"></i>
+         <span class="nav-link-text">Chat</span>
+         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
+       </a>
+       <div class="collapse" id="chatMenu" data-bs-parent="#sidebar-nav">
+         <a th:href="@{/views/chat}" class="nav-link sub-nav-link" data-tooltip="Chat" data-turbo="false">
+           <i class="bi bi-chat-square-text"></i>
+           <span class="nav-link-text">Chat</span>
+         </a>
+         <a th:href="@{/views/chat-history}" class="nav-link sub-nav-link" data-tooltip="Chat history" data-turbo="false">
+           <i class="bi bi-clock-history"></i>
+           <span class="nav-link-text">Chat history</span>
+         </a>
+         <a th:href="@{/views/chat-activity}" class="nav-link sub-nav-link" sec:authorize="hasRole('ADMIN')"
+           data-tooltip="Chat Activity" data-turbo="false">
+           <i class="bi bi-chat-dots"></i>
+           <span class="nav-link-text">Chat Activity</span>
+         </a>
+       </div>
+     </li>
+     <li class="nav-separator"></li>
+     <li class="nav-item">
+       <a class="nav-link dropdown-toggle" data-bs-toggle="collapse" href="#" data-bs-target="#apiConfigMenu" role="button"
+         aria-expanded="false" aria-controls="apiConfigMenu" data-tooltip="API Configuration" data-turbo="false">
+         <i class="bi bi-api"></i>
+         <span class="nav-link-text">API Configuration</span>
+         <i class="bi bi-chevron-down nav-dropdown-arrow"></i>
+       </a>
+       <div class="collapse" id="apiConfigMenu" data-bs-parent="#sidebar-nav">
+         <a th:href="@{/views/api-configs}" class="nav-link sub-nav-link" data-tooltip="API Configurations" data-turbo="false">
+           <i class="bi bi-key"></i>
+           <span class="nav-link-text">Manage API Keys</span>
+         </a>
+       </div>
+     </li>
+     <li class="nav-separator"></li>
   </ul>
 
   <!-- <div class="sidebar-lang-switcher">

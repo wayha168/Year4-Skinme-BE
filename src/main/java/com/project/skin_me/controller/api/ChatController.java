@@ -25,7 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/v1/chat")
+@RequestMapping("${api.prefix}/chat")
 public class ChatController {
 
     private final ChatbotService chatbotService;
@@ -37,23 +37,26 @@ public class ChatController {
     /** Live chat config for dashboard (session id, WebSocket URL, role). */
     @GetMapping("/config")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse> getChatConfig() {
+    public ResponseEntity<ApiResponse> getChatConfig(
+            @RequestParam(required = false) String sessionId) {
         try {
             User currentUser = userService.getAuthenticatedUser();
             boolean isAdmin = isAdmin(currentUser);
-            String sessionId = isAdmin ? null : chatSessionService.getOrCreateSessionId(currentUser);
+            String resolvedSessionId = isAdmin
+                    ? (StringUtils.hasText(sessionId) ? sessionId : null)
+                    : chatSessionService.getOrCreateSessionId(currentUser);
             String role = isAdmin ? "admin" : "user";
 
             Map<String, Object> config = new LinkedHashMap<>();
             config.put("chatUrl", chatbotService.getBaseUrl());
-            config.put("sessionId", sessionId);
+            config.put("sessionId", resolvedSessionId);
             config.put("role", role);
             config.put("isAdmin", isAdmin);
             config.put("userId", currentUser.getId());
             config.put("userEmail", currentUser.getEmail());
             config.put("userName", ChatbotService.displayName(currentUser));
-            if (StringUtils.hasText(sessionId)) {
-                config.put("webSocketUrl", chatbotService.buildWebSocketUrl(sessionId, role));
+            if (StringUtils.hasText(resolvedSessionId)) {
+                config.put("webSocketUrl", chatbotService.buildWebSocketUrl(resolvedSessionId, role));
             }
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.config.success", config));
         } catch (Exception e) {

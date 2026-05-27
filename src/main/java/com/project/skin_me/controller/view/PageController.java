@@ -323,7 +323,10 @@ public class PageController {
         return "pos";
     }
 
-    /** Values from application.properties / env for dashboard KHQR & checkout summary. */
+    /**
+     * Values from application.properties / env for dashboard KHQR & checkout
+     * summary.
+     */
     private void addDashboardCheckoutConfigAttributes(Model model) {
         model.addAttribute("abaKhqrMerchantName", abaKhqrMerchantName);
         model.addAttribute("abaKhqrMerchantAccount", abaKhqrMerchantAccount);
@@ -558,7 +561,8 @@ public class PageController {
             categoryService.deleteCategoryById(categoryId);
             return "redirect:/views/categories?success=Category deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/categories?error=" + java.net.URLEncoder.encode("Failed to delete category: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/categories?error=" + java.net.URLEncoder
+                    .encode("Failed to delete category: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -650,7 +654,8 @@ public class PageController {
             brandService.deleteBrandById(id);
             return "redirect:/views/brands?success=Brand deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/brands?error=" + java.net.URLEncoder.encode("Failed to delete brand: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/brands?error=" + java.net.URLEncoder
+                    .encode("Failed to delete brand: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -851,7 +856,8 @@ public class PageController {
             productService.deleteProductById(productId);
             return "redirect:/views/products?success=Product deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/products?error=" + java.net.URLEncoder.encode("Failed to delete product: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/products?error=" + java.net.URLEncoder
+                    .encode("Failed to delete product: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1369,12 +1375,21 @@ public class PageController {
 
             if (isAdmin) {
                 try {
-                    ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(50);
+                    ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
                     if (sessionsResponse.getSessions() != null) {
                         chatSessions = sessionsResponse.getSessions();
+                        enrichSessionSummariesWithUserDetails(chatSessions);
                     }
                 } catch (Exception ex) {
                     model.addAttribute("sessionsWarning", "Could not load sessions: " + ex.getMessage());
+                }
+                // Find selected session user info for admin
+                if (StringUtils.hasText(session)) {
+                    ChatbotSessionSummary selectedSession = chatSessions.stream()
+                            .filter(s -> session.equals(s.getSessionId()))
+                            .findFirst().orElse(null);
+                    enrichSessionSummaryWithUserDetails(selectedSession);
+                    model.addAttribute("selectedSessionUser", selectedSession);
                 }
             }
 
@@ -1390,6 +1405,19 @@ public class PageController {
                 } catch (Exception ex) {
                     model.addAttribute("historyWarning", "Could not load history: " + ex.getMessage());
                 }
+            }
+
+            if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null
+                    && !chatHistory.isEmpty()) {
+                ChatbotSessionSummary fallbackSession = new ChatbotSessionSummary();
+                fallbackSession.setSessionId(session);
+                String sender = chatHistory.stream()
+                        .map(ChatbotHistoryMessage::getSender)
+                        .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s))
+                        .findFirst().orElse(session);
+                fallbackSession.setUserName(sender);
+                fallbackSession.setUserEmail(sender);
+                model.addAttribute("selectedSessionUser", fallbackSession);
             }
 
             model.addAttribute("chatHistory", chatHistory);
@@ -1415,6 +1443,59 @@ public class PageController {
         }
         model.addAttribute("pageTitle", "Chat");
         return "chat";
+    }
+
+    private void enrichSessionSummariesWithUserDetails(List<ChatbotSessionSummary> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+        for (ChatbotSessionSummary summary : sessions) {
+            enrichSessionSummaryWithUserDetails(summary);
+        }
+    }
+
+    private void enrichSessionSummaryWithUserDetails(ChatbotSessionSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        if (!StringUtils.hasText(summary.getUserName()) || !StringUtils.hasText(summary.getUserEmail())
+                || summary.getOnline() == null) {
+            String userIdValue = summary.getUserId();
+            if (StringUtils.hasText(userIdValue)) {
+                try {
+                    long userId = Long.parseLong(userIdValue);
+                    User user = userService.getUserById(userId);
+                    if (!StringUtils.hasText(summary.getUserName())) {
+                        StringBuilder fullName = new StringBuilder();
+                        if (StringUtils.hasText(user.getFirstName())) {
+                            fullName.append(user.getFirstName().trim());
+                        }
+                        if (StringUtils.hasText(user.getLastName())) {
+                            if (fullName.length() > 0) {
+                                fullName.append(" ");
+                            }
+                            fullName.append(user.getLastName().trim());
+                        }
+                        if (fullName.length() > 0) {
+                            summary.setUserName(fullName.toString());
+                        } else if (StringUtils.hasText(user.getEmail())) {
+                            summary.setUserName(user.getEmail());
+                        }
+                    }
+                    if (!StringUtils.hasText(summary.getUserEmail())) {
+                        summary.setUserEmail(user.getEmail());
+                    }
+                    if (summary.getOnline() == null) {
+                        summary.setOnline(user.isOnline());
+                    }
+                } catch (Exception ignored) {
+                    // Ignore missing or invalid user keys; keep session summary values
+                }
+            }
+        }
+        if (!StringUtils.hasText(summary.getUserName()) && StringUtils.hasText(summary.getUserEmail())) {
+            summary.setUserName(summary.getUserEmail());
+        }
     }
 
     @GetMapping("/views/chat-history")
@@ -1811,9 +1892,11 @@ public class PageController {
             userService.deleteUser(userId);
             return "redirect:/views/users?success=User deleted successfully";
         } catch (IllegalStateException e) {
-            return "redirect:/views/users?error=" + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/users?error="
+                    + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return "redirect:/views/users?error=" + java.net.URLEncoder.encode("Failed to delete user: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/users?error=" + java.net.URLEncoder
+                    .encode("Failed to delete user: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1824,7 +1907,8 @@ public class PageController {
             userService.assignRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role assigned successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder.encode("Failed to assign role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to assign role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1835,7 +1919,8 @@ public class PageController {
             userService.removeRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role removed successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder.encode("Failed to remove role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to remove role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -2000,7 +2085,8 @@ public class PageController {
             bakongKhqrService.deleteById(id);
             return "redirect:/views/khqr-accounts?success=Bank account deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/khqr-accounts?error=" + java.net.URLEncoder.encode("Failed to delete: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/khqr-accounts?error=" + java.net.URLEncoder
+                    .encode("Failed to delete: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 

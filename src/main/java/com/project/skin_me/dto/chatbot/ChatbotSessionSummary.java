@@ -31,4 +31,7 @@ public class ChatbotSessionSummary {
 
     @JsonProperty("last_message_sender")
     private String lastMessageSender;
+
+    @JsonProperty("online")
+    private Boolean online;
 }

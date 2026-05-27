@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("${api.prefix}/chat")
+@RequestMapping("${api.prefix}/gemini")
 public class GeminiController {
 
     private final GeminiService geminiService;

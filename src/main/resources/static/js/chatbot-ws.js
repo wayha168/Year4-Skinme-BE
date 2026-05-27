@@ -1,6 +1,4 @@
-/**
- * WebSocket client for chatbot.skinme.store /v1/ws/chat/{session_id}
- */
+
 (function (global) {
   function ChatbotWebSocket(options) {
     this.sessionId = options.sessionId;
@@ -24,13 +22,34 @@
     if (self.ws) {
       try {
         self.ws.close();
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    var connectUrl = self.wsUrl;
+    if (!connectUrl.startsWith("ws://") && !connectUrl.startsWith("wss://")) {
+      connectUrl = "wss://" + connectUrl;
     }
     try {
-      self.ws = new WebSocket(self.wsUrl);
+      self.ws = new WebSocket(connectUrl);
     } catch (e) {
-      self.onError(e);
-      return;
+      if (
+        connectUrl.startsWith("wss://") &&
+        typeof window !== "undefined" &&
+        window.location.protocol === "http:"
+      ) {
+        var fallbackUrl = "ws://" + connectUrl.substring("wss://".length);
+        try {
+          self.ws = new WebSocket(fallbackUrl);
+          self.wsUrl = fallbackUrl;
+        } catch (fallbackError) {
+          self.onError(fallbackError);
+          return;
+        }
+      } else {
+        self.onError(e);
+        return;
+      }
     }
     self.ws.onopen = function () {
       self.onOpen();
@@ -84,17 +103,22 @@
   ChatbotWebSocket.prototype.handlePayload = function (raw) {
     var data;
     try {
-      data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      data = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch (e) {
-      data = { type: 'message', content: String(raw), role: 'assistant' };
+      data = { type: "message", content: String(raw), role: "assistant" };
     }
-    var type = (data.type || data.event || '').toLowerCase();
-    if (type === 'presence' || type === 'user_online' || type === 'user_offline' || data.online !== undefined) {
+    var type = (data.type || data.event || "").toLowerCase();
+    if (
+      type === "presence" ||
+      type === "user_online" ||
+      type === "user_offline" ||
+      data.online !== undefined
+    ) {
       this.onPresence({
-        online: data.online !== undefined ? !!data.online : type === 'user_online',
+        online: data.online !== undefined ? !!data.online : type === "user_online",
         sessionId: data.session_id || data.sessionId || this.sessionId,
         userId: data.user_id || data.userId,
-        userEmail: data.user_email || data.userEmail
+        userEmail: data.user_email || data.userEmail,
       });
       return;
     }
@@ -102,17 +126,17 @@
   };
 
   function normalizeMessage(data) {
-    var role = data.role || data.type || 'assistant';
-    if (role === 'human') role = 'user';
+    var role = data.role || data.type || "assistant";
+    if (role === "human") role = "user";
     return {
       role: role,
       type: role,
-      content: data.content || data.message || data.text || '',
+      content: data.content || data.message || data.text || "",
       sender: data.sender || data.user_email || data.user_name || role,
       timestamp: data.created_at || data.timestamp || new Date().toISOString(),
-      isAiResponse: data.is_ai_response === true || role === 'assistant'
+      isAiResponse: data.is_ai_response === true || role === "assistant",
     };
   }
 
   global.ChatbotWebSocket = ChatbotWebSocket;
-})(typeof window !== 'undefined' ? window : this);
+})(typeof window !== "undefined" ? window : this);

@@ -1,7 +1,3 @@
-/* ============================================
-   UNIFIED LAYOUT STYLES - All Admin Pages
-   Sidebar 25% | Main Content 75%
-   ============================================ */
 
 :root {
   --primary: #c78d89;
@@ -712,7 +708,7 @@
 .sidebar-lang-switcher .lang-sep {
   color: var(--gray-400);
   font-size: 0.75rem;
-  user-select: none;
+  /* user-select: none; */
 }
 .sidebar.sidebar-collapsed .sidebar-lang-switcher .nav-link-text,
 .sidebar.sidebar-collapsed .sidebar-lang-switcher .lang-sep { display: none; }
