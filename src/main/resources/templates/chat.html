@@ -177,6 +177,19 @@
           border-bottom-left-radius: 4px;
         }
 
+        .message.admin.message--from-admin,
+        .message.assistant.message--from-admin {
+          align-items: flex-end;
+        }
+
+        .message.admin.message--from-admin .message-bubble,
+        .message.assistant.message--from-admin .message-bubble {
+          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+          color: white;
+          border-bottom-right-radius: 4px;
+          border-bottom-left-radius: 16px;
+        }
+
         .message-sender {
           font-size: 0.7rem;
           font-weight: 600;
@@ -786,13 +799,20 @@
                 <div class="chat-messages" id="chat-messages">
                   <div
                     th:each="message : ${chatHistory}"
-                    th:classappend="'message ' + ${message.role} + (${isAdmin and message.role == 'user'} ? ' message--from-customer' : '')"
+                    th:classappend="'message ' + ${message.role} + (${isAdmin and message.role == 'user'} ? ' message--from-customer' : '') + (${isAdmin and (message.role == 'assistant' or message.role == 'admin')} ? ' message--from-admin' : '')"
                     th:attr="data-message-kind=${message.role == 'assistant' ? 'ai' : 'human'}"
                     class="message"
                   >
-                    <div th:if="${message.sender != null}" class="message-meta">
-                      <div class="message-avatar" th:attr="data-sender=${message.sender}"></div>
-                      <div class="message-sender" th:text="${message.sender}">Sender</div>
+                    <div class="message-meta">
+                      <div
+                        class="message-avatar"
+                        th:attr="data-sender=${(isAdmin and (message.role == 'assistant' or message.role == 'admin')) ? 'Admin' : (message.sender != null ? message.sender : (message.role == 'assistant' ? 'Assistant' : 'User'))}"
+                      ></div>
+                      <div
+                        class="message-sender"
+                        th:text="${(isAdmin and (message.role == 'assistant' or message.role == 'admin')) ? 'Admin' : (message.sender != null ? message.sender : (message.role == 'assistant' ? 'Assistant' : 'User'))}"
+                        >Sender</div
+                      >
                       <span
                         class="message-time"
                         th:text="${message.createdAt != null ? message.createdAt : ''}"
@@ -1000,12 +1020,22 @@
         function createMessageElement(message) {
           const type = message.type || message.role || "user";
           const fromCustomer = IS_ADMIN && type === "user";
+          const fromAdminReply = IS_ADMIN && (type === "assistant" || type === "admin");
           const messageDiv = document.createElement("div");
-          messageDiv.className = "message " + type + (fromCustomer ? " message--from-customer" : "");
+          messageDiv.className =
+            "message " +
+            type +
+            (fromCustomer ? " message--from-customer" : "") +
+            (fromAdminReply ? " message--from-admin" : "");
           const kind = type === "assistant" ? "ai" : "human";
           messageDiv.setAttribute("data-message-kind", kind);
 
-          const sender = message.sender || type;
+          let sender = message.sender || type;
+          if (IS_ADMIN && (type === "assistant" || type === "admin")) {
+            sender = "Admin";
+          } else if (!sender) {
+            sender = type === "assistant" ? "Assistant" : "User";
+          }
           const content = message.content || "";
           const timestamp = message.timestamp
             ? new Date(message.timestamp).toLocaleString()
