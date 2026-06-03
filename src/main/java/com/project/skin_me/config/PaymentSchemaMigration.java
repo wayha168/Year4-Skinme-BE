@@ -23,6 +23,7 @@ public class PaymentSchemaMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         widenColumn("method");
         widenColumn("status");
+        widenKhqrPayWayPublicKey();
     }
 
     private void widenColumn(String column) {
@@ -33,6 +34,16 @@ public class PaymentSchemaMigration implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("Could not widen payments.{} (run manually if POS cash pay fails): {}",
                     column, e.getMessage());
+        }
+    }
+
+    private void widenKhqrPayWayPublicKey() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE khqr_bank_accounts MODIFY COLUMN payway_public_key VARCHAR(512)");
+            log.info("khqr_bank_accounts.payway_public_key column widened to VARCHAR(512)");
+        } catch (Exception e) {
+            log.warn("Could not widen khqr_bank_accounts.payway_public_key: {}", e.getMessage());
         }
     }
 }

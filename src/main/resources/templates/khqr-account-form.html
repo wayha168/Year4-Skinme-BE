@@ -64,12 +64,12 @@
                     </div>
                   </div>
                   <div class="form-row">
-                    <label for="account" class="form-label">Bank account number *</label>
+                    <label for="account" class="form-label">Bank account number</label>
                     <div class="form-control-wrap">
                       <input type="tel" class="form-control" id="account" name="account" inputmode="numeric" autocomplete="off"
-                             th:value="${account != null ? account.account : ''}" required
+                             th:value="${account != null ? account.account : ''}"
                              placeholder="Your bank account number from ABA or KHQR bank" maxlength="50" />
-                      <small class="form-text text-muted">The real account number where payments will be received.</small>
+                      <small class="form-text text-muted">Optional when PayWay Merchant ID is set below. QR generation uses bank account number first, then PayWay Merchant ID.</small>
                     </div>
                   </div>
                   <div class="form-row">
@@ -105,7 +105,7 @@
                     <div class="form-control-wrap">
                       <input type="text" class="form-control" id="paywayPublicKey" name="paywayPublicKey" autocomplete="off"
                              th:value="${account != null ? account.paywayPublicKey : ''}"
-                             placeholder="40-char hex key (valid until date in your email)" maxlength="128" />
+                             placeholder="RSA public key from your PayWay email" maxlength="512" />
                     </div>
                   </div>
                   <div class="form-row">

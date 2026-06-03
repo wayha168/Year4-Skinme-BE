@@ -180,18 +180,136 @@
           border-bottom: 2px solid #111;
         }
         .receipt-render em { color: #64748b; font-size: 0.8rem; }
-        .khqr-box img { max-width: 220px; display: block; margin: 0 auto; }
-        .khqr-status {
+        /* KHQR / ABA Digital Standard design - matching checkout.html */
+        .khqr-card {
+          max-width: 340px;
+          margin: 1rem auto 0;
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          border: 1px solid #e5e7eb;
+        }
+
+        .khqr-header {
+          background: #c41e3a;
+          color: #fff;
+          padding: 12px 16px;
+          font-weight: 700;
+          font-size: 1.1rem;
+          text-align: center;
+          letter-spacing: 0.02em;
+        }
+
+        .khqr-body {
+          padding: 20px 16px;
+          text-align: center;
+        }
+
+        .khqr-product-name {
+          font-size: 1rem;
+          color: #374151;
+          margin-bottom: 8px;
+          font-weight: 500;
+        }
+
+        .khqr-amount {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 16px;
+        }
+
+        .khqr-amount.usd {
+          color: #059669;
+        }
+
+        .khqr-amount.khr {
+          color: #b91c1c;
+        }
+
+        .khqr-qr-wrapper {
+          display: inline-block;
+          padding: 12px;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          margin-bottom: 16px;
+        }
+
+        .khqr-qr-wrapper img {
+          display: block;
+          width: 220px;
+          height: 220px;
+          border-radius: 4px;
+        }
+
+        .khqr-instruction {
+          font-size: 0.875rem;
+          color: #6b7280;
+          line-height: 1.4;
+          margin-bottom: 16px;
+        }
+
+        .khqr-instruction strong {
+          color: #374151;
+        }
+
+        .payment-status {
           border: 1px solid #dbeafe;
           background: #eff6ff;
           color: #1e3a8a;
           border-radius: 8px;
-          padding: 0.65rem;
-          margin-top: 0.75rem;
-          font-size: 0.85rem;
+          padding: 10px 12px;
+          font-size: 0.9rem;
+          margin-top: 14px;
         }
-        .khqr-status.success { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
-        .khqr-status.error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+
+        .payment-status.success {
+          border-color: #bbf7d0;
+          background: #f0fdf4;
+          color: #166534;
+        }
+
+        .payment-status.error {
+          border-color: #fecaca;
+          background: #fef2f2;
+          color: #991b1b;
+        }
+
+        .khqr-currency-tabs {
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          margin-bottom: 12px;
+        }
+
+        .khqr-currency-tabs button {
+          padding: 6px 14px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          background: #f9fafb;
+          font-size: 0.9rem;
+          cursor: pointer;
+          color: #4b5563;
+        }
+
+        .khqr-currency-tabs button.active {
+          background: #c41e3a;
+          color: #fff;
+          border-color: #c41e3a;
+        }
+
+        .khqr-currency-tabs button:hover:not(.active) {
+          background: #f3f4f6;
+        }
+
+        .khqr-merchant-label {
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #6b7280;
+        }
         .pos-search { margin-bottom: 0.75rem; }
 
         /* POS modals should fit screen; scrolling only inside modal-body */
@@ -339,31 +457,54 @@
         </div>
       </div>
 
-      <!-- KHQR modal -->
-      <div class="modal fade pos-modal-fit" id="khqrModal" tabindex="-1">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Scan KHQR to pay</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body text-center khqr-box">
-              <p class="small text-muted mb-2">Review the amount, then generate the QR code. No order is saved until you process.</p>
-              <p class="fw-semibold mb-3" id="khqrAmountPreview"></p>
-              <div id="khqrLoading" class="text-muted" style="display:none">Generating QR...</div>
-              <img id="khqrImage" alt="KHQR" style="display:none" />
-              <p class="small text-muted mt-2" id="khqrAmount"></p>
-              <button type="button" class="btn btn-dark mt-2" id="btnProcessKhqr">
-                <i class="bi bi-qr-code"></i> Generate QR &amp; process
-              </button>
-              <button type="button" class="btn btn-success mt-2" id="btnVerifyKhqr" style="display:none">Check payment status</button>
-              <div id="khqrStatus" class="khqr-status" style="display:none">Waiting for PayWay webhook after customer payment.</div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-danger" id="btnCancelKhqr" data-bs-dismiss="modal">
-                <i class="bi bi-x-circle"></i> Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+<!-- KHQR modal -->
+       <div class="modal fade pos-modal-fit" id="khqrModal" tabindex="-1">
+         <div class="modal-dialog">
+           <div class="modal-content">
+             <div class="modal-header"><h5 class="modal-title">Scan KHQR to pay</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+             <div class="modal-body text-center">
+               <p class="small text-muted mb-2">Choose currency: <strong>USD</strong> or <strong>Khmer Riel (៛)</strong></p>
+               <div class="khqr-currency-tabs">
+                 <button type="button" id="khqr-currency-usd" class="active" aria-label="Pay in US Dollar">USD ($)</button>
+                 <button type="button" id="khqr-currency-khr" aria-label="Pay in Khmer Riel">Khmer Riel (៛)</button>
+               </div>
+               <div id="khqr-card-container">
+<div class="khqr-card">
+                    <div class="khqr-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                      <span id="khqr-header-label">US Dollar (USD)</span>
+                      <span class="badge bg-primary" id="khqr-gateway-badge">ABA</span>
+                    </div>
+                    <div class="khqr-body">
+                      <div class="khqr-merchant-label text-muted small text-uppercase mb-1">Merchant name (from your bank details)</div>
+                      <div class="khqr-product-name fw-semibold mb-2" id="khqr-product-name"><span class="text-muted">Loading...</span></div>
+                      <div class="khqr-amount usd" id="khqr-amount-display">$ 0.00</div>
+                      <div class="khqr-qr-wrapper">
+                        <div id="khqr-qr-image-container">
+                          <p class="text-muted mb-0 py-4">Generating QR code...</p>
+                        </div>
+                      </div>
+                      <p class="khqr-instruction" id="khqr-instruction-text">
+                        Scan with <strong>ABA Mobile</strong> or any <strong>KHQR</strong> supported banking app
+                      </p>
+                      <div id="khqr-payment-status" class="payment-status">
+                        Waiting for PayWay webhook after the customer scans and pays.
+                      </div>
+                    </div>
+                  </div>
+               </div>
+             </div>
+
+             <div class="modal-footer">
+               <button type="button" class="btn btn-outline-danger" id="btnCancelKhqr" data-bs-dismiss="modal">
+                 <i class="bi bi-x-circle"></i> Cancel
+               </button>
+               <button type="button" class="btn btn-success" id="btnVerifyKhqr">
+                 <i class="bi bi-arrow-clockwise"></i> Check Payment Status
+               </button>
+             </div>
+           </div>
+         </div>
+       </div>
 
       <!-- Receipt modal -->
       <div class="modal fade pos-modal-fit" id="receiptModal" tabindex="-1">
@@ -389,15 +530,17 @@
       </div>
     </th:block>
 
-    <th:block th:fragment="script">
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-      <script th:inline="javascript">
+<th:block th:fragment="script">
+       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+       <script th:inline="javascript">
         (function () {
           const API = (document.getElementById("appShell")?.getAttribute("data-api-prefix") || "/api/v1").replace(/\/$/, "");
           const CASHIER = /*[[${cashierName}]]*/ "Admin";
           const SHOP = /*[[${posShopName}]]*/ "SkinMe Store";
-          const KHQR_RATE = /*[[${khqrUsdToKhrRate}]]*/ 4100;
+          const KHQR_RATE = 4100;
+          const KHQR_GATEWAY = "khqr";
+          let khqrCurrentCurrency = "USD";
 
           let products = [];
           let cart = [];
@@ -425,10 +568,10 @@
           }
 
           function setKhqrStatus(message, type) {
-            const el = $("khqrStatus");
+            const el = document.getElementById("khqr-payment-status");
             if (!el) return;
             el.textContent = message;
-            el.className = "khqr-status" + (type ? " " + type : "");
+            el.className = "payment-status" + (type ? " " + type : "");
           }
 
           function stopKhqrPolling() {
@@ -443,6 +586,22 @@
             khqrPollTimer = setInterval(() => checkKhqrStatus(false), 4000);
           }
 
+          function khqrGatewayLabel(gateway) {
+            return gateway === "aba" ? "ABA PAY" : "KHQR";
+          }
+
+          function khqrGatewayBadgeClass(gateway) {
+            return "badge " + (gateway === "aba" ? "bg-primary" : "bg-success");
+          }
+
+          function updateKhqrInstruction(gateway) {
+            const el = document.getElementById("khqr-instruction-text");
+            if (!el) return;
+            el.innerHTML = gateway === "aba"
+              ? "Scan with <strong>ABA Mobile</strong> app"
+              : "Scan with any <strong>KHQR</strong> supported banking app";
+          }
+
           async function api(path, opts) {
             const res = await fetch(API + path, {
               credentials: "same-origin",
@@ -451,11 +610,7 @@
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) {
-              const msg =
-                json.message ||
-                json.error ||
-                (Array.isArray(json.errors) ? json.errors.join(", ") : null) ||
-                "Request failed (" + res.status + ")";
+              const msg = json.message || json.error || (Array.isArray(json.errors) ? json.errors.join(", ") : null) || "Request failed (" + res.status + ")";
               throw new Error(msg);
             }
             return json.data != null ? json.data : json;
@@ -466,46 +621,20 @@
           }
 
           function buildLocalSummaryMarkdown(calc) {
-            const lines =
-              calc?.lines?.length > 0
-                ? calc.lines
-                : cart.map((c) => ({
-                    productName: c.name,
-                    quantity: c.quantity,
-                    unitPrice: c.price,
-                    lineTotal: (Number(c.price) || 0) * c.quantity,
-                  }));
+            const lines = calc?.lines?.length > 0 ? calc.lines : cart.map((c) => ({ productName: c.name, quantity: c.quantity, unitPrice: c.price, lineTotal: (Number(c.price) || 0) * c.quantity }));
             const sub = calc?.subtotal != null ? Number(calc.subtotal) : localCartTotal();
             const total = calc?.total != null ? Number(calc.total) : sub;
             const today = new Date();
-            const issueDate =
-              String(today.getDate()).padStart(2, "0") +
-              "." +
-              String(today.getMonth() + 1).padStart(2, "0") +
-              "." +
-              today.getFullYear();
-
+            const issueDate = String(today.getDate()).padStart(2, "0") + "." + String(today.getMonth() + 1).padStart(2, "0") + "." + today.getFullYear();
             let md = '<div class="pos-invoice">\n\n';
             md += '<div class="pos-invoice-header">\n\n## ' + escapeHtml(SHOP.toUpperCase()) + "\n\n";
             md += "*Walk-in · Pickup (in-store)*  \n\n</div>\n\n";
             md += '<div class="pos-invoice-meta">\n\n';
-            md += "| **BILL TO** | **INVOICE** |\n";
-            md += "|:---|---:|\n";
+            md += "| **BILL TO** | **INVOICE** |\n|:---|---:|\n";
             md += "| Walk-in customer | **Issue Date:** " + issueDate + " |\n";
             md += "| Cashier: " + escapeMdCell(CASHIER) + " | **Status:** Awaiting payment |\n\n</div>\n\n";
-            md += "| Description | Quantity | Unit Price | Amount |\n";
-            md += "|:---|---:|---:|---:|\n";
-            if (!lines.length) {
-              md += "| — | — | — | — |\n";
-            } else {
-              lines.forEach((line) => {
-                const name = escapeMdCell(line.productName || line.name || "Item");
-                const qty = line.quantity || 0;
-                const unit = Number(line.unitPrice ?? line.price ?? 0);
-                const lineTotal = Number(line.lineTotal ?? unit * qty);
-                md += "| " + name + " | " + qty + " | " + money(unit) + " | " + money(lineTotal) + " |\n";
-              });
-            }
+            md += "| Description | Quantity | Unit Price | Amount |\n|:---|---:|---:|---:|\n";
+            if (!lines.length) { md += "| — | — | — | — |\n"; } else { lines.forEach((line) => { const name = escapeMdCell(line.productName || line.name || "Item"); const qty = line.quantity || 0; const unit = Number(line.unitPrice ?? line.price ?? 0); const lineTotal = Number(line.lineTotal ?? unit * qty); md += "| " + name + " | " + qty + " | " + money(unit) + " | " + money(lineTotal) + " |\n"; }); }
             md += '\n<div class="pos-invoice-totals">\n\n';
             md += "| | |\n|:---|---:|\n";
             md += "| **Subtotal** | " + money(sub) + " |\n";
@@ -518,145 +647,36 @@
           function renderProducts(filter) {
             const grid = $("productGrid");
             const q = (filter || "").toLowerCase().trim();
-            const list = products.filter((p) => {
-              if (!q) return true;
-              return (p.name || "").toLowerCase().includes(q) || (p.barcode || "").toLowerCase().includes(q);
-            });
-            if (!list.length) {
-              grid.innerHTML = '<p class="text-muted small">No products found</p>';
-              return;
-            }
-            grid.innerHTML = list
-              .map(
-                (p) => {
-                  const imgUrl = p.thumbnailUrl || 'https://via.placeholder.com/160?text=No+Image';
-                  return `<button type="button" class="product-tile" data-id="${p.id}">
-                    <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" onerror="this.src='https://via.placeholder.com/160?text=No+Image'" />
-                    <div class="name">${escapeHtml(p.name)}</div>
-                    <div class="price">${money(p.price)}</div>
-                    <div class="stock">Stock: ${p.inventory ?? 0}${p.barcode ? " · " + escapeHtml(p.barcode) : ""}</div>
-                  </button>`;
-                }
-              )
-              .join("");
-            grid.querySelectorAll(".product-tile").forEach((btn) => {
-              btn.addEventListener("click", () => addToCart(Number(btn.dataset.id), 1));
-            });
+            const list = products.filter((p) => { if (!q) return true; return (p.name || "").toLowerCase().includes(q) || (p.barcode || "").toLowerCase().includes(q); });
+            if (!list.length) { grid.innerHTML = '<p class="text-muted small">No products found</p>'; return; }
+            grid.innerHTML = list.map((p) => { const imgUrl = p.thumbnailUrl || 'https://via.placeholder.com/160?text=No+Image'; return `<button type="button" class="product-tile" data-id="${p.id}"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" onerror="this.src='https://via.placeholder.com/160?text=No+Image'" /><div class="name">${escapeHtml(p.name)}</div><div class="price">${money(p.price)}</div><div class="stock">Stock: ${p.inventory ?? 0}${p.barcode ? " · " + escapeHtml(p.barcode) : ""}</div></button>`; }).join("");
+            grid.querySelectorAll(".product-tile").forEach((btn) => { btn.addEventListener("click", () => addToCart(Number(btn.dataset.id), 1)); });
           }
 
-          function escapeHtml(s) {
-            const d = document.createElement("div");
-            d.textContent = s || "";
-            return d.innerHTML;
-          }
+          function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 
           function addToCart(productId, qty) {
             const p = products.find((x) => x.id === productId);
             if (!p) return;
             pendingOrderId = null;
             const existing = cart.find((c) => c.productId === productId);
-            if (existing) {
-              existing.quantity += qty;
-            } else {
-              cart.push({
-                productId: p.id,
-                name: p.name,
-                price: Number(p.price) || 0,
-                quantity: qty,
-                barcode: p.barcode,
-              });
-            }
-            renderCart();
-            recalculate();
+            if (existing) { existing.quantity += qty; } else { cart.push({ productId: p.id, name: p.name, price: Number(p.price) || 0, quantity: qty, barcode: p.barcode }); }
+            renderCart(); recalculate();
           }
 
           function renderCart() {
             const body = $("cartBody");
             const empty = cart.length === 0;
-            $("btnPayCash").disabled = empty;
-            $("btnPayCard").disabled = empty;
-            $("btnPayKhqr").disabled = empty;
             $("btnPayCash").disabled = empty || paymentBusy;
             $("btnPayCard").disabled = empty || paymentBusy;
             $("btnPayKhqr").disabled = empty || paymentBusy;
-            if (empty) {
-              body.innerHTML = '<tr id="cartEmpty"><td colspan="4" class="text-muted text-center py-3">Cart is empty</td></tr>';
-              $("lblSubtotal").textContent = "$0.00";
-              $("lblTotal").textContent = "$0.00";
-              return;
-            }
-            body.innerHTML = cart
-              .map(
-                (c, i) =>
-                  `<tr>
-                    <td>${escapeHtml(c.name)}</td>
-                   <td>
-                    <div class="input-group input-group-sm d-flex flex-nowrap align-items-center" style="width: 110px;">
-                      <button 
-                        type="button" 
-                        class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" 
-                        data-i="${i}" 
-                        data-d="-1">
-                        −
-                      </button>
-
-                      <span class="form-control text-center py-0 px-1 mx-1" style="min-width: 35px;">
-                        ${c.quantity}
-                      </span>
-
-                      <button 
-                        type="button" 
-                        class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" 
-                        data-i="${i}" 
-                        data-d="1">
-                        +
-                      </button>
-
-                    </div>
-                  </td>
-                    <td>${money(c.price * c.quantity)}</td>
-                    <td><button type="button" class="btn btn-sm btn-link text-danger btn-remove" data-i="${i}">×</button></td>
-                  </tr>`
-              )
-              .join("");
-            body.querySelectorAll(".btn-qty").forEach((b) => {
-              b.addEventListener("click", () => {
-                const i = Number(b.dataset.i);
-                const d = Number(b.dataset.d);
-                pendingOrderId = null;
-                cart[i].quantity += d;
-                if (cart[i].quantity <= 0) cart.splice(i, 1);
-                renderCart();
-                recalculate();
-              });
-            });
-            body.querySelectorAll(".btn-remove").forEach((b) => {
-              b.addEventListener("click", () => {
-                pendingOrderId = null;
-                cart.splice(Number(b.dataset.i), 1);
-                renderCart();
-                recalculate();
-              });
-            });
+            if (empty) { body.innerHTML = '<tr id="cartEmpty"><td colspan="4" class="text-muted text-center py-3">Cart is empty</td></tr>'; $("lblSubtotal").textContent = "$0.00"; $("lblTotal").textContent = "$0.00"; return; }
+            body.innerHTML = cart.map((c, i) => `<tr><td>${escapeHtml(c.name)}</td><td><div class="input-group input-group-sm d-flex flex-nowrap align-items-center" style="width: 110px;"><button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" data-i="${i}" data-d="-1">−</button><span class="form-control text-center py-0 px-1 mx-1" style="min-width: 35px;">${c.quantity}</span><button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" data-i="${i}" data-d="1">+</button></div></td><td>${money(c.price * c.quantity)}</td><td><button type="button" class="btn btn-sm btn-link text-danger btn-remove" data-i="${i}">×</button></td></tr>`).join("");
+            body.querySelectorAll(".btn-qty").forEach((b) => { b.addEventListener("click", () => { const i = Number(b.dataset.i); const d = Number(b.dataset.d); pendingOrderId = null; cart[i].quantity += d; if (cart[i].quantity <= 0) cart.splice(i, 1); renderCart(); recalculate(); }); });
+            body.querySelectorAll(".btn-remove").forEach((b) => { b.addEventListener("click", () => { pendingOrderId = null; cart.splice(Number(b.dataset.i), 1); renderCart(); recalculate(); }); });
           }
 
-          function recalculate() {
-            clearTimeout(calcDebounce);
-            if (!cart.length) return;
-            calcDebounce = setTimeout(async () => {
-              try {
-                const data = await api("/admin/pos/calculate", {
-                  method: "POST",
-                  body: JSON.stringify(cartPayload()),
-                });
-                lastCalc = data;
-                $("lblSubtotal").textContent = money(data.subtotal);
-                $("lblTotal").textContent = money(data.total);
-              } catch (e) {
-                if (typeof showToast === "function") showToast(e.message, "error");
-              }
-            }, 200);
-          }
+          function recalculate() { clearTimeout(calcDebounce); if (!cart.length) return; calcDebounce = setTimeout(async () => { try { const data = await api("/admin/pos/calculate", { method: "POST", body: JSON.stringify(cartPayload()) }); lastCalc = data; $("lblSubtotal").textContent = money(data.subtotal); $("lblTotal").textContent = money(data.total); } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); } }, 200); }
 
           async function scanBarcode() {
             const code = $("barcodeInput").value.trim();
@@ -664,93 +684,31 @@
             try {
               const data = await api("/products/scan?barcode=" + encodeURIComponent(code));
               const p = data;
-              if (p && p.id) {
-                addToCart(p.id, 1);
-                $("barcodeInput").value = "";
-                $("barcodeInput").focus();
-                if (typeof showToast === "function") showToast("Added: " + (p.name || "product"), "success");
-              }
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message || "Product not found", "error");
-            }
+              if (p && p.id) { addToCart(p.id, 1); $("barcodeInput").value = ""; $("barcodeInput").focus(); if (typeof showToast === "function") showToast("Added: " + (p.name || "product"), "success"); }
+            } catch (e) { if (typeof showToast === "function") showToast(e.message || "Product not found", "error"); }
           }
 
           async function checkout() {
-            if (pendingOrderId) {
-              return {
-                orderId: pendingOrderId,
-                total: lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(),
-                calculation: lastCalc,
-              };
-            }
-            const data = await api("/admin/pos/checkout", {
-              method: "POST",
-              body: JSON.stringify(cartPayload()),
-            });
+            if (pendingOrderId) { return { orderId: pendingOrderId, total: lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(), calculation: lastCalc }; }
+            const data = await api("/admin/pos/checkout", { method: "POST", body: JSON.stringify(cartPayload()) });
             pendingOrderId = data.orderId;
             if (data.calculation) lastCalc = data.calculation;
             return data;
           }
 
-          function renderMarkdown(targetId, markdown) {
-            const el = $(targetId);
-            if (!el) return;
-            const text = markdown || "";
-            if (typeof marked !== "undefined") {
-              try {
-                if (typeof marked.setOptions === "function") marked.setOptions({ gfm: true, breaks: true });
-              } catch (ignore) {}
-              el.innerHTML = marked.parse(text, { gfm: true, breaks: true });
-            } else {
-              el.innerHTML = "<pre>" + escapeHtml(text) + "</pre>";
-            }
-          }
+          function renderMarkdown(targetId, markdown) { const el = $(targetId); if (!el) return; const text = markdown || ""; if (typeof marked !== "undefined") { try { if (typeof marked.setOptions === "function") marked.setOptions({ gfm: true, breaks: true }); } catch (ignore) {} el.innerHTML = marked.parse(text, { gfm: true, breaks: true }); } else { el.innerHTML = "<pre>" + escapeHtml(text) + "</pre>"; } }
 
-          function showReceipt(markdown) {
-            $("receiptMarkdown").textContent = markdown || "";
-            renderMarkdown("receiptRender", markdown);
-            bootstrap.Modal.getOrCreateInstance($("receiptModal")).show();
-          }
+          function showReceipt(markdown) { $("receiptMarkdown").textContent = markdown || ""; renderMarkdown("receiptRender", markdown); bootstrap.Modal.getOrCreateInstance($("receiptModal")).show(); }
 
-          function setCashModalBusy(busy) {
-            const btn = $("btnProcessCash");
-            if (!btn) return;
-            btn.disabled = busy || !cart.length;
-            if (busy) {
-              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-            } else {
-              btn.innerHTML = '<i class="bi bi-check2-circle"></i> Process payment';
-            }
-          }
+          function setCashModalBusy(busy) { const btn = $("btnProcessCash"); if (!btn) return; btn.disabled = busy || !cart.length; if (busy) { btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...'; } else { btn.innerHTML = '<i class="bi bi-check2-circle"></i> Process payment'; } }
 
-          async function loadCashSummary(calc) {
-            const loading = $("cashSummaryLoading");
-            if (loading) loading.style.display = "none";
-            renderMarkdown("cashSummaryRender", buildLocalSummaryMarkdown(calc || lastCalc));
-            const btn = $("btnProcessCash");
-            if (btn) btn.disabled = !cart.length;
-          }
+          async function loadCashSummary(calc) { const loading = $("cashSummaryLoading"); if (loading) loading.style.display = "none"; renderMarkdown("cashSummaryRender", buildLocalSummaryMarkdown(calc || lastCalc)); const btn = $("btnProcessCash"); if (btn) btn.disabled = !cart.length; }
 
-          async function ensureCalculated() {
-            if (lastCalc || !cart.length) return lastCalc;
-            const data = await api("/admin/pos/calculate", {
-              method: "POST",
-              body: JSON.stringify(cartPayload()),
-            });
-            lastCalc = data;
-            $("lblSubtotal").textContent = money(data.subtotal);
-            $("lblTotal").textContent = money(data.total);
-            return lastCalc;
-          }
+          async function ensureCalculated() { if (lastCalc || !cart.length) return lastCalc; const data = await api("/admin/pos/calculate", { method: "POST", body: JSON.stringify(cartPayload()) }); lastCalc = data; $("lblSubtotal").textContent = money(data.subtotal); $("lblTotal").textContent = money(data.total); return lastCalc; }
 
           async function payCash() {
             if (paymentBusy || !cart.length) return;
-            try {
-              await ensureCalculated();
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-              return;
-            }
+            try { await ensureCalculated(); } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); return; }
             const cashModal = bootstrap.Modal.getOrCreateInstance($("cashModal"));
             $("cashSummaryRender").innerHTML = "";
             $("btnProcessCash").disabled = false;
@@ -765,37 +723,13 @@
             renderCart();
             try {
               const payload = cartPayload();
-              const result = await api("/admin/pos/pay/cash", {
-                method: "POST",
-                body: JSON.stringify(payload),
-              });
-
-              // IMPORTANT: hide modal AFTER payment is confirmed.
-              // cashModal.hidden handler will see paymentBusy and not cancel the order.
+              const result = await api("/admin/pos/pay/cash", { method: "POST", body: JSON.stringify(payload) });
               bootstrap.Modal.getInstance($("cashModal"))?.hide();
-
-              cart = [];
-              pendingOrderId = null;
-              lastCalc = null;
-              renderCart();
-              const receiptMd = result?.receiptMarkdown || "";
-              if (receiptMd) {
-                showReceipt(receiptMd);
-              }
-              if (typeof showToast === "function") showToast("Cash payment complete", "success");
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-            } finally {
-              paymentBusy = false;
-              setCashModalBusy(false);
-              renderCart();
-            }
+              cart = []; pendingOrderId = null; lastCalc = null; renderCart(); const receiptMd = result?.receiptMarkdown || ""; if (receiptMd) { showReceipt(receiptMd); } if (typeof showToast === "function") showToast("Cash payment complete", "success");
+            } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); } finally { paymentBusy = false; setCashModalBusy(false); renderCart(); }
           }
 
-          async function payCard() {
-            if (paymentBusy || !cart.length) return;
-            bootstrap.Modal.getOrCreateInstance($("cardModal")).show();
-          }
+          async function payCard() { if (paymentBusy || !cart.length) return; bootstrap.Modal.getOrCreateInstance($("cardModal")).show(); }
 
           async function confirmCard() {
             if (paymentBusy || !cart.length) return;
@@ -805,207 +739,140 @@
               const last4 = $("cardLast4").value.trim();
               const payload = cartPayload();
               payload.cardLast4 = last4 || null;
-              const result = await api("/admin/pos/pay/card", {
-                method: "POST",
-                body: JSON.stringify(payload),
-              });
+              const result = await api("/admin/pos/pay/card", { method: "POST", body: JSON.stringify(payload) });
               bootstrap.Modal.getInstance($("cardModal"))?.hide();
-              cart = [];
-              pendingOrderId = null;
-              renderCart();
-              showReceipt(result.receiptMarkdown);
-              if (typeof showToast === "function") showToast("Card payment complete", "success");
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-            } finally {
-              paymentBusy = false;
-              renderCart();
-            }
+              cart = []; pendingOrderId = null; renderCart(); showReceipt(result.receiptMarkdown); if (typeof showToast === "function") showToast("Card payment complete", "success");
+            } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); } finally { paymentBusy = false; renderCart(); }
           }
 
           function resetKhqrModal() {
             stopKhqrPolling();
-            $("khqrImage").style.display = "none";
-            $("khqrImage").src = "";
-            $("khqrLoading").style.display = "none";
-            $("btnProcessKhqr").style.display = "";
-            $("btnProcessKhqr").disabled = false;
-            $("btnVerifyKhqr").style.display = "none";
-            $("khqrStatus").style.display = "none";
-            $("khqrAmount").textContent = "";
+            document.getElementById("khqr-qr-image-container").innerHTML = '<p class="text-muted mb-0 py-4">Generating QR code...</p>';
+            document.getElementById("khqr-amount-display").textContent = "$ 0.00";
+            document.getElementById("khqr-amount-display").className = "khqr-amount usd";
+            document.getElementById("khqr-header-label").textContent = "US Dollar (USD)";
+            document.getElementById("khqr-gateway-badge").textContent = khqrGatewayLabel(KHQR_GATEWAY);
+            document.getElementById("khqr-gateway-badge").className = khqrGatewayBadgeClass(KHQR_GATEWAY);
+            document.getElementById("khqr-currency-usd").classList.add("active");
+            document.getElementById("khqr-currency-khr").classList.remove("active");
+            updateKhqrInstruction(KHQR_GATEWAY);
+            setKhqrStatus("Waiting for PayWay webhook after the customer scans and pays.", "");
           }
 
-          async function payKhqr() {
-            if (!cart.length || paymentBusy) return;
-            try {
-              await ensureCalculated();
-            } catch (e) {
-              if (typeof showToast === "function") showToast(e.message, "error");
-              return;
-            }
-            const total = lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal();
-            resetKhqrModal();
-            $("khqrAmountPreview").textContent =
-              "Total: " + money(total) + " (≈ " + Math.round(total * KHQR_RATE) + " KHR)";
-            bootstrap.Modal.getOrCreateInstance($("khqrModal")).show();
-          }
+          function formatKhqrAmount(amount, currency) { if (currency === "KHR") { const khr = Math.round(amount * KHQR_RATE); return khr.toLocaleString("en-KH") + " ៛"; } return "$ " + Number(amount).toFixed(2); }
 
-          async function processKhqr() {
-            if (paymentBusy || !cart.length) return;
-            paymentBusy = true;
-            $("btnProcessKhqr").disabled = true;
-            $("khqrLoading").style.display = "block";
-            try {
-              const chk = await checkout();
-              const total = chk.total || chk.calculation?.total || localCartTotal();
-              const oid = pendingOrderId;
-              const khqr = await api(
-                "/payment/generate-khqr?orderId=" + oid + "&amount=" + total + "&currency=USD&gateway=aba"
-              );
+async function payKhqr() {
+             if (!cart.length || paymentBusy) return;
+             paymentBusy = true;
+             try { await ensureCalculated(); } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); paymentBusy = false; return; }
+             const total = lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal();
+             resetKhqrModal();
+             document.getElementById("khqr-amount-display").textContent = formatKhqrAmount(total, khqrCurrentCurrency);
+             document.getElementById("khqr-amount-display").className = "khqr-amount " + (khqrCurrentCurrency === "USD" ? "usd" : "khr");
+             document.getElementById("khqr-header-label").textContent = (khqrCurrentCurrency === "USD" ? "US Dollar (USD)" : "Khmer Riel (៛)");
+             document.getElementById("khqr-gateway-badge").textContent = khqrGatewayLabel(KHQR_GATEWAY);
+             document.getElementById("khqr-gateway-badge").className = khqrGatewayBadgeClass(KHQR_GATEWAY);
+             updateKhqrInstruction(KHQR_GATEWAY);
+             bootstrap.Modal.getOrCreateInstance($("khqrModal")).show();
+             paymentBusy = false;
+             try { await processKhqr(); } finally { paymentBusy = false; }
+           }
 
-              $("khqrLoading").style.display = "none";
-              $("btnProcessKhqr").style.display = "none";
-              $("btnVerifyKhqr").style.display = "";
-              $("khqrStatus").style.display = "block";
-              setKhqrStatus("Waiting for PayWay webhook after customer payment.", "");
-              startKhqrPolling();
-
-              if (khqr.qrImage) {
-                $("khqrImage").src = khqr.qrImage.startsWith("data:")
-                  ? khqr.qrImage
-                  : "data:image/png;base64," + khqr.qrImage;
-                $("khqrImage").style.display = "block";
-              }
-              $("khqrAmount").textContent =
-                "Amount: " + money(total) + " (≈ " + Math.round(Number(total) * KHQR_RATE) + " KHR)";
-            } catch (e) {
-              $("khqrLoading").style.display = "none";
-              $("btnProcessKhqr").disabled = false;
-              setKhqrStatus(e.message, "error");
-              $("khqrStatus").style.display = "block";
-              if (typeof showToast === "function") showToast(e.message, "error");
-            } finally {
-              paymentBusy = false;
-            }
-          }
-
+           async function processKhqr() {
+             if (!cart.length) return;
+             if (paymentBusy) return;
+             paymentBusy = true;
+             document.getElementById("khqr-qr-image-container").innerHTML = '<p class="text-muted mb-0 py-4">Generating QR code...</p>';
+             try {
+               const chk = await checkout();
+               const total = chk.total || chk.calculation?.total || localCartTotal();
+               const oid = chk?.orderId != null ? chk.orderId : pendingOrderId;
+               if (oid == null) { throw new Error("OrderId not found for KHQR generation"); }
+               const amount = khqrCurrentCurrency === "KHR" ? Math.round(Number(total) * KHQR_RATE) : Number(total);
+               const currency = khqrCurrentCurrency;
+               const khqr = await api("/payment/generate-khqr?orderId=" + oid + "&amount=" + amount + "&currency=" + currency + "&gateway=" + KHQR_GATEWAY);
+               setKhqrStatus("Waiting for PayWay webhook after the customer scans and pays.", "");
+               startKhqrPolling();
+               if (khqr.qrImage) {
+                 const imgSrc = khqr.qrImage.startsWith("data:") ? khqr.qrImage : "data:image/png;base64," + khqr.qrImage;
+                 const gatewayLabel = khqrGatewayLabel(khqr.gateway || KHQR_GATEWAY);
+                 document.getElementById("khqr-qr-image-container").innerHTML = '<img src="' + imgSrc + '" alt="' + gatewayLabel + ' Payment QR Code" />';
+               }
+const merchantName = (khqr.merchantName && khqr.merchantName.trim()) ? khqr.merchantName.trim() : SHOP;
+                document.getElementById("khqr-product-name").textContent = merchantName;
+               const gatewayLabel = khqrGatewayLabel(khqr.gateway || KHQR_GATEWAY);
+               document.getElementById("khqr-gateway-badge").textContent = gatewayLabel;
+               document.getElementById("khqr-gateway-badge").className = khqrGatewayBadgeClass(khqr.gateway || KHQR_GATEWAY);
+               updateKhqrInstruction(khqr.gateway || KHQR_GATEWAY);
+               document.getElementById("khqr-amount-display").textContent = formatKhqrAmount(total, currency);
+               document.getElementById("khqr-amount-display").className = "khqr-amount " + (currency === "USD" ? "usd" : "khr");
+               document.getElementById("khqr-header-label").textContent = (currency === "USD" ? "US Dollar (USD)" : "Khmer Riel (៛)");
+             } catch (e) {
+               document.getElementById("khqr-qr-image-container").innerHTML = '<p class="text-danger small mb-0">Failed to generate QR code. Please try again.</p>';
+               setKhqrStatus(e.message, "error");
+               if (typeof showToast === "function") showToast(e.message, "error");
+             } finally { paymentBusy = false; }
+           }
 
           async function completeKhqrOrder() {
             const oid = pendingOrderId;
             if (!oid) return;
-
-            // If user cancelled/closed the modal, we must not complete the order or show receipt.
-            // (Cancel will set pendingOrderId=null and stop polling.)
             if (!pendingOrderId) return;
-
             await api("/admin/pos/complete-pickup/" + oid, { method: "POST" });
             const rec = await api("/admin/pos/receipt/" + oid);
-            bootstrap.Modal.getInstance($("khqrModal"))?.hide();
-            stopKhqrPolling();
-            cart = [];
-            pendingOrderId = null;
-            lastCalc = null;
-            renderCart();
-            showReceipt(rec.receiptMarkdown);
-            if (typeof showToast === "function") showToast("KHQR payment received - order #" + oid, "success");
+            bootstrap.Modal.getInstance($("khqrModal"))?.hide(); stopKhqrPolling(); cart = []; pendingOrderId = null; lastCalc = null; renderCart(); showReceipt(rec.receiptMarkdown); if (typeof showToast === "function") showToast("KHQR payment received - order #" + oid, "success");
           }
-
 
           async function checkKhqrStatus(showWaiting) {
             try {
               if (!pendingOrderId) return false;
               const status = await api("/payment/status/" + pendingOrderId);
-              if (status.paid) {
-                setKhqrStatus("Payment received from PayWay. Completing pickup...", "success");
-                await completeKhqrOrder();
-                return true;
-              }
-              if (showWaiting) {
-                setKhqrStatus("Still waiting for PayWay webhook. Check again after the bank app confirms payment.", "");
-              }
-            } catch (e) {
-              if (showWaiting) setKhqrStatus(e.message, "error");
-              if (typeof showToast === "function") showToast(e.message, "error");
-            }
+              if (status.paid) { setKhqrStatus("Payment received from PayWay. Completing pickup...", "success"); await completeKhqrOrder(); return true; }
+              if (showWaiting) { setKhqrStatus("Still waiting for PayWay webhook. Check again after the bank app confirms payment.", ""); }
+            } catch (e) { if (showWaiting) setKhqrStatus(e.message, "error"); if (typeof showToast === "function") showToast(e.message, "error"); }
             return false;
           }
 
-          async function verifyKhqr() {
-            // Keep polling logic in one place (checkKhqrStatus) to avoid duplicate requests.
-            return await checkKhqrStatus(true);
-          }
+          async function verifyKhqr() { return await checkKhqrStatus(true); }
 
-
-          async function loadProducts() {
-            const data = await api("/admin/pos/products");
-            products = Array.isArray(data) ? data : [];
-            renderProducts();
-          }
+          async function loadProducts() { const data = await api("/admin/pos/products"); products = Array.isArray(data) ? data : []; renderProducts(); }
 
           function init() {
             $("btnScan").addEventListener("click", scanBarcode);
-            $("barcodeInput").addEventListener("keydown", (e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                scanBarcode();
-              }
-            });
+            $("barcodeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); scanBarcode(); } });
             $("productSearch").addEventListener("input", (e) => renderProducts(e.target.value));
             $("btnPayCash").addEventListener("click", payCash);
             $("btnProcessCash").addEventListener("click", confirmCashPayment);
             $("btnPayCard").addEventListener("click", payCard);
             $("btnConfirmCard").addEventListener("click", confirmCard);
-
-            // If user clicks Cancel (or closes) on cash review modal,
-            // we MUST cancel the pending POS order on the backend and clear local state.
-            $("cashModal").addEventListener("hidden.bs.modal", () => {
-              setCashModalBusy(false);
-            });
-
-            $("btnPayKhqr").addEventListener("click", payKhqr);
-            $("btnProcessKhqr").addEventListener("click", processKhqr);
+            $("cashModal").addEventListener("hidden.bs.modal", () => { setCashModalBusy(false); });
+$("btnPayKhqr").addEventListener("click", payKhqr);
+             document.getElementById("khqr-currency-usd").addEventListener("click", function () {
+               khqrCurrentCurrency = "USD";
+               document.getElementById("khqr-currency-usd").classList.add("active");
+               document.getElementById("khqr-currency-khr").classList.remove("active");
+               document.getElementById("khqr-header-label").textContent = "US Dollar (USD)";
+               document.getElementById("khqr-amount-display").className = "khqr-amount usd";
+               if ($("khqrModal").classList.contains("show")) { processKhqr(); }
+             });
+             document.getElementById("khqr-currency-khr").addEventListener("click", function () {
+               khqrCurrentCurrency = "KHR";
+               document.getElementById("khqr-currency-khr").classList.add("active");
+               document.getElementById("khqr-currency-usd").classList.remove("active");
+               document.getElementById("khqr-header-label").textContent = "Khmer Riel (៛)";
+               document.getElementById("khqr-amount-display").className = "khqr-amount khr";
+               if ($("khqrModal").classList.contains("show")) { processKhqr(); }
+             });
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
-            $("btnClearCart").addEventListener("click", () => {
+            $("btnClearCart").addEventListener("click", () => { stopKhqrPolling(); cart = []; pendingOrderId = null; lastCalc = null; renderCart(); });
+$("khqrModal").addEventListener("hidden.bs.modal", async () => { stopKhqrPolling(); const oid = pendingOrderId ? Number(pendingOrderId) : null; pendingOrderId = null; paymentBusy = false; resetKhqrModal(); if (oid) { try { await api("/admin/pos/cancel/" + oid, { method: "POST" }); } catch (e) { /* ignore */ } } });
+             $("btnPrintReceipt").addEventListener("click", () => { const w = window.open("", "_blank"); w.document.write("<html><head><title>Receipt - " + SHOP + "</title></head><body>" + $("receiptRender").innerHTML + "</body></html>"); w.document.close(); w.print(); });
+             loadProducts().catch((e) => { $("productGrid").innerHTML = '<p class="text-danger small">' + escapeHtml(e.message) + "</p>"; });
+             $("barcodeInput").focus();
+           }
 
-              stopKhqrPolling();
-              cart = [];
-              pendingOrderId = null;
-              lastCalc = null;
-              renderCart();
-            });
-          $("khqrModal").addEventListener("hidden.bs.modal", async () => {
-              stopKhqrPolling();
-              const oid = pendingOrderId ? Number(pendingOrderId) : null;
-              pendingOrderId = null;
-              paymentBusy = false;
-              resetKhqrModal();
-              if (oid) {
-                try {
-                  await api("/admin/pos/cancel/" + oid, { method: "POST" });
-                } catch (e) {
-                  /* ignore */
-                }
-              }
-            });
-
-            $("btnPrintReceipt").addEventListener("click", () => {
-              const w = window.open("", "_blank");
-              w.document.write("<html><head><title>Receipt - " + SHOP + "</title></head><body>" + $("receiptRender").innerHTML + "</body></html>");
-              w.document.close();
-              w.print();
-            });
-            loadProducts().catch((e) => {
-              $("productGrid").innerHTML = '<p class="text-danger small">' + escapeHtml(e.message) + "</p>";
-            });
-            $("barcodeInput").focus();
-          }
-
-          if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", init);
-          } else {
-            init();
-          }
+if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); } else { init(); }
         })();
-      </script>
-    </th:block>
+       </script>
+     </th:block>
 </html>

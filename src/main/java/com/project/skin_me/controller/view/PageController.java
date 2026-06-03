@@ -2007,7 +2007,7 @@ public class PageController {
                     .paywayMerchantId(
                             paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
                     .paywayPublicKey(
-                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
                     .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
                     .build();
             bakongKhqrService.create(entity);
@@ -2071,7 +2071,7 @@ public class PageController {
                     .paywayMerchantId(
                             paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
                     .paywayPublicKey(
-                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
                     .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
                     .build();
             bakongKhqrService.update(id, entity);
