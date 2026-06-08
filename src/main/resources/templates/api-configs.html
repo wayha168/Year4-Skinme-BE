@@ -1,0 +1,364 @@
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+  lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
+>
+  <head>
+    <th:block th:fragment="style">
+      <link rel="stylesheet" href="/css/common.css" />
+      <link rel="stylesheet" href="/css/tables.css" />
+      <style>
+        /* Api Configurations Page Styles */
+        .api-config-form {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 2rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          margin-bottom: 2rem;
+        }
+
+        .form-section {
+          margin-bottom: 1.5rem;
+        }
+
+        .form-section h3 {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #111827;
+          margin-bottom: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .form-section h3 i {
+          color: #6b7280;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 1.5rem;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .form-group label {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #6b7280;
+          margin-bottom: 0.5rem;
+        }
+
+        .form-group input,
+        .form-group select {
+          padding: 0.75rem 1rem;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          transition: all 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+          outline: none;
+          border-color: #667eea;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group input[readonly] {
+          background-color: #f9fafb;
+          cursor: not-allowed;
+        }
+
+        .checkbox-group {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          cursor: pointer;
+        }
+
+        .btn-group {
+          display: flex;
+          gap: 1rem;
+          margin-top: 2rem;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-reset {
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .btn-primary {
+          background: #667eea;
+          color: white;
+        }
+
+        .btn-primary:hover {
+          background: #5a67d8;
+        }
+
+        .btn-secondary {
+          background: #4b5563;
+          color: white;
+        }
+
+        .btn-secondary:hover {
+          background: #374151;
+        }
+
+        .btn-reset {
+          background: #e5e7eb;
+          color: #111827;
+        }
+
+        .btn-reset:hover {
+          background: #d1d5db;
+        }
+
+        .api-config-table {
+          margin-top: 2rem;
+        }
+
+        .table-actions {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .btn-action {
+          padding: 0.5rem 0.75rem;
+          border: none;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+        }
+
+        .btn-action-view {
+          background: #e0f2fe;
+          color: #0369a1;
+        }
+
+        .btn-action-view:hover {
+          background: #bae6fd;
+        }
+
+        .btn-action-edit {
+          background: #fff7ed;
+          color: #c2410c;
+        }
+
+        .btn-action-edit:hover {
+          background: #ffedd5;
+        }
+
+        .btn-action-delete {
+          background: #fef2f2;
+          color: #991b1b;
+        }
+
+        .btn-action-delete:hover {
+          background: #fee2e2;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 3rem;
+          color: #6b7280;
+        }
+
+        .empty-state i {
+          font-size: 3rem;
+          margin-bottom: 1rem;
+          color: #d1d5db;
+        }
+
+        .empty-state p {
+          font-size: 1rem;
+          margin-top: 0.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+          .form-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .btn-group {
+            flex-direction: column;
+          }
+
+          .table-actions {
+            flex-wrap: wrap;
+          }
+        }
+      </style>
+    </th:block>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${pageTitle != null} ? ${pageTitle} : 'API Configurations'">API Configurations</title>
+  </head>
+  <body>
+    <th:block th:fragment="main">
+      <div class="main-content">
+        <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-key'"></div>
+
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- API Configurations Form -->
+        <div class="api-config-form">
+          <h2><i class="bi bi-key"></i> Add New API Configuration</h2>
+          <form th:action="@{/api/v1/config/api}" method="post" id="apiConfigForm">
+            <div class="form-section">
+              <h3><i class="bi bi-globe"></i> Configuration Details</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="domain">Domain</label>
+                  <input type="text" id="domain" name="domain" placeholder="Enter domain (e.g., api.example.com)" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="apiKey">API Key</label>
+                  <input type="password" id="apiKey" name="apiKey" placeholder="Enter API key" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="controller">Controller URL</label>
+                  <input type="text" id="controller" name="controller" placeholder="Enter controller URL (e.g., /api/v1/products)" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="enabled">Enabled</label>
+                  <div class="checkbox-group">
+                    <input type="checkbox" id="enabled" name="enabled" checked />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="btn-group">
+              <button type="submit" class="btn-primary">
+                <i class="bi bi-plus"></i> Add Configuration
+              </button>
+              <button type="reset" class="btn-secondary">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- API Configurations Table -->
+        <div class="api-config-table">
+          <h2><i class="bi bi-table"></i> API Configurations List</h2>
+          <div th:if="${#lists.isEmpty(apiConfigs)}" class="empty-state">
+            <i class="bi bi-key"></i>
+            <p>No API configurations found. Add one above.</p>
+          </div>
+          <div th:unless="${#lists.isEmpty(apiConfigs)}" class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Domain</th>
+                  <th>API Key</th>
+                  <th>Controller</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="apiConfig, iterStat : ${apiConfigs}">
+                  <td th:text="${iterStat.count}">1</td>
+                  <td th:text="${apiConfig.domain}">api.example.com</td>
+                  <td>
+                    <span th:text="${'••••••••••••••••'}">••••••••••••••••</span>
+                    <a href="#" th:onclick="|showApiKey(${apiConfig.id})|" class="text-sm text-primary">Show</a>
+                  </td>
+                  <td th:text="${apiConfig.controller}">/api/v1/products</td>
+                  <td>
+                    <span th:if="${apiConfig.enabled}" class="badge bg-success">Active</span>
+                    <span th:unless="${apiConfig.enabled}" class="badge bg-secondary">Inactive</span>
+                  </td>
+                  <td class="table-actions">
+                    <a th:href="@{/views/api-configs/{id}/edit(id=${apiConfig.id})}" class="btn-action btn-action-view" title="View">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a th:href="@{/views/api-configs/{id}/edit(id=${apiConfig.id})}" class="btn-action btn-action-edit" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form th:action="@{/api/v1/config/api/{id}(id=${apiConfig.id})}" method="post" style="display:inline;">
+                      <input type="hidden" name="_method" value="DELETE" />
+                      <button type="submit" class="btn-action btn-action-delete" title="Delete" onclick="return confirm('Are you sure you want to delete this API configuration?');">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </th:block>
+    <th:block th:fragment="script">
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script>
+        function showApiKey(id) {
+          // In a real app, you might fetch the actual key from an API endpoint
+          // For now, we'll just show a placeholder or use a modal
+          alert('For security reasons, the full API key is not displayed in the UI.\\n\\nYou can view/edit the full key in the edit form.');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+          // Form validation and submission handling
+          const form = document.getElementById('apiConfigForm');
+          if (form) {
+            form.addEventListener('submit', function(e) {
+              // Basic validation
+              const domain = form.domain.value.trim();
+              const apiKey = form.apiKey.value.trim();
+              const controller = form.controller.value.trim();
+
+              if (!domain || !apiKey || !controller) {
+                e.preventDefault();
+                alert('Please fill in all required fields.');
+                return false;
+              }
+
+              // Additional validation can be added here
+              return true;
+            });
+          }
+        });
+      </script>
+    </th:block>
+  </body>
+</html>

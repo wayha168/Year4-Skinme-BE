@@ -5,10 +5,6 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-/**
- * Bank account configuration for KHQR payment (ABA or generic KHQR).
- * Admin can add/edit/delete these; BakongKhqrService uses the active account for QR generation.
- */
 @Entity
 @Getter
 @Setter
@@ -71,8 +67,8 @@ public class KhqrBankAccount {
     @Column(name = "payway_merchant_id", length = 64)
     private String paywayMerchantId;
 
-    /** PayWay Public Key (API key for HMAC hash, e.g. 40-char hex). Valid until date is per your PayWay email. */
-    @Column(name = "payway_public_key", length = 128)
+    /** PayWay Public Key from the bank email. RSA-style keys can be a few hundred characters. */
+    @Column(name = "payway_public_key", length = 512)
     private String paywayPublicKey;
 
     /** PayWay API base URL (e.g. https://checkout-sandbox.payway.com.kh). Purchase: .../api/payment-gateway/v1/payments/purchase */

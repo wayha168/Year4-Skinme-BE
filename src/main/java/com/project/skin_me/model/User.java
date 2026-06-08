@@ -71,6 +71,10 @@ public class User {
     @Column(name = "last_activity")
     private LocalDateTime lastActivity;
 
+    /** Persistent chatbot session id (chatbot.skinme.store). */
+    @Column(name = "chat_session_id", length = 128)
+    private String chatSessionId;
+
     @Column(name = "reset_token")
     private String resetToken;
 

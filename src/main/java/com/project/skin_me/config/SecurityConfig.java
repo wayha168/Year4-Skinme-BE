@@ -65,7 +65,7 @@ public class SecurityConfig {
                         "/api/v1/images/**", "/api/v1/payment/webhook", "/api/v1/payment/webhook/payway",
                         "/api/v1/payment/verify-success",
                         "/api/v1/feedback/product/all-feedback", "/api/v1/feedback/product/**",
-                        "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/**", "/api/v1/lang",
+                        "/api/v1/auth/**", "/api/v1/popular/**", "/api/v1/chat/log", "/api/v1/lang",
                         "/v3/api-docs/**",
                         "/swagger-ui/**", "/swagger-ui.html", "/swagger-resources/**",
                         "/webjars/**", "/login-page", "/signup", "/reset-password", "/logout",
@@ -73,11 +73,11 @@ public class SecurityConfig {
                         "/.well-known/**"
         };
 
-        private static final String[] SECURED_API = {
+private static final String[] SECURED_API = {
                         "/api/v1/carts/**", "/api/v1/favorites/**", "/api/v1/cartItems/**",
                         "/api/v1/payment/**", "/api/v1/orders/**", "/api/v1/popular/user/**",
-                        "/api/v1/notifications/**", "/api/v1/feedback"
-        };
+                        "/api/v1/notifications/**", "/api/v1/feedback", "/api/v1/chat/**"
+                };
 
         private static final String[] ADMIN_URLS = {
                         "/api/v1/admin/**"

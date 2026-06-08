@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.util.StringUtils;
 
 import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.dto.ProductFeedbackDto;
@@ -66,6 +67,13 @@ import com.project.skin_me.service.order.IOrderService;
 import com.project.skin_me.service.product.IProductService;
 import com.project.skin_me.service.feedback.IProductFeedbackService;
 import com.project.skin_me.service.user.IUserService;
+import com.project.skin_me.service.chatbot.ChatSessionService;
+import com.project.skin_me.service.chatbot.ChatbotService;
+import com.project.skin_me.service.chatbot.ChatbotSessionFilter;
+import com.project.skin_me.dto.chatbot.ChatbotHistoryMessage;
+import com.project.skin_me.dto.chatbot.ChatbotHistoryResponse;
+import com.project.skin_me.dto.chatbot.ChatbotSessionSummary;
+import com.project.skin_me.dto.chatbot.ChatbotSessionsResponse;
 import com.project.skin_me.service.payment.IBakongKhqrService;
 import com.project.skin_me.model.ChatAi;
 import com.project.skin_me.model.KhqrBankAccount;
@@ -88,6 +96,8 @@ public class PageController {
     private final IImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatAiRepository chatAiRepository;
+    private final ChatbotService chatbotService;
+    private final ChatSessionService chatSessionService;
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -313,7 +323,10 @@ public class PageController {
         return "pos";
     }
 
-    /** Values from application.properties / env for dashboard KHQR & checkout summary. */
+    /**
+     * Values from application.properties / env for dashboard KHQR & checkout
+     * summary.
+     */
     private void addDashboardCheckoutConfigAttributes(Model model) {
         model.addAttribute("abaKhqrMerchantName", abaKhqrMerchantName);
         model.addAttribute("abaKhqrMerchantAccount", abaKhqrMerchantAccount);
@@ -548,7 +561,8 @@ public class PageController {
             categoryService.deleteCategoryById(categoryId);
             return "redirect:/views/categories?success=Category deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/categories?error=Failed to delete category: " + e.getMessage();
+            return "redirect:/views/categories?error=" + java.net.URLEncoder
+                    .encode("Failed to delete category: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -640,7 +654,8 @@ public class PageController {
             brandService.deleteBrandById(id);
             return "redirect:/views/brands?success=Brand deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/brands?error=Failed to delete brand: " + e.getMessage();
+            return "redirect:/views/brands?error=" + java.net.URLEncoder
+                    .encode("Failed to delete brand: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -841,7 +856,8 @@ public class PageController {
             productService.deleteProductById(productId);
             return "redirect:/views/products?success=Product deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/products?error=Failed to delete product: " + e.getMessage();
+            return "redirect:/views/products?error=" + java.net.URLEncoder
+                    .encode("Failed to delete product: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1342,59 +1358,260 @@ public class PageController {
 
     @GetMapping("/views/chat")
     @PreAuthorize("isAuthenticated()")
-    public String chatPage(@RequestParam(defaultValue = "0") int page, Model model) {
+    public String chatPage(
+            @RequestParam(required = false) String session,
+            Model model) {
         try {
             User currentUser = userService.getAuthenticatedUser();
-            boolean isAdmin = currentUser.getRoles().stream()
-                    .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
+            boolean isAdmin = isAdmin(currentUser);
 
-            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("timestamp").descending());
-            List<com.project.skin_me.model.ChatMessage> chatHistory;
-            int totalPages;
+            String sessionId = isAdmin
+                    ? (session != null && !session.isBlank() ? session.trim() : null)
+                    : chatSessionService.getOrCreateSessionId(currentUser);
+
+            List<ChatbotHistoryMessage> chatHistory = List.of();
+            List<ChatbotSessionSummary> chatSessions = List.of();
+
             if (isAdmin) {
-                var chatPage = chatMessageRepository.findAllByOrderByTimestampDesc(pageable);
-                chatHistory = chatPage.getContent();
-                totalPages = chatPage.getTotalPages();
-            } else {
-                var chatPage = chatMessageRepository.findByUserIdOrderByTimestampDesc(currentUser.getId(), pageable);
-                chatHistory = chatPage.getContent();
-                totalPages = chatPage.getTotalPages();
+                try {
+                    ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
+                    if (sessionsResponse.getSessions() != null) {
+                        chatSessions = sessionsResponse.getSessions();
+                        enrichSessionSummariesWithUserDetails(chatSessions);
+                    }
+                } catch (Exception ex) {
+                    model.addAttribute("sessionsWarning", "Could not load sessions: " + ex.getMessage());
+                }
+                // Find selected session user info for admin
+                if (StringUtils.hasText(session)) {
+                    ChatbotSessionSummary selectedSession = chatSessions.stream()
+                            .filter(s -> session.equals(s.getSessionId()))
+                            .findFirst().orElse(null);
+                    enrichSessionSummaryWithUserDetails(selectedSession);
+                    model.addAttribute("selectedSessionUser", selectedSession);
+                }
+            }
+
+            if (StringUtils.hasText(sessionId)) {
+                try {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 500);
+                    if (history.getMessages() != null) {
+                        chatHistory = history.getMessages();
+                    }
+                    if (!isAdmin) {
+                        chatSessionService.saveSessionId(currentUser, sessionId);
+                    }
+                } catch (Exception ex) {
+                    model.addAttribute("historyWarning", "Could not load history: " + ex.getMessage());
+                }
+            }
+
+            if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null
+                    && !chatHistory.isEmpty()) {
+                ChatbotSessionSummary fallbackSession = new ChatbotSessionSummary();
+                fallbackSession.setSessionId(session);
+                String sender = chatHistory.stream()
+                        .map(ChatbotHistoryMessage::getSender)
+                        .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s))
+                        .findFirst().orElse(session);
+                fallbackSession.setUserName(sender);
+                fallbackSession.setUserEmail(sender);
+                model.addAttribute("selectedSessionUser", fallbackSession);
             }
 
             model.addAttribute("chatHistory", chatHistory);
-            model.addAttribute("aiResponses", List.<com.project.skin_me.model.ChatMessage>of());
+            model.addAttribute("chatUrl", chatbotService.getBaseUrl());
+            model.addAttribute("sessionId", sessionId);
+            model.addAttribute("webSocketUrl",
+                    StringUtils.hasText(sessionId)
+                            ? chatbotService.buildWebSocketUrl(sessionId, isAdmin ? "admin" : "user")
+                            : "");
+            model.addAttribute("chatRole", isAdmin ? "admin" : "user");
             model.addAttribute("isAdmin", isAdmin);
             model.addAttribute("currentUserId", currentUser.getId());
             model.addAttribute("currentUserEmail", currentUser.getEmail());
-            model.addAttribute("currentPage", page);
-            model.addAttribute("totalPages", totalPages);
-            model.addAttribute("hasNext", page < totalPages - 1);
-            model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("currentUserName", ChatbotService.displayName(currentUser));
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load chat: " + e.getMessage());
-            model.addAttribute("chatHistory", List.<com.project.skin_me.model.ChatMessage>of());
-            model.addAttribute("aiResponses", List.<com.project.skin_me.model.ChatMessage>of());
+            model.addAttribute("chatHistory", List.<ChatbotHistoryMessage>of());
             model.addAttribute("isAdmin", false);
-            model.addAttribute("currentPage", 0);
-            model.addAttribute("totalPages", 0);
-            model.addAttribute("hasNext", false);
-            model.addAttribute("hasPrev", false);
+            model.addAttribute("chatUrl", "");
+            model.addAttribute("sessionId", "");
+            model.addAttribute("webSocketUrl", "");
+            model.addAttribute("chatRole", "user");
         }
         model.addAttribute("pageTitle", "Chat");
         return "chat";
     }
 
-    /** Admin-only: view all chat tables - chat_messages and chat_ai. */
+    private void enrichSessionSummariesWithUserDetails(List<ChatbotSessionSummary> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+        for (ChatbotSessionSummary summary : sessions) {
+            enrichSessionSummaryWithUserDetails(summary);
+        }
+    }
+
+    private static boolean isAdmin(User user) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .map(role -> role.getName())
+                .filter(StringUtils::hasText)
+                .anyMatch(name -> "ADMIN".equalsIgnoreCase(name) || "ROLE_ADMIN".equalsIgnoreCase(name));
+    }
+
+    private void enrichSessionSummaryWithUserDetails(ChatbotSessionSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        if (!StringUtils.hasText(summary.getUserName()) || !StringUtils.hasText(summary.getUserEmail())
+                || summary.getOnline() == null) {
+            String userIdValue = summary.getUserId();
+            if (StringUtils.hasText(userIdValue)) {
+                try {
+                    long userId = Long.parseLong(userIdValue);
+                    User user = userService.getUserById(userId);
+                    if (!StringUtils.hasText(summary.getUserName())) {
+                        StringBuilder fullName = new StringBuilder();
+                        if (StringUtils.hasText(user.getFirstName())) {
+                            fullName.append(user.getFirstName().trim());
+                        }
+                        if (StringUtils.hasText(user.getLastName())) {
+                            if (fullName.length() > 0) {
+                                fullName.append(" ");
+                            }
+                            fullName.append(user.getLastName().trim());
+                        }
+                        if (fullName.length() > 0) {
+                            summary.setUserName(fullName.toString());
+                        } else if (StringUtils.hasText(user.getEmail())) {
+                            summary.setUserName(user.getEmail());
+                        }
+                    }
+                    if (!StringUtils.hasText(summary.getUserEmail())) {
+                        summary.setUserEmail(user.getEmail());
+                    }
+                    if (summary.getOnline() == null) {
+                        summary.setOnline(user.isOnline());
+                    }
+                } catch (Exception ignored) {
+                    // Ignore missing or invalid user keys; keep session summary values
+                }
+            }
+        }
+        if (!StringUtils.hasText(summary.getUserName()) && StringUtils.hasText(summary.getUserEmail())) {
+            summary.setUserName(summary.getUserEmail());
+        }
+    }
+
+    @GetMapping("/views/chat-history")
+    @PreAuthorize("isAuthenticated()")
+    public String chatHistoryPage(
+            @RequestParam(required = false) String session,
+            Model model) {
+        try {
+            User currentUser = userService.getAuthenticatedUser();
+            boolean isAdmin = currentUser.getRoles().stream()
+                    .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
+
+            if (isAdmin) {
+                if (StringUtils.hasText(session)) {
+                    return "redirect:/views/chat-activity?session=" + java.net.URLEncoder.encode(session.trim(),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                }
+                return "redirect:/views/chat-activity";
+            }
+
+            List<ChatbotHistoryMessage> messages = List.of();
+            String sessionId = chatSessionService.getSessionId(currentUser);
+
+            {
+                model.addAttribute("pageSubtitle", "Your conversation history from SkinMe Assistant.");
+                model.addAttribute("sessions", List.of());
+                if (StringUtils.hasText(sessionId)) {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 200);
+                    messages = history.getMessages() != null ? history.getMessages() : List.of();
+                }
+            }
+
+            model.addAttribute("messages", messages);
+            model.addAttribute("sessionId", sessionId);
+            model.addAttribute("isAdmin", isAdmin);
+            model.addAttribute("totalElements", messages.size());
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load chat history: " + e.getMessage());
+            model.addAttribute("messages", List.<ChatbotHistoryMessage>of());
+            model.addAttribute("sessions", List.of());
+            model.addAttribute("isAdmin", false);
+            model.addAttribute("totalElements", 0);
+        }
+        model.addAttribute("pageTitle", "Chat history");
+        model.addAttribute("currentPage", 0);
+        model.addAttribute("totalPages", 1);
+        model.addAttribute("hasNext", false);
+        model.addAttribute("hasPrev", false);
+        return "chat-history";
+    }
+
+    /** Admin-only: AI chat sessions from chatbot API + optional local DB tables. */
     @GetMapping("/views/chat-activity")
     @PreAuthorize("hasRole('ADMIN')")
     public String chatActivityPage(
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String session,
+            @RequestParam(defaultValue = "all") String filter,
             @RequestParam(defaultValue = "0") int pageMsg,
             @RequestParam(defaultValue = "0") int pageAi,
             Model model) {
         try {
-            // --- chat_messages ---
+            List<ChatbotSessionSummary> allSessions = List.of();
+            List<ChatbotSessionSummary> filteredSessions = List.of();
+            ChatbotHistoryMessage selectedHistoryPreview = null;
+            int adminRepliedCount = 0;
+            int awaitingAdminCount = 0;
+
+            try {
+                ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
+                if (sessionsResponse.getSessions() != null) {
+                    allSessions = sessionsResponse.getSessions();
+                    for (ChatbotSessionSummary s : allSessions) {
+                        if (ChatbotSessionFilter.hasAdminReply(s)) {
+                            adminRepliedCount++;
+                        } else if (ChatbotSessionFilter.isLastFromUser(s)) {
+                            awaitingAdminCount++;
+                        }
+                    }
+                    filteredSessions = ChatbotSessionFilter.apply(allSessions, filter);
+                }
+            } catch (Exception ex) {
+                model.addAttribute("sessionsError", "Could not load AI sessions: " + ex.getMessage());
+            }
+
+            if (StringUtils.hasText(session)) {
+                try {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(session.trim(), 1);
+                    if (history.getMessages() != null && !history.getMessages().isEmpty()) {
+                        selectedHistoryPreview = history.getMessages().get(history.getMessages().size() - 1);
+                    }
+                } catch (Exception ignored) {
+                    // preview optional
+                }
+            }
+
+            model.addAttribute("aiSessions", filteredSessions);
+            model.addAttribute("totalAiSessions", allSessions.size());
+            model.addAttribute("filteredCount", filteredSessions.size());
+            model.addAttribute("adminRepliedCount", adminRepliedCount);
+            model.addAttribute("awaitingAdminCount", awaitingAdminCount);
+            model.addAttribute("sessionFilter", filter != null ? filter : ChatbotSessionFilter.ALL);
+            model.addAttribute("selectedSessionId", StringUtils.hasText(session) ? session.trim() : null);
+            model.addAttribute("selectedHistoryPreview", selectedHistoryPreview);
+            model.addAttribute("chatbotUrl", chatbotService.getBaseUrl());
+
+            // --- chat_messages (local DB, optional) ---
             Pageable pageableMsg = PageRequest.of(pageMsg, PAGE_SIZE, Sort.by("timestamp").descending());
             org.springframework.data.domain.Page<com.project.skin_me.model.ChatMessage> msgPage;
             if (userId != null) {
@@ -1684,9 +1901,11 @@ public class PageController {
             userService.deleteUser(userId);
             return "redirect:/views/users?success=User deleted successfully";
         } catch (IllegalStateException e) {
-            return "redirect:/views/users?error=" + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return "redirect:/views/users?error="
+                    + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return "redirect:/views/users?error=Failed to delete user: " + e.getMessage();
+            return "redirect:/views/users?error=" + java.net.URLEncoder
+                    .encode("Failed to delete user: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1697,7 +1916,8 @@ public class PageController {
             userService.assignRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role assigned successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to assign role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to assign role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1708,7 +1928,8 @@ public class PageController {
             userService.removeRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role removed successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to remove role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to remove role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1786,7 +2007,7 @@ public class PageController {
                     .paywayMerchantId(
                             paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
                     .paywayPublicKey(
-                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
                     .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
                     .build();
             bakongKhqrService.create(entity);
@@ -1850,7 +2071,7 @@ public class PageController {
                     .paywayMerchantId(
                             paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
                     .paywayPublicKey(
-                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.trim() : null)
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
                     .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
                     .build();
             bakongKhqrService.update(id, entity);
@@ -1873,7 +2094,8 @@ public class PageController {
             bakongKhqrService.deleteById(id);
             return "redirect:/views/khqr-accounts?success=Bank account deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/khqr-accounts?error=Failed to delete: " + e.getMessage();
+            return "redirect:/views/khqr-accounts?error=" + java.net.URLEncoder
+                    .encode("Failed to delete: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 

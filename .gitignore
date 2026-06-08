@@ -34,5 +34,7 @@ build/
 ### VS Code ###
 .vscode/
 src/test/
+.kilo
 ### Uploaded product images (stored on disk) ###
 # /uploads/
+TESTING_RESULTS_SLIDE_CONTENT.md

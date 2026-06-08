@@ -8,6 +8,10 @@ import com.project.skin_me.model.Activity;
 import com.project.skin_me.model.Role;
 import com.project.skin_me.model.User;
 import com.project.skin_me.repository.ActivityRepository;
+import com.project.skin_me.repository.ChatMessageRepository;
+import com.project.skin_me.repository.NotificationRepository;
+import com.project.skin_me.repository.OrderRepository;
+import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
 import com.project.skin_me.request.CreateUserRequest;
@@ -35,6 +39,10 @@ public class UserService implements IUserService {
 
     private final UserRepository userRepository;
     private final ActivityRepository activityRepository;
+    private final NotificationRepository notificationRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ProductFeedbackRepository productFeedbackRepository;
+    private final OrderRepository orderRepository;
     private final RoleRepository roleRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
@@ -213,9 +221,16 @@ public class UserService implements IUserService {
         if (current.getId().equals(userId)) {
             throw new IllegalStateException("You cannot delete your own account");
         }
-        userRepository.findById(userId)
-                .ifPresentOrElse(userRepository::delete,
-                        () -> { throw new ResourceNotFoundException("User not found with ID: " + userId); });
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+
+        notificationRepository.deleteByUserId(userId);
+        activityRepository.deleteByUserId(userId);
+        productFeedbackRepository.deleteByUserId(userId);
+        chatMessageRepository.deleteByUserId(userId);
+        orderRepository.deleteByUserId(userId);
+
+        userRepository.delete(user);
     }
 
     @Override

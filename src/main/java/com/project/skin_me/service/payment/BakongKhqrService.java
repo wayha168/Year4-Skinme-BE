@@ -42,6 +42,7 @@ public class BakongKhqrService implements IBakongKhqrService {
     private final KhqrBankAccountRepository repository;
 
     private static final String FALLBACK_TEST_ACCOUNT = "0000000000";
+    private static final String KHQR_GUI = "kh.gov.nbc.bakong";
 
     // ---------- Bank account (CRUD) ----------
 
@@ -120,18 +121,15 @@ public class BakongKhqrService implements IBakongKhqrService {
         if (gatewayNorm.isEmpty()) gatewayNorm = GATEWAY_ABA;
         final String gatewayKey = gatewayNorm;
 
-        KhqrBankAccount b = findActiveByGateway(gatewayKey)
-                .orElseThrow(() -> {
-                    String label = GATEWAY_ABA.equals(gatewayKey) ? "ABA" : "KHQR";
-                    return new IllegalStateException(label + " has no active bank account. Add one in Admin > KHQR Bank Accounts.");
-                });
+        KhqrBankAccount b = resolveActiveAccount(gatewayKey);
+        String actualGateway = normalizeGateway(b.getGateway(), gatewayKey);
 
-        String account = b.getAccount() != null ? b.getAccount().trim() : "";
+        String account = resolveMerchantIdentifier(b);
         String name = b.getMerchantName() != null ? b.getMerchantName() : "SkinMe Store";
         String city = b.getCity() != null ? b.getCity() : "Phnom Penh";
         String categoryCode = b.getCategoryCode() != null ? b.getCategoryCode() : "5999";
         boolean useTestWhenEmpty = b.isUseTestWhenEmpty();
-        String gatewayLabel = GATEWAY_ABA.equals(gatewayKey) ? "ABA" : "KHQR";
+        String gatewayLabel = GATEWAY_ABA.equals(actualGateway) ? "ABA" : "KHQR";
 
         if (account.isEmpty()) {
             if (useTestWhenEmpty) {
@@ -139,7 +137,7 @@ public class BakongKhqrService implements IBakongKhqrService {
                 account = isUsd ? normalizeAccount(b.getTestAccountUsd()) : normalizeAccount(b.getTestAccountKhr());
                 if (account.isEmpty()) account = FALLBACK_TEST_ACCOUNT;
             } else {
-                throw new IllegalStateException(gatewayLabel + " merchant account is not set. Edit this bank account in Admin > KHQR Bank Accounts and set Account or enable Use test when empty.");
+                throw new IllegalStateException(gatewayLabel + " merchant account is not set. Edit this bank account in Admin > KHQR Bank Accounts and set Bank account number or PayWay Merchant ID.");
             }
         }
 
@@ -148,8 +146,8 @@ public class BakongKhqrService implements IBakongKhqrService {
             qrData.append("000201");
             qrData.append("010212");
 
-            String merchantInfo = String.format("00%02d%s", account.length(), account);
-            qrData.append("30").append(String.format("%02d", merchantInfo.length())).append(merchantInfo);
+            String merchantInfo = emvField("00", KHQR_GUI) + emvField("01", account);
+            qrData.append(emvField("29", merchantInfo));
             qrData.append("52").append(String.format("%02d", categoryCode.length())).append(categoryCode);
 
             String currencyCode = "USD".equalsIgnoreCase(currency) ? "840" : "116";
@@ -174,8 +172,8 @@ public class BakongKhqrService implements IBakongKhqrService {
                 qrData.append("62").append(String.format("%02d", sub62.length())).append(sub62);
             }
 
-            String dataWithoutCrc = qrData.toString();
-            qrData.append("63").append("04").append(calculateCRC(dataWithoutCrc));
+            String dataForCrc = qrData.toString() + "6304";
+            qrData.append("63").append("04").append(calculateCRC(dataForCrc));
 
             logger.debug("Generated {} KHQR data", gatewayLabel);
             return qrData.toString();
@@ -228,12 +226,9 @@ public class BakongKhqrService implements IBakongKhqrService {
         BigDecimal safeAmount = amount != null ? amount : BigDecimal.ZERO;
         if (gateway == null || gateway.isBlank()) gateway = GATEWAY_ABA;
         final String gatewayKey = gateway.trim().toLowerCase();
-        KhqrBankAccount bankAccount = findActiveByGateway(gatewayKey)
-                .orElseThrow(() -> {
-                    String label = GATEWAY_ABA.equals(gatewayKey) ? "ABA" : "KHQR";
-                    return new IllegalStateException(label + " has no active bank account. Add one in Admin > KHQR Bank Accounts.");
-                });
-        String qrData = generateKhqrData(safeAmount, currency, gateway, orderId);
+        KhqrBankAccount bankAccount = resolveActiveAccount(gatewayKey);
+        String actualGateway = normalizeGateway(bankAccount.getGateway(), gatewayKey);
+        String qrData = generateKhqrData(safeAmount, currency, actualGateway, orderId);
         String qrImageBase64 = generateQrCodeImage(qrData, 300, 300);
         String merchantName = bankAccount.getMerchantName() != null ? bankAccount.getMerchantName() : "SkinMe Store";
 
@@ -243,14 +238,41 @@ public class BakongKhqrService implements IBakongKhqrService {
         result.put("amount", safeAmount.toString());
         result.put("currency", currency);
         result.put("merchantName", merchantName);
-        result.put("gateway", gateway);
+        result.put("gateway", actualGateway);
 
         return result;
+    }
+
+    private KhqrBankAccount resolveActiveAccount(String gatewayKey) {
+        return findActiveByGateway(gatewayKey)
+                .or(() -> repository.findAllByActiveTrueOrderByDisplayOrderAsc().stream().findFirst())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No active KHQR/ABA bank account. Add one in Admin > KHQR Bank Accounts."));
+    }
+
+    private static String resolveMerchantIdentifier(KhqrBankAccount account) {
+        String bankAccount = normalizeAccount(account.getAccount());
+        if (!bankAccount.isEmpty()) {
+            return bankAccount;
+        }
+        return normalizeAccount(account.getPaywayMerchantId());
+    }
+
+    private static String normalizeGateway(String gateway, String fallback) {
+        if (gateway == null || gateway.isBlank()) {
+            return fallback;
+        }
+        return gateway.trim().toLowerCase();
     }
 
     private static String normalizeAccount(String account) {
         if (account == null) return "";
         return account.replaceAll("\\s+", "").trim();
+    }
+
+    private static String emvField(String id, String value) {
+        String safeValue = value != null ? value : "";
+        return id + String.format("%02d", safeValue.length()) + safeValue;
     }
 
     private String calculateCRC(String data) {

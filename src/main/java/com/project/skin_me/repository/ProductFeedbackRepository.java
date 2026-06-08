@@ -4,6 +4,8 @@ import com.project.skin_me.model.ProductFeedback;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 
@@ -19,4 +21,8 @@ public interface ProductFeedbackRepository extends JpaRepository<ProductFeedback
     Page<ProductFeedback> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     long countByVisibleOnFrontendTrue();
+
+    @Modifying
+    @Query("DELETE FROM ProductFeedback pf WHERE pf.user.id = :userId")
+    void deleteByUserId(Long userId);
 }
