@@ -79,6 +79,12 @@ public class OrderService implements IOrderService {
                     "ORDER",
                     "/view/orders/" + savedOrder.getId());
 
+            // Popup/alert for admins as soon as a new order is placed
+            notificationService.notifyAdminsNewOrder(
+                    savedOrder.getId(),
+                    savedOrder.getUser() != null ? savedOrder.getUser().getEmail() : null,
+                    savedOrder.getOrderTotalAmount());
+
             // Send real-time update
             RealTimeUpdateDto update = RealTimeUpdateDto.builder()
                     .entityType("ORDER")

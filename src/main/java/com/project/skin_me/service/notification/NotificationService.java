@@ -167,6 +167,28 @@ public class NotificationService {
     }
 
     /**
+     * In-app + WebSocket popup for each admin when a NEW order is placed (before payment).
+     */
+    @Transactional
+    public void notifyAdminsNewOrder(Long orderId, String customerEmail, BigDecimal totalAmount) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String amt = totalAmount != null ? "$" + totalAmount.stripTrailingZeros().toPlainString() : "N/A";
+        String who = (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : "Customer";
+        String message = "New order #" + orderId + " · " + who + " · " + amt;
+        String actionUrl = "/views/orders/" + orderId;
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "New order received", message, "ORDER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of new order {}: {}", admin.getId(), orderId, e.getMessage());
+            }
+        }
+    }
+
+    /**
      * In-app notification for each admin when an order is paid (bell panel + persisted).
      */
     @Transactional
