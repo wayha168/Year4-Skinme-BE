@@ -53,6 +53,9 @@
       <div class="notification-panel-list" id="notificationPanelList">
         <div class="notification-panel-empty" id="notificationPanelEmpty">Loading...</div>
       </div>
+      <div class="notification-panel-see-more-wrap" id="notificationPanelSeeMoreWrap" hidden>
+        <button type="button" class="btn-notification-see-more" id="notificationPanelSeeMore">See more</button>
+      </div>
       <div class="notification-panel-footer">
         <a th:href="@{/views/chat}" class="notification-panel-link">Open Chat</a>
       </div>
@@ -384,10 +387,15 @@
         var overlay = document.getElementById('notificationPanelOverlay');
         var listEl = document.getElementById('notificationPanelList');
         var emptyEl = document.getElementById('notificationPanelEmpty');
+        var seeMoreWrap = document.getElementById('notificationPanelSeeMoreWrap');
+        var seeMoreBtn = document.getElementById('notificationPanelSeeMore');
         var headerBadge = document.getElementById('headerNotificationBadge');
         var appShell = document.getElementById('appShell');
         if (!panel || !overlay || !listEl || !appShell) return;
         var apiPrefix = (appShell.getAttribute('data-api-prefix') || '/api/v1').replace(/\/$/, '');
+        var PAGE_SIZE = 20;
+        var currentPage = 0;
+        var totalPages = 0;
 
         function esc(s) {
           var d = document.createElement('div');
@@ -463,75 +471,101 @@
         overlay.addEventListener('click', closePanel);
         document.getElementById('notificationPanelClose').addEventListener('click', closePanel);
 
-        function renderPanelList(notifications, unreadCount) {
+        function markNotificationItemRead(item) {
+          var id = item.getAttribute('data-id');
+          if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
+          item.classList.remove('unread');
+          var meta = item.querySelector('.notification-panel-item-meta');
+          if (meta) meta.textContent = meta.textContent.replace(/\s*·\s*Unread\s*$/, '').trim();
+          var dot = item.querySelector('.notification-panel-unread-dot');
+          if (dot) dot.remove();
+          updateHeaderBadge(Math.max(0, (parseInt(headerBadge && headerBadge.textContent, 10) || 0) - 1));
+        }
+        function createNotificationItem(n) {
+          var item = document.createElement('a');
+          item.href = normalizeNotificationHref(n.actionUrl) || '#';
+          item.className = 'notification-panel-item' + (n.status === 'UNREAD' ? ' unread' : '');
+          item.setAttribute('data-id', n.id);
+          if (!n.actionUrl) item.addEventListener('click', function(e) { e.preventDefault(); });
+          item.innerHTML = notificationItemInnerHtml(n);
+          item.addEventListener('click', function() { markNotificationItemRead(this); });
+          return item;
+        }
+        function appendNotificationItems(notifications) {
+          (notifications || []).forEach(function(n) {
+            listEl.insertBefore(createNotificationItem(n), emptyEl);
+          });
+        }
+        function updateSeeMoreButton() {
+          if (!seeMoreWrap) return;
+          var hasMore = (currentPage + 1) < totalPages;
+          seeMoreWrap.hidden = !hasMore;
+        }
+        function renderPanelList(notifications, unreadCount, page, pages) {
           var items = listEl.querySelectorAll('.notification-panel-item');
           items.forEach(function(n) { n.remove(); });
+          currentPage = page || 0;
+          totalPages = pages || 0;
           if (!notifications || notifications.length === 0) {
             if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
           } else {
             if (emptyEl) emptyEl.style.display = 'none';
-            notifications.forEach(function(n) {
-              var item = document.createElement('a');
-              item.href = normalizeNotificationHref(n.actionUrl) || '#';
-              item.className = 'notification-panel-item' + (n.status === 'UNREAD' ? ' unread' : '');
-              item.setAttribute('data-id', n.id);
-              if (!n.actionUrl) item.addEventListener('click', function(e) { e.preventDefault(); });
-              item.innerHTML = notificationItemInnerHtml(n);
-              item.addEventListener('click', function() {
-                var id = this.getAttribute('data-id');
-                if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
-                this.classList.remove('unread');
-                var meta = this.querySelector('.notification-panel-item-meta');
-                if (meta) meta.textContent = meta.textContent.replace(/\s*·\s*Unread\s*$/, '').trim();
-                var dot = this.querySelector('.notification-panel-unread-dot');
-                if (dot) dot.remove();
-                updateHeaderBadge(Math.max(0, (parseInt(headerBadge && headerBadge.textContent, 10) || 0) - 1));
-              });
-              listEl.insertBefore(item, emptyEl);
-            });
+            appendNotificationItems(notifications);
           }
+          updateSeeMoreButton();
           updateHeaderBadge(unreadCount !== undefined ? unreadCount : null);
         }
-        function loadPanel() {
-          fetch(apiPrefix + '/notifications?page=0&size=20', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        function fetchNotifications(page, append) {
+          if (seeMoreBtn) seeMoreBtn.disabled = true;
+          return fetch(apiPrefix + '/notifications?page=' + page + '&size=' + PAGE_SIZE, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
             .then(function(r) { return r.ok ? r.json() : null; })
             .then(function(res) {
               if (res && res.data) {
-                renderPanelList(res.data.notifications || [], res.data.unreadCount);
-              } else {
+                var notifs = res.data.notifications || [];
+                totalPages = res.data.totalPages || 0;
+                currentPage = page;
+                if (append) {
+                  if (notifs.length) {
+                    if (emptyEl) emptyEl.style.display = 'none';
+                    appendNotificationItems(notifs);
+                  }
+                  updateSeeMoreButton();
+                } else {
+                  renderPanelList(notifs, res.data.unreadCount, page, totalPages);
+                }
+              } else if (!append) {
                 if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
+                if (seeMoreWrap) seeMoreWrap.hidden = true;
               }
             })
-            .catch(function() { if (emptyEl) { emptyEl.textContent = 'Unable to load'; emptyEl.style.display = 'block'; } });
+            .catch(function() {
+              if (!append && emptyEl) { emptyEl.textContent = 'Unable to load'; emptyEl.style.display = 'block'; }
+            })
+            .finally(function() { if (seeMoreBtn) seeMoreBtn.disabled = false; });
+        }
+        function loadPanel() {
+          currentPage = 0;
+          totalPages = 0;
+          if (seeMoreWrap) seeMoreWrap.hidden = true;
+          return fetchNotifications(0, false);
         }
         document.getElementById('notificationPanelMarkAllRead').addEventListener('click', function(e) {
           e.preventDefault();
           fetch(apiPrefix + '/notifications/read-all', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).then(function() { loadPanel(); });
         });
+        if (seeMoreBtn) {
+          seeMoreBtn.addEventListener('click', function() {
+            if ((currentPage + 1) < totalPages) fetchNotifications(currentPage + 1, true);
+          });
+        }
 
         loadPanel();
         document.addEventListener('skinme-notification', function(e) {
           var n = e.detail;
           if (!listEl) return;
           if (emptyEl) emptyEl.style.display = 'none';
-          var item = document.createElement('a');
-          item.href = normalizeNotificationHref(n.actionUrl) || '#';
-          item.className = 'notification-panel-item unread';
-          item.setAttribute('data-id', n.id || '');
-          if (!n.actionUrl) item.addEventListener('click', function(ev) { ev.preventDefault(); });
           n.status = 'UNREAD';
-          item.innerHTML = notificationItemInnerHtml(n);
-          item.addEventListener('click', function() {
-            var id = this.getAttribute('data-id');
-            if (id) fetch(apiPrefix + '/notifications/' + id + '/read', { method: 'PATCH', credentials: 'same-origin', headers: csrfHeaders() }).catch(function() {});
-            this.classList.remove('unread');
-            var meta = this.querySelector('.notification-panel-item-meta');
-            if (meta) meta.textContent = meta.textContent.replace(' · Unread', '').trim();
-            var dot = this.querySelector('.notification-panel-unread-dot');
-            if (dot) dot.remove();
-            updateHeaderBadge(Math.max(0, (parseInt(headerBadge && headerBadge.textContent, 10) || 0) - 1));
-          });
-          listEl.insertBefore(item, listEl.firstChild);
+          listEl.insertBefore(createNotificationItem(n), listEl.firstChild);
           if (headerBadge) updateHeaderBadge((parseInt(headerBadge.textContent, 10) || 0) + 1);
         });
       })();

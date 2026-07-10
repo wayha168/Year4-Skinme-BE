@@ -42,8 +42,11 @@ public class NotificationController {
             Map<String, Object> data = new HashMap<>();
             data.put("notifications", dtos);
             data.put("unreadCount", unreadCount);
+            data.put("page", notifications.getNumber());
+            data.put("size", notifications.getSize());
             data.put("totalPages", notifications.getTotalPages());
             data.put("totalElements", notifications.getTotalElements());
+            data.put("hasMore", notifications.hasNext());
             return ResponseEntity.ok(new ApiResponse("Success", data));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).body(new ApiResponse(e.getMessage(), null));

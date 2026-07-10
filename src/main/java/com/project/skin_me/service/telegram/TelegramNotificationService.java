@@ -6,8 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
@@ -18,8 +21,32 @@ public class TelegramNotificationService {
     private static final Logger logger = LoggerFactory.getLogger(TelegramNotificationService.class);
     private static final String TELEGRAM_API = "https://api.telegram.org/bot%s/sendMessage";
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = buildRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * RestTemplate with explicit timeouts and a no-op error handler so that
+     * non-2xx responses (e.g. 403 "bot was blocked", 400 "chat not found") are
+     * returned to us instead of thrown, letting us log Telegram's real reason.
+     */
+    private static RestTemplate buildRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);
+        factory.setReadTimeout(10_000);
+        RestTemplate template = new RestTemplate(factory);
+        template.setErrorHandler(new ResponseErrorHandler() {
+            @Override
+            public boolean hasError(ClientHttpResponse response) {
+                return false;
+            }
+
+            @Override
+            public void handleError(ClientHttpResponse response) {
+                // No-op: we inspect the status/body ourselves in sendToChat.
+            }
+        });
+        return template;
+    }
 
     @Value("${app.telegram.bot-token:}")
     private String botToken;
@@ -71,9 +98,15 @@ public class TelegramNotificationService {
                     String.class
             );
             if (response.getStatusCode().is2xxSuccessful()) {
-                logger.debug("Telegram alert sent to chat {}", targetChatId);
+                logger.info("Telegram alert sent to chat {}", targetChatId);
             } else {
-                logger.warn("Telegram API returned {}: {}", response.getStatusCode(), response.getBody());
+                // Telegram returns a JSON body explaining the failure, e.g.
+                // {"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}
+                // or {"ok":false,"error_code":400,"description":"Bad Request: chat not found"}.
+                logger.warn("Telegram sendMessage to chat {} FAILED with HTTP {} -> {}. "
+                                + "Common causes: the chat has never pressed Start on the bot, "
+                                + "wrong chat-id, or the bot is not a member of the group.",
+                        targetChatId, response.getStatusCode().value(), response.getBody());
             }
         } catch (Exception e) {
             logger.error("Failed to send Telegram alert to {}: {}", targetChatId, e.getMessage(), e);
@@ -109,6 +142,7 @@ public class TelegramNotificationService {
 
     @Async
     public void notifyNewOrder(Long orderId, String userInfo, String totalAmount, String ownerChatId) {
+        logger.info("Telegram new-order alert triggered for order #{} (configured={})", orderId, isConfigured());
         String msg = alertBlock("🔔", "New order (pending payment)",
                 "Order #" + orderId,
                 "User: " + userInfo,
