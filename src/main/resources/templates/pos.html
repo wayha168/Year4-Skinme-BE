@@ -349,6 +349,24 @@
         .pos-modal-fit .modal-footer .btn {
           border-radius: 10px;
         }
+
+        /* Cash modal: compact, fits on one screen without scrolling */
+        #cashModal .modal-dialog { max-width: 760px; }
+        #cashModal .modal-body { overflow: visible; }
+        .cash-summary-compact { font-size: 0.78rem; line-height: 1.25; }
+        .cash-summary-compact h2,
+        .cash-summary-compact h3,
+        .cash-summary-compact .pos-invoice-header { margin-bottom: 0.25rem; }
+        .cash-summary-compact h2 { font-size: 1rem; }
+        .cash-summary-compact table { margin-bottom: 0.4rem; }
+        .cash-summary-compact td, .cash-summary-compact th { padding: 0.15rem 0.35rem; }
+        .cash-change-box {
+          background: #f1f8f4;
+          border: 1px solid #cfe8d8;
+          border-radius: 10px;
+          padding: 0.6rem 0.75rem;
+        }
+        .cash-tender .form-control-lg { font-size: 1.15rem; }
       </style>
     </th:block>
     <title th:text="${pageTitle ?: 'Point of Sale'}">Point of Sale</title>
@@ -424,15 +442,37 @@
               <h5 class="modal-title"><i class="bi bi-cash-coin me-1"></i> Cash payment</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-              <p class="small text-muted mb-2">Review the order summary, then process the cash payment.</p>
-              <div id="cashSummaryLoading" class="text-muted small" style="display:none">Loading order summary...</div>
-              <div id="cashSummaryRender" class="receipt-render"></div>
+            <div class="modal-body cash-modal-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div id="cashSummaryLoading" class="text-muted small" style="display:none">Loading order summary...</div>
+                  <div id="cashSummaryRender" class="receipt-render cash-summary-compact"></div>
+                </div>
+                <div class="col-md-6">
+                  <div class="cash-tender">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Total due</span>
+                      <span><span id="cashTotalUsd">$0.00</span> · <strong id="cashTotalKhr">0 ៛</strong></span>
+                    </div>
+                    <div class="small text-muted mb-2">1 USD = <span id="cashRate">4100</span> ៛</div>
+                    <label class="form-label small mb-1" for="cashReceivedKhr">Cash received (៛ Riel)</label>
+                    <input type="number" min="0" step="100" inputmode="numeric" id="cashReceivedKhr" class="form-control form-control-lg" placeholder="0" autocomplete="off" />
+                    <div id="cashTenderWarn" class="small text-danger mt-1" style="display:none">Cash received is less than the total due.</div>
+                    <div class="cash-change-box mt-2">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Change (exchange)</span>
+                        <strong id="cashChangeKhr" class="fs-5 text-success">0 ៛</strong>
+                      </div>
+                      <div id="cashChangeUsd" class="small text-muted text-end">≈ $0.00</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelCashReview">Cancel</button>
               <button type="button" class="btn btn-success" id="btnProcessCash" disabled>
-                <i class="bi bi-check2-circle"></i> Process payment
+                <i class="bi bi-printer"></i> Print &amp; Save
               </button>
             </div>
           </div>
@@ -549,8 +589,19 @@
           let calcDebounce = null;
           let paymentBusy = false;
           let khqrPollTimer = null;
+          let checkoutInFlight = false;
 
           const $ = (id) => document.getElementById(id);
+
+          // Cancel any server-side pending POS order and forget it locally, so editing the
+          // cart never leaves an orphaned PAYMENT_PENDING order that looks like a duplicate.
+          function cancelPendingOrder() {
+            const oid = pendingOrderId;
+            pendingOrderId = null;
+            if (oid != null) {
+              api("/admin/pos/cancel/" + oid, { method: "POST" }).catch(() => {});
+            }
+          }
 
           function money(n) {
             return "$" + (Number(n) || 0).toFixed(2);
@@ -658,7 +709,7 @@
           function addToCart(productId, qty) {
             const p = products.find((x) => x.id === productId);
             if (!p) return;
-            pendingOrderId = null;
+            cancelPendingOrder();
             const existing = cart.find((c) => c.productId === productId);
             if (existing) { existing.quantity += qty; } else { cart.push({ productId: p.id, name: p.name, price: Number(p.price) || 0, quantity: qty, barcode: p.barcode }); }
             renderCart(); recalculate();
@@ -672,8 +723,8 @@
             $("btnPayKhqr").disabled = empty || paymentBusy;
             if (empty) { body.innerHTML = '<tr id="cartEmpty"><td colspan="4" class="text-muted text-center py-3">Cart is empty</td></tr>'; $("lblSubtotal").textContent = "$0.00"; $("lblTotal").textContent = "$0.00"; return; }
             body.innerHTML = cart.map((c, i) => `<tr><td>${escapeHtml(c.name)}</td><td><div class="input-group input-group-sm d-flex flex-nowrap align-items-center" style="width: 110px;"><button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" data-i="${i}" data-d="-1">−</button><span class="form-control text-center py-0 px-1 mx-1" style="min-width: 35px;">${c.quantity}</span><button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0 btn-qty" data-i="${i}" data-d="1">+</button></div></td><td>${money(c.price * c.quantity)}</td><td><button type="button" class="btn btn-sm btn-link text-danger btn-remove" data-i="${i}">×</button></td></tr>`).join("");
-            body.querySelectorAll(".btn-qty").forEach((b) => { b.addEventListener("click", () => { const i = Number(b.dataset.i); const d = Number(b.dataset.d); pendingOrderId = null; cart[i].quantity += d; if (cart[i].quantity <= 0) cart.splice(i, 1); renderCart(); recalculate(); }); });
-            body.querySelectorAll(".btn-remove").forEach((b) => { b.addEventListener("click", () => { pendingOrderId = null; cart.splice(Number(b.dataset.i), 1); renderCart(); recalculate(); }); });
+            body.querySelectorAll(".btn-qty").forEach((b) => { b.addEventListener("click", () => { const i = Number(b.dataset.i); const d = Number(b.dataset.d); cancelPendingOrder(); cart[i].quantity += d; if (cart[i].quantity <= 0) cart.splice(i, 1); renderCart(); recalculate(); }); });
+            body.querySelectorAll(".btn-remove").forEach((b) => { b.addEventListener("click", () => { cancelPendingOrder(); cart.splice(Number(b.dataset.i), 1); renderCart(); recalculate(); }); });
           }
 
           function recalculate() { clearTimeout(calcDebounce); if (!cart.length) return; calcDebounce = setTimeout(async () => { try { const data = await api("/admin/pos/calculate", { method: "POST", body: JSON.stringify(cartPayload()) }); lastCalc = data; $("lblSubtotal").textContent = money(data.subtotal); $("lblTotal").textContent = money(data.total); } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); } }, 200); }
@@ -690,42 +741,92 @@
 
           async function checkout() {
             if (pendingOrderId) { return { orderId: pendingOrderId, total: lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(), calculation: lastCalc }; }
-            const data = await api("/admin/pos/checkout", { method: "POST", body: JSON.stringify(cartPayload()) });
-            pendingOrderId = data.orderId;
-            if (data.calculation) lastCalc = data.calculation;
-            return data;
+            if (checkoutInFlight) { return { orderId: pendingOrderId, total: lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(), calculation: lastCalc }; }
+            checkoutInFlight = true;
+            try {
+              const data = await api("/admin/pos/checkout", { method: "POST", body: JSON.stringify(cartPayload()) });
+              pendingOrderId = data.orderId;
+              if (data.calculation) lastCalc = data.calculation;
+              return data;
+            } finally {
+              checkoutInFlight = false;
+            }
           }
 
           function renderMarkdown(targetId, markdown) { const el = $(targetId); if (!el) return; const text = markdown || ""; if (typeof marked !== "undefined") { try { if (typeof marked.setOptions === "function") marked.setOptions({ gfm: true, breaks: true }); } catch (ignore) {} el.innerHTML = marked.parse(text, { gfm: true, breaks: true }); } else { el.innerHTML = "<pre>" + escapeHtml(text) + "</pre>"; } }
 
           function showReceipt(markdown) { $("receiptMarkdown").textContent = markdown || ""; renderMarkdown("receiptRender", markdown); bootstrap.Modal.getOrCreateInstance($("receiptModal")).show(); }
 
-          function setCashModalBusy(busy) { const btn = $("btnProcessCash"); if (!btn) return; btn.disabled = busy || !cart.length; if (busy) { btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...'; } else { btn.innerHTML = '<i class="bi bi-check2-circle"></i> Process payment'; } }
+          function setCashModalBusy(busy) { const btn = $("btnProcessCash"); if (!btn) return; if (busy) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...'; } else { btn.innerHTML = '<i class="bi bi-printer"></i> Print &amp; Save'; updateCashChange(); } }
 
-          async function loadCashSummary(calc) { const loading = $("cashSummaryLoading"); if (loading) loading.style.display = "none"; renderMarkdown("cashSummaryRender", buildLocalSummaryMarkdown(calc || lastCalc)); const btn = $("btnProcessCash"); if (btn) btn.disabled = !cart.length; }
+          async function loadCashSummary(calc) { const loading = $("cashSummaryLoading"); if (loading) loading.style.display = "none"; renderMarkdown("cashSummaryRender", buildLocalSummaryMarkdown(calc || lastCalc)); }
 
           async function ensureCalculated() { if (lastCalc || !cart.length) return lastCalc; const data = await api("/admin/pos/calculate", { method: "POST", body: JSON.stringify(cartPayload()) }); lastCalc = data; $("lblSubtotal").textContent = money(data.subtotal); $("lblTotal").textContent = money(data.total); return lastCalc; }
+
+          function cashTotalUsd() { return lastCalc?.total != null ? Number(lastCalc.total) : localCartTotal(); }
+          function cashTotalKhr() { return Math.round(cashTotalUsd() * KHQR_RATE); }
+          function formatKhr(amount) { return (Math.round(Number(amount) || 0)).toLocaleString("en-KH") + " ៛"; }
+
+          function setupCashTender() {
+            $("cashTotalUsd").textContent = money(cashTotalUsd());
+            $("cashTotalKhr").textContent = formatKhr(cashTotalKhr());
+            $("cashRate").textContent = KHQR_RATE.toLocaleString("en-KH");
+            $("cashReceivedKhr").value = "";
+            updateCashChange();
+          }
+
+          function updateCashChange() {
+            const totalKhr = cashTotalKhr();
+            const received = Number($("cashReceivedKhr").value) || 0;
+            const change = Math.max(received - totalKhr, 0);
+            $("cashChangeKhr").textContent = formatKhr(change);
+            $("cashChangeUsd").textContent = "≈ " + money(change / KHQR_RATE);
+            $("cashTenderWarn").style.display = (received > 0 && received < totalKhr) ? "block" : "none";
+            $("btnProcessCash").disabled = paymentBusy || !cart.length || received < totalKhr;
+          }
+
+          function buildCashTenderMarkdown(totalKhr, receivedKhr, changeKhr) {
+            let md = '\n\n<div class="pos-invoice-totals">\n\n';
+            md += "| **Cash payment** | |\n|:---|---:|\n";
+            md += "| Total (Riel) | " + formatKhr(totalKhr) + " |\n";
+            md += "| Cash received | " + formatKhr(receivedKhr) + " |\n";
+            md += "| **Change (exchange)** | **" + formatKhr(changeKhr) + "** |\n\n</div>";
+            return md;
+          }
+
+          function printReceipt() { const w = window.open("", "_blank"); if (!w) return; w.document.write("<html><head><title>Receipt - " + SHOP + "</title></head><body>" + $("receiptRender").innerHTML + "</body></html>"); w.document.close(); w.print(); }
 
           async function payCash() {
             if (paymentBusy || !cart.length) return;
             try { await ensureCalculated(); } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); return; }
             const cashModal = bootstrap.Modal.getOrCreateInstance($("cashModal"));
             $("cashSummaryRender").innerHTML = "";
-            $("btnProcessCash").disabled = false;
             cashModal.show();
             await loadCashSummary(lastCalc);
+            setupCashTender();
           }
 
           async function confirmCashPayment() {
             if (paymentBusy || !cart.length) return;
+            const totalKhr = cashTotalKhr();
+            const received = Number($("cashReceivedKhr").value) || 0;
+            if (received < totalKhr) { if (typeof showToast === "function") showToast("Cash received is less than the total due.", "error"); updateCashChange(); return; }
+            const changeKhr = received - totalKhr;
             paymentBusy = true;
             setCashModalBusy(true);
             renderCart();
             try {
               const payload = cartPayload();
+              payload.cashReceivedKhr = received;
+              payload.changeKhr = changeKhr;
               const result = await api("/admin/pos/pay/cash", { method: "POST", body: JSON.stringify(payload) });
               bootstrap.Modal.getInstance($("cashModal"))?.hide();
-              cart = []; pendingOrderId = null; lastCalc = null; renderCart(); const receiptMd = result?.receiptMarkdown || ""; if (receiptMd) { showReceipt(receiptMd); } if (typeof showToast === "function") showToast("Cash payment complete", "success");
+              cart = []; pendingOrderId = null; lastCalc = null; renderCart();
+              let receiptMd = result?.receiptMarkdown || "";
+              receiptMd += buildCashTenderMarkdown(totalKhr, received, changeKhr);
+              showReceipt(receiptMd);
+              printReceipt();
+              if (typeof showToast === "function") showToast("Cash payment complete · change " + formatKhr(changeKhr), "success");
             } catch (e) { if (typeof showToast === "function") showToast(e.message, "error"); } finally { paymentBusy = false; setCashModalBusy(false); renderCart(); }
           }
 
@@ -843,6 +944,7 @@ const merchantName = (khqr.merchantName && khqr.merchantName.trim()) ? khqr.merc
             $("productSearch").addEventListener("input", (e) => renderProducts(e.target.value));
             $("btnPayCash").addEventListener("click", payCash);
             $("btnProcessCash").addEventListener("click", confirmCashPayment);
+            $("cashReceivedKhr").addEventListener("input", updateCashChange);
             $("btnPayCard").addEventListener("click", payCard);
             $("btnConfirmCard").addEventListener("click", confirmCard);
             $("cashModal").addEventListener("hidden.bs.modal", () => { setCashModalBusy(false); });
@@ -864,9 +966,9 @@ $("btnPayKhqr").addEventListener("click", payKhqr);
                if ($("khqrModal").classList.contains("show")) { processKhqr(); }
              });
             $("btnVerifyKhqr").addEventListener("click", verifyKhqr);
-            $("btnClearCart").addEventListener("click", () => { stopKhqrPolling(); cart = []; pendingOrderId = null; lastCalc = null; renderCart(); });
+            $("btnClearCart").addEventListener("click", () => { stopKhqrPolling(); cancelPendingOrder(); cart = []; lastCalc = null; renderCart(); });
 $("khqrModal").addEventListener("hidden.bs.modal", async () => { stopKhqrPolling(); const oid = pendingOrderId ? Number(pendingOrderId) : null; pendingOrderId = null; paymentBusy = false; resetKhqrModal(); if (oid) { try { await api("/admin/pos/cancel/" + oid, { method: "POST" }); } catch (e) { /* ignore */ } } });
-             $("btnPrintReceipt").addEventListener("click", () => { const w = window.open("", "_blank"); w.document.write("<html><head><title>Receipt - " + SHOP + "</title></head><body>" + $("receiptRender").innerHTML + "</body></html>"); w.document.close(); w.print(); });
+             $("btnPrintReceipt").addEventListener("click", printReceipt);
              loadProducts().catch((e) => { $("productGrid").innerHTML = '<p class="text-danger small">' + escapeHtml(e.message) + "</p>"; });
              $("barcodeInput").focus();
            }

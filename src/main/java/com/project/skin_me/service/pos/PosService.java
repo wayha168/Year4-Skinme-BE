@@ -90,6 +90,10 @@ public class PosService implements IPosService {
             throw new IllegalArgumentException("Order total must be greater than zero");
         }
 
+        // Prevent duplicate POS orders: a cashier can only have one open sale at a time.
+        // Cancel any earlier unpaid POS orders left over from abandoned checkouts/KHQR attempts.
+        cancelStalePendingPosOrders(cashier);
+
         Order order = new Order();
         order.setUser(cashier);
         order.setOrderDate(LocalDate.now());
@@ -325,6 +329,22 @@ public class PosService implements IPosService {
         managed.setDeliveredAt(LocalDateTime.now());
         managed.setTrackingNumber("PICKUP");
         orderRepository.save(managed);
+    }
+
+    private void cancelStalePendingPosOrders(User cashier) {
+        if (cashier == null || cashier.getId() == null) {
+            return;
+        }
+        List<Order> stale = orderRepository.findPosOrdersByUserAndStatuses(
+                cashier.getId(),
+                List.of(OrderStatus.PAYMENT_PENDING, OrderStatus.PENDING));
+        if (stale.isEmpty()) {
+            return;
+        }
+        for (Order order : stale) {
+            order.setOrderStatus(OrderStatus.CANCELLED);
+        }
+        orderRepository.saveAll(stale);
     }
 
     @Override
