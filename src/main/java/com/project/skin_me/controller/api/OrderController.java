@@ -1,6 +1,9 @@
 package com.project.skin_me.controller.api;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.enums.LogisticCompany;
+import com.project.skin_me.enums.OrderStatus;
+import com.project.skin_me.enums.PaymentMethod;
 import com.project.skin_me.exception.AlreadyExistsException;
 import com.project.skin_me.exception.ResourceNotFoundException;
 import com.project.skin_me.model.Order;
@@ -8,6 +11,7 @@ import com.project.skin_me.model.User;
 import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.service.delivery.IDeliveryService;
 import com.project.skin_me.service.order.IOrderService;
+import com.project.skin_me.service.pos.IPosService;
 import com.project.skin_me.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,20 +23,28 @@ import java.util.Map;
 
 import static org.springframework.http.HttpStatus.*;
 
-@RequiredArgsConstructor
 @RestController
 @RequestMapping("${api.prefix}/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
     private final IOrderService orderService;
     private final IDeliveryService deliveryService;
     private final IUserService userService;
+    private final IPosService posService;
 
     @PostMapping("/order")
-    public ResponseEntity<ApiResponse> createOrder() {
+    public ResponseEntity<ApiResponse> createOrder(@RequestBody(required = false) Map<String, Object> body) {
         try {
             User user = userService.getAuthenticatedUser();
             Order order = orderService.placeOrderItem(user.getId());
+            if (body != null && body.get("logisticCompany") != null) {
+                LogisticCompany lc = LogisticCompany.fromString(String.valueOf(body.get("logisticCompany")));
+                if (lc != null) {
+                    order.setLogisticCompany(lc);
+                    orderService.updateOrder(order);
+                }
+            }
             OrderDto orderDto = orderService.convertToDto(order);
             return ResponseEntity.ok(new ApiResponse("Order successfully placed", orderDto));
         } catch (ResourceNotFoundException e) {
@@ -91,7 +103,48 @@ public class OrderController {
         }
     }
 
+    /**
+     * Pickup orders paid in cash: mark payment successful and complete the order (DELIVERED).
+     */
+    @PostMapping("/{orderId}/confirm-cash-pickup")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse> confirmCashPickup(
+            @PathVariable Long orderId) {
+        try {
+            User admin = userService.getAuthenticatedUser();
+            Order order = orderService.getOrderById(orderId);
+            if (!order.isPickupFulfillment()) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse("This action is only available for pickup orders", null));
+            }
+            OrderStatus status = order.getOrderStatus();
+            if (status == OrderStatus.DELIVERED) {
+                OrderDto dto = orderService.convertToDto(order);
+                return ResponseEntity.ok(new ApiResponse("Order is already completed", dto));
+            }
+            if (status != OrderStatus.PAYMENT_PENDING
+                    && status != OrderStatus.PENDING
+                    && status != OrderStatus.PAID) {
+                return ResponseEntity.status(BAD_REQUEST)
+                        .body(new ApiResponse(
+                                "Cannot confirm cash payment for order in status: " + status, null));
+            }
+            posService.completePayment(order, admin, PaymentMethod.CASH, null);
+            Order updated = orderService.getOrderById(orderId);
+            return ResponseEntity.ok(new ApiResponse("Order completed — cash payment recorded",
+                    orderService.convertToDto(updated)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.status(BAD_REQUEST).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Error completing pickup order: " + e.getMessage(), null));
+        }
+    }
+
     @PutMapping("/{orderId}/ship")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> markAsShipped(@PathVariable Long orderId,
             @RequestParam(required = false) String trackingNumber) {
         try {
@@ -101,6 +154,9 @@ public class OrderController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
                     .body(new ApiResponse("Order not found", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error marking order as shipped: " + e.getMessage(), null));
@@ -108,14 +164,20 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/deliver")
-    public ResponseEntity<ApiResponse> markAsDelivered(@PathVariable Long orderId) {
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse> markAsDelivered(
+            @PathVariable Long orderId,
+            @RequestParam(required = false) LogisticCompany logisticCompany) {
         try {
-            Order order = orderService.markAsDelivered(orderId);
+            Order order = orderService.markAsDelivered(orderId, logisticCompany);
             OrderDto orderDto = orderService.convertToDto(order);
             return ResponseEntity.ok(new ApiResponse("Order marked as delivered", orderDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND)
                     .body(new ApiResponse("Order not found", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error marking order as delivered: " + e.getMessage(), null));

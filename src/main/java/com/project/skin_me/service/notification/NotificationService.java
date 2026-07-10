@@ -8,19 +8,29 @@ import com.project.skin_me.repository.NotificationRepository;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
+
+    private static final Pattern API_ORDER_PATH = Pattern.compile("/api/v\\d+/orders/(\\d+)(?:/.*)?");
+    private static final Pattern API_PRODUCT_DETAIL = Pattern.compile("/api/v\\d+/products/product/(\\d+)/product.*");
+    /** Public JSON product at {@code /products/{id}} (ProductPublicController) — map to Thymeleaf details. */
+    private static final Pattern PUBLIC_PRODUCT_JSON = Pattern.compile("/products/(\\d+)(?:/.*)?");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -28,12 +38,14 @@ public class NotificationService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * Persist notification and send to user via WebSocket (using principal name = email).
+     * Persist notification and send to user via WebSocket (using principal name =
+     * email).
      */
     @Transactional
     public void createAndNotifyUser(Long userId, String title, String message, String type, String actionUrl) {
         User user = userRepository.findById(userId).orElse(null);
-        if (user == null) return;
+        if (user == null)
+            return;
 
         Notification n = new Notification();
         n.setUser(user);
@@ -41,7 +53,7 @@ public class NotificationService {
         n.setMessage(message);
         n.setType(type != null ? type : "INFO");
         n.setStatus("UNREAD");
-        n.setActionUrl(actionUrl);
+        n.setActionUrl(normalizeActionUrlForWebApp(actionUrl));
         n.setCreatedAt(LocalDateTime.now());
         n = notificationRepository.save(n);
 
@@ -50,14 +62,18 @@ public class NotificationService {
     }
 
     private void sendToPrincipal(String principalName, NotificationDto dto) {
-        if (dto.getId() == null) dto.setId(UUID.randomUUID().toString());
-        if (dto.getCreatedAt() == null) dto.setCreatedAt(LocalDateTime.now());
-        if (dto.getStatus() == null) dto.setStatus("UNREAD");
+        if (dto.getId() == null)
+            dto.setId(UUID.randomUUID().toString());
+        if (dto.getCreatedAt() == null)
+            dto.setCreatedAt(LocalDateTime.now());
+        if (dto.getStatus() == null)
+            dto.setStatus("UNREAD");
         messagingTemplate.convertAndSendToUser(principalName, "/topic/notifications", dto);
     }
 
     /**
-     * Send notification to specific user via WebSocket (persisted when user exists).
+     * Send notification to specific user via WebSocket (persisted when user
+     * exists).
      */
     public void notifyUser(String userId, String title, String message, String type) {
         User user = userRepository.findById(Long.parseLong(userId)).orElse(null);
@@ -75,7 +91,8 @@ public class NotificationService {
     }
 
     /**
-     * Send notification to specific user with action URL (persisted when user exists).
+     * Send notification to specific user with action URL (persisted when user
+     * exists).
      */
     public void notifyUserWithAction(String userId, String title, String message,
             String type, String actionUrl) {
@@ -86,7 +103,7 @@ public class NotificationService {
                     .title(title)
                     .message(message)
                     .type(type)
-                    .actionUrl(actionUrl)
+                    .actionUrl(normalizeActionUrlForWebApp(actionUrl))
                     .build();
             messagingTemplate.convertAndSendToUser(userId, "/topic/notifications", notification);
             return;
@@ -120,7 +137,7 @@ public class NotificationService {
 
     public void notifyProductAvailability(String userId, String productId, String productName) {
         String message = productName + " is now back in stock!";
-        notifyUserWithAction(userId, "Product Available", message, "PRODUCT", "/products/" + productId);
+        notifyUserWithAction(userId, "Product Available", message, "PRODUCT", "/view/products/" + productId);
     }
 
     public void notifyPromotion(String userId, String title, String message, String promoUrl) {
@@ -128,7 +145,104 @@ public class NotificationService {
     }
 
     /**
-     * Ensures the user has a notification for each of their existing orders (backfill for orders
+     * In-app + WebSocket notification for admins when a POS sale is completed (after payment is processed).
+     */
+    @Transactional
+    public void notifyAdminsPosSaleCompleted(Long orderId, BigDecimal totalAmount, String paymentMethod) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String amt = totalAmount != null ? "$" + totalAmount.stripTrailingZeros().toPlainString() : "N/A";
+        String method = (paymentMethod != null && !paymentMethod.isBlank()) ? paymentMethod : "POS";
+        String message = "POS sale #" + orderId + " · " + amt + " · " + method;
+        String actionUrl = "/views/orders/" + orderId;
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "POS sale completed", message, "ORDER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of POS sale {}: {}", admin.getId(), orderId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * In-app notification for each admin when an order is paid (bell panel + persisted).
+     */
+    @Transactional
+    public void notifyAdminsOrderPaid(Long orderId, String customerEmail, BigDecimal totalAmount) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String amt = totalAmount != null ? "$" + totalAmount.stripTrailingZeros().toPlainString() : "N/A";
+        String who = (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : "Customer";
+        String message = "Order #" + orderId + " · " + who + " · " + amt;
+        String actionUrl = "/views/orders";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "Payment received", message, "ORDER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of paid order {}: {}", admin.getId(), orderId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notify admins when a new customer account is created (email, phone, or Google).
+     */
+    @Transactional
+    public void notifyAdminsNewUserRegistered(String email, String displayName, Long userId) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String who = (displayName != null && !displayName.isBlank()) ? displayName.trim()
+                : ((email != null && !email.isBlank()) ? email : "New user");
+        String msg = (email != null && !email.isBlank()) ? who + " · " + email : who;
+        String actionUrl = userId != null ? "/views/users/" + userId : "/views/users";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), "New user registered", msg, "USER", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of new user: {}", admin.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Persist a notification per admin and push each over {@code /user/topic/notifications} so the bell panel,
+     * badge, and toast show product name, rating, comment, and reviewer.
+     */
+    @Transactional
+    public void notifyAdminsNewProductFeedback(String productName, BigDecimal rating,
+            String comment, String reviewerEmail) {
+        List<User> admins = userRepository.findAllByRoleName("ROLE_ADMIN");
+        if (admins.isEmpty()) {
+            return;
+        }
+        String r = rating != null ? rating.stripTrailingZeros().toPlainString() : "?";
+        String commentPart = (comment != null && !comment.isBlank()) ? comment.trim() : "(no comment)";
+        if (commentPart.length() > 400) {
+            commentPart = commentPart.substring(0, 397) + "...";
+        }
+        String reviewer = (reviewerEmail != null && !reviewerEmail.isBlank()) ? reviewerEmail : "Customer";
+        String pname = (productName != null && !productName.isBlank()) ? productName : "Product";
+        String message = pname + " · " + r + "★ — " + commentPart + " · " + reviewer;
+        String title = "New product review";
+        String actionUrl = "/views/user-feedback";
+        for (User admin : admins) {
+            try {
+                createAndNotifyUser(admin.getId(), title, message, "FEEDBACK", actionUrl);
+            } catch (Exception e) {
+                log.warn("Could not notify admin {} of new product feedback: {}", admin.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Ensures the user has a notification for each of their existing orders
+     * (backfill for orders
      * created before notifications were implemented, or missed events).
      */
     @Transactional
@@ -136,7 +250,8 @@ public class NotificationService {
         List<Order> orders = orderRepository.findByUserId(user.getId());
         for (Order order : orders) {
             String actionUrl = "/view/orders/" + order.getOrderId();
-            if (notificationRepository.existsByUserAndActionUrl(user, actionUrl)) continue;
+            if (notificationRepository.existsByUserAndActionUrl(user, actionUrl))
+                continue;
             String statusStr = order.getOrderStatus() != null ? order.getOrderStatus().name() : "CREATED";
             String title = "Order #" + order.getOrderId();
             String message = "Order #" + order.getOrderId() + " – " + statusStr
@@ -186,7 +301,50 @@ public class NotificationService {
                 .type(n.getType())
                 .status(n.getStatus())
                 .createdAt(n.getCreatedAt())
-                .actionUrl(n.getActionUrl())
+                .actionUrl(normalizeActionUrlForWebApp(n.getActionUrl()))
                 .build();
+    }
+
+    /**
+     * Ensures notification links open server-rendered pages, not REST JSON.
+     * Handles legacy/ mistaken URLs like {@code /api/v1/orders/1} or {@code /chat}.
+     */
+    public static String normalizeActionUrlForWebApp(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String u = url.trim();
+        try {
+            if (u.startsWith("http://") || u.startsWith("https://")) {
+                int schemeEnd = u.indexOf("://") + 3;
+                int pathStart = u.indexOf('/', schemeEnd);
+                if (pathStart >= 0) {
+                    u = u.substring(pathStart);
+                } else {
+                    u = "/";
+                }
+            }
+        } catch (Exception ignored) {
+            // keep u as-is
+        }
+        if (!u.startsWith("/")) {
+            u = "/" + u;
+        }
+        Matcher mOrder = API_ORDER_PATH.matcher(u);
+        if (mOrder.matches()) {
+            return "/view/orders/" + mOrder.group(1);
+        }
+        Matcher mProduct = API_PRODUCT_DETAIL.matcher(u);
+        if (mProduct.matches()) {
+            return "/view/products/" + mProduct.group(1);
+        }
+        Matcher mPublicProduct = PUBLIC_PRODUCT_JSON.matcher(u);
+        if (mPublicProduct.matches()) {
+            return "/view/products/" + mPublicProduct.group(1);
+        }
+        if ("/chat".equals(u) || u.startsWith("/chat?")) {
+            return u.startsWith("/chat?") ? "/views/chat" + u.substring("/chat".length()) : "/views/chat";
+        }
+        return u;
     }
 }

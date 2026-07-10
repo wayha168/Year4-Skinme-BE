@@ -1,6 +1,7 @@
 package com.project.skin_me.service.order;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.model.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,5 +24,5 @@ public interface IOrderService {
     Optional<Order> getOrderByStripeSessionId(String sessionId);
     void confirmOrderPayment(Order order);
     Order markAsShipped(Long orderId, String trackingNumber);
-    Order markAsDelivered(Long orderId);
+    Order markAsDelivered(Long orderId, LogisticCompany logisticCompany);
 }

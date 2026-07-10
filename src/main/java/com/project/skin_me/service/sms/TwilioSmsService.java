@@ -7,7 +7,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -21,18 +21,18 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Primary
-@ConditionalOnProperty(name = "app.sms.twilio.account-sid")
+@Conditional(TwilioSmsEnabledCondition.class)
 public class TwilioSmsService implements SmsService {
 
     private static final Logger logger = LoggerFactory.getLogger(TwilioSmsService.class);
 
-    @Value("${app.sms.twilio.account-sid}")
+    @Value("${app.sms.twilio.account-sid:}")
     private String accountSid;
 
-    @Value("${app.sms.twilio.auth-token}")
+    @Value("${app.sms.twilio.auth-token:}")
     private String authToken;
 
-    @Value("${app.sms.twilio.from-number}")
+    @Value("${app.sms.twilio.from-number:}")
     private String fromNumber;
 
     @PostConstruct

@@ -8,6 +8,8 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -18,11 +20,10 @@ public class EmailService {
     @Value("${app.frontend.url:https://skinme.store}")
     private String frontendUrl;
 
-    /** Base URL for password reset link (e.g. https://backend.skinme.store). If set, reset emails use this for the link. */
     @Value("${app.backend.url:}")
     private String backendUrl;
 
-    @Value("${spring.mail.username:noreply@skinme.store}")
+    @Value("${spring.mail.from:noreply@skinme.store}")
     private String fromEmail;
 
     /**
@@ -34,14 +35,16 @@ public class EmailService {
             message.setFrom(fromEmail);
             message.setTo(toEmail);
             message.setSubject("Password Reset Request - SkinMe");
-            
-            String baseUrl = (backendUrl != null && !backendUrl.isBlank()) ? backendUrl.trim() : frontendUrl;
-            String resetUrl = baseUrl + "/reset-password?token=" + resetToken + "&email=" + java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
+
+            String baseUrl = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : backendUrl.trim();
+            String resetUrl = baseUrl + "/reset-password?token="
+                    + java.net.URLEncoder.encode(resetToken, StandardCharsets.UTF_8) + "&email="
+                    + java.net.URLEncoder.encode(toEmail, StandardCharsets.UTF_8);
             String emailBody = buildPasswordResetEmailBody(resetUrl, resetToken);
-            
+
             message.setText(emailBody);
             mailSender.send(message);
-            
+
             logger.info("Password reset email sent successfully to: {}", toEmail);
         } catch (Exception e) {
             logger.error("Failed to send password reset email to: {}. Error: {}", toEmail, e.getMessage(), e);
@@ -54,17 +57,16 @@ public class EmailService {
      */
     private String buildPasswordResetEmailBody(String resetUrl, String resetToken) {
         return String.format(
-            "Dear User,\n\n" +
-            "You have requested to reset your password for your SkinMe account.\n\n" +
-            "Please click on the following link to reset your password:\n" +
-            "%s\n\n" +
-            "Or use this token manually:\n" +
-            "Token: %s\n\n" +
-            "This link will expire in 1 hour.\n\n" +
-            "If you did not request this password reset, please ignore this email.\n\n" +
-            "Best regards,\n" +
-            "SkinMe Team",
-            resetUrl, resetToken
-        );
+                "Dear User,\n\n" +
+                        "You have requested to reset your password for your SkinMe account.\n\n" +
+                        "Please click on the following link to reset your password:\n" +
+                        "%s\n\n" +
+                        "Or use this token manually:\n" +
+                        "Token: %s\n\n" +
+                        "This link will expire in 1 hour.\n\n" +
+                        "If you did not request this password reset, please ignore this email.\n\n" +
+                        "Best regards,\n" +
+                        "SkinMe Team",
+                resetUrl, resetToken);
     }
 }

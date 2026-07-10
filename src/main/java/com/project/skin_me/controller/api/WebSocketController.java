@@ -85,7 +85,7 @@ public class WebSocketController {
                             "New chat",
                             "New message in chat",
                             "CHAT",
-                            "/chat");
+                            "/views/chat");
                 } catch (Exception e) {
                     // Don't fail chat if notification fails
                 }

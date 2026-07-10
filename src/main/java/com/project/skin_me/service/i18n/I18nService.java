@@ -6,10 +6,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 
-/**
- * Service for resolving internationalized messages. Uses the request locale
- * (from Accept-Language header or lang param for API, cookie for web).
- */
 @Service
 public class I18nService {
 

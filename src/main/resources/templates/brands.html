@@ -119,12 +119,11 @@
             form.method = 'POST';
             form.action = '/views/brands/' + id + '/delete';
             var csrf = document.querySelector('meta[name="_csrf"]');
-            var csrfHeader = document.querySelector('meta[name="_csrf_header"]');
-            if (csrf && csrfHeader) {
+            if (csrf) {
               var input = document.createElement('input');
               input.type = 'hidden';
-              input.name = csrfHeader.getAttribute('content');
-              input.value = csrf.getAttribute('content');
+              input.name = '_csrf';
+              input.value = csrf.getAttribute('content') || csrf.content;
               form.appendChild(input);
             }
             document.body.appendChild(form);

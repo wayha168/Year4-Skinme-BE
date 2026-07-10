@@ -1,0 +1,101 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en"
+  th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::scripts})}">
+
+<head>
+  <th:block th:fragment="style">
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/tables.css" />
+  </th:block>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title th:text="${pageTitle ?: 'Chat history'}">Chat history</title>
+</head>
+
+<body>
+  <th:block th:fragment="main">
+    <div class="main-content">
+      <div th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-clock-history'"></div>
+
+      <div class="container-fluid px-4 pb-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <p class="text-muted small mb-0" th:text="${pageSubtitle}">Conversation history</p>
+            <p th:if="${sessionId}" class="small mb-0 text-muted">Session: <code th:text="${sessionId}">—</code></p>
+          </div>
+          <a th:href="@{/views/chat}" class="btn btn-primary btn-sm">
+            <i class="bi bi-chat-dots"></i> Open live chat
+          </a>
+        </div>
+
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-circle"></i> <span th:text="${error}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div th:if="${isAdmin and !#lists.isEmpty(sessions)}" class="card mb-3">
+          <div class="card-header"><strong>Sessions</strong></div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Last message</th>
+                  <th>Time</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="s : ${sessions}">
+                  <td th:text="${s.userName != null ? s.userName : (s.userEmail != null ? s.userEmail : s.sessionId)}">—</td>
+                  <td class="small text-truncate" style="max-width: 280px;" th:text="${s.lastMessage}">—</td>
+                  <td class="text-muted small text-nowrap" th:text="${s.lastMessageAt}">—</td>
+                  <td>
+                    <a th:href="@{/views/chat(session=${s.sessionId})}" class="btn btn-sm btn-outline-primary">Open</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div th:if="${#lists.isEmpty(messages) and !isAdmin}" class="card mt-2">
+          <div class="empty-state py-5 text-center text-muted">
+            <i class="bi bi-inbox display-6 d-block mb-2"></i>
+            <p class="mb-0">No messages yet. Use <strong>Chat</strong> to start a conversation.</p>
+          </div>
+        </div>
+
+        <div th:unless="${#lists.isEmpty(messages)}" class="data-table mt-2">
+          <p class="small text-muted mb-2"
+            th:text="'Showing ' + ${totalElements} + ' message(s) from SkinMe Assistant.'">—</p>
+          <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width: 160px;">Time</th>
+                  <th style="width: 100px;">Role</th>
+                  <th style="width: 140px;">Sender</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="msg : ${messages}">
+                  <td class="text-muted text-nowrap small" th:text="${msg.createdAt != null ? msg.createdAt : '—'}">—</td>
+                  <td><span class="badge bg-secondary" th:text="${msg.role}">user</span></td>
+                  <td th:text="${msg.sender != null ? msg.sender : '—'}">—</td>
+                  <td class="small text-break" th:utext="${msg.content}">…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </th:block>
+  <th:block th:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </th:block>
+</body>
+
+</html>

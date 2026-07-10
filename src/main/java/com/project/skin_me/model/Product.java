@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.skin_me.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -25,6 +26,8 @@ public class Product {
     private BigDecimal price;
     private String productType;
     private int inventory;
+    @Column(unique = true)
+    private String barcode;
 
     @Enumerated(EnumType.STRING)
     private ProductStatus status = ProductStatus.ACTIVE;
@@ -49,12 +52,20 @@ public class Product {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
-    @JsonIgnoreProperties({"products", "brands"})
+    @JsonIgnoreProperties({ "products", "brands" })
     private Category category;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Image> images;
+
+    @JsonProperty("thumbnailUrl")
+    public String getThumbnailUrl() {
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+        return images.get(0).getDownloadUrl();
+    }
 
     @ManyToOne
     @JsonIgnore
@@ -69,8 +80,8 @@ public class Product {
     private List<Promotion> promotions;
 
     public Product(String name, BigDecimal price,
-                   String productType, int inventory, String description,
-                   String howToUse, Brand brand) {
+            String productType, int inventory, String description,
+            String howToUse, Brand brand) {
         this.name = name;
         this.price = price;
         this.productType = productType;

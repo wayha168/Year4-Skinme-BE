@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,8 +23,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.util.StringUtils;
 
 import com.project.skin_me.dto.OrderDto;
+import com.project.skin_me.dto.ProductFeedbackDto;
 import com.project.skin_me.dto.OrderStatusCountDto;
 import com.project.skin_me.dto.ProductDto;
 import com.project.skin_me.dto.SalesMonthDto;
@@ -42,11 +45,13 @@ import com.project.skin_me.model.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.skin_me.repository.ActivityRepository;
+import com.project.skin_me.repository.ChatAiRepository;
 import com.project.skin_me.repository.ChatMessageRepository;
 import com.project.skin_me.repository.FavoriteItemRepository;
 import com.project.skin_me.repository.OrderRepository;
 import com.project.skin_me.repository.PaymentRepository;
 import com.project.skin_me.repository.PopularProductRepository;
+import com.project.skin_me.repository.ProductFeedbackRepository;
 import com.project.skin_me.repository.ProductRepository;
 import com.project.skin_me.repository.RoleRepository;
 import com.project.skin_me.repository.UserRepository;
@@ -60,7 +65,18 @@ import com.project.skin_me.service.image.IImageService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
 import com.project.skin_me.service.product.IProductService;
+import com.project.skin_me.service.feedback.IProductFeedbackService;
 import com.project.skin_me.service.user.IUserService;
+import com.project.skin_me.service.chatbot.ChatSessionService;
+import com.project.skin_me.service.chatbot.ChatbotService;
+import com.project.skin_me.service.chatbot.ChatbotSessionFilter;
+import com.project.skin_me.dto.chatbot.ChatbotHistoryMessage;
+import com.project.skin_me.dto.chatbot.ChatbotHistoryResponse;
+import com.project.skin_me.dto.chatbot.ChatbotSessionSummary;
+import com.project.skin_me.dto.chatbot.ChatbotSessionsResponse;
+import com.project.skin_me.service.payment.IBakongKhqrService;
+import com.project.skin_me.model.ChatAi;
+import com.project.skin_me.model.KhqrBankAccount;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -72,11 +88,16 @@ public class PageController {
     /** Number of items per page; only this many are loaded from DB per request. */
     private static final int PAGE_SIZE = 25;
 
+    private static final int AUDIT_LOG_PAGE_SIZE = 20;
+
     private final ICategoryService categoryService;
     private final IBrandService brandService;
     private final IProductService productService;
     private final IImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatAiRepository chatAiRepository;
+    private final ChatbotService chatbotService;
+    private final ChatSessionService chatSessionService;
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -90,12 +111,57 @@ public class PageController {
     private final FavoriteItemRepository favoriteItemRepository;
     private final PopularProductRepository popularProductRepository;
     private final ObjectMapper objectMapper;
+    private final IBakongKhqrService bakongKhqrService;
+    private final IProductFeedbackService productFeedbackService;
+    private final ProductFeedbackRepository productFeedbackRepository;
 
     @org.springframework.beans.factory.annotation.Value("${stripe.public.key}")
     private String stripePublicKey;
 
     @org.springframework.beans.factory.annotation.Value("${payment.khqr.usd-to-khr-rate:4100}")
     private int khqrUsdToKhrRate;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.name:}")
+    private String abaKhqrMerchantName;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.account:}")
+    private String abaKhqrMerchantAccount;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.city:}")
+    private String abaKhqrMerchantCity;
+
+    @org.springframework.beans.factory.annotation.Value("${aba.khqr.merchant.category.code:}")
+    private String abaKhqrCategoryCode;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.name:}")
+    private String genericKhqrMerchantName;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.account:}")
+    private String genericKhqrMerchantAccount;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.city:}")
+    private String genericKhqrMerchantCity;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.merchant.category.code:}")
+    private String genericKhqrCategoryCode;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.checkout-hint:QR defaults use aba.khqr.* (ABA) and khqr.merchant.* (any KHQR bank). Change in application.properties or environment.}")
+    private String dashboardCheckoutHint;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.section-title:Checkout & QR merchants}")
+    private String dashboardKhqrSectionTitle;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.aba-label:ABA Mobile}")
+    private String dashboardKhqrAbaLabel;
+
+    @org.springframework.beans.factory.annotation.Value("${app.dashboard.khqr.generic-label:KHQR (any bank)}")
+    private String dashboardKhqrGenericLabel;
+
+    @org.springframework.beans.factory.annotation.Value("${app.pos.shop-name:SkinMe Store}")
+    private String posShopName;
+
+    @org.springframework.beans.factory.annotation.Value("${app.pos.shop-address:Phnom Penh, Cambodia}")
+    private String posShopAddress;
 
     @GetMapping("/login-page")
     public String loginPage(Model model,
@@ -113,7 +179,8 @@ public class PageController {
             if (isAdmin) {
                 return "redirect:/dashboard";
             }
-            // Authenticated but not admin: show error and stay on login (they must sign in as admin)
+            // Authenticated but not admin: show error and stay on login (they must sign in
+            // as admin)
             model.addAttribute("error", "Invalid credentials. Only administrators can access the dashboard.");
         }
 
@@ -207,6 +274,12 @@ public class PageController {
             List<PopularProduct> popularProducts = popularProductRepository.findTopPopularProductsWithRelations();
             model.addAttribute("popularProducts", popularProducts.stream().limit(5).toList());
 
+            long totalFeedback = productFeedbackRepository.count();
+            Pageable feedbackTop = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            model.addAttribute("totalFeedback", totalFeedback);
+            model.addAttribute("dashboardFeedbackList",
+                    productFeedbackService.listAllForAdmin(feedbackTop).getContent());
+
         } catch (Exception e) {
             model.addAttribute("totalProducts", 0);
             model.addAttribute("totalOrders", 0);
@@ -219,13 +292,61 @@ public class PageController {
             model.addAttribute("popularProducts", List.<PopularProduct>of());
             model.addAttribute("recentOrders", List.<OrderDto>of());
             model.addAttribute("recentPayments", List.<Payment>of());
+            model.addAttribute("totalFeedback", 0L);
+            model.addAttribute("dashboardFeedbackList", List.<ProductFeedbackDto>of());
             model.addAttribute("error", "Failed to load stats: " + e.getMessage());
         }
+        addDashboardCheckoutConfigAttributes(model);
         model.addAttribute("pageTitle", "Admin Dashboard");
         return "dashboard";
     }
 
-    /** Switch language for dashboard; LocaleChangeInterceptor sets cookie from ?lang=. Redirects back to current page. */
+    @GetMapping("/views/pos")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String posPage(Model model, Authentication authentication) {
+        model.addAttribute("pageTitle", "Point of Sale");
+        model.addAttribute("posShopName", posShopName);
+        model.addAttribute("posShopAddress", posShopAddress);
+        String cashierName = "Admin";
+        if (authentication != null && authentication.getName() != null) {
+            cashierName = userRepository.findByEmail(authentication.getName())
+                    .map(u -> {
+                        String first = u.getFirstName() != null ? u.getFirstName().trim() : "";
+                        String last = u.getLastName() != null ? u.getLastName().trim() : "";
+                        String full = (first + " " + last).trim();
+                        return full.isEmpty() ? u.getEmail() : full;
+                    })
+                    .orElse(authentication.getName());
+        }
+        model.addAttribute("cashierName", cashierName);
+        addDashboardCheckoutConfigAttributes(model);
+        return "pos";
+    }
+
+    /**
+     * Values from application.properties / env for dashboard KHQR & checkout
+     * summary.
+     */
+    private void addDashboardCheckoutConfigAttributes(Model model) {
+        model.addAttribute("abaKhqrMerchantName", abaKhqrMerchantName);
+        model.addAttribute("abaKhqrMerchantAccount", abaKhqrMerchantAccount);
+        model.addAttribute("abaKhqrMerchantCity", abaKhqrMerchantCity);
+        model.addAttribute("abaKhqrCategoryCode", abaKhqrCategoryCode);
+        model.addAttribute("genericKhqrMerchantName", genericKhqrMerchantName);
+        model.addAttribute("genericKhqrMerchantAccount", genericKhqrMerchantAccount);
+        model.addAttribute("genericKhqrMerchantCity", genericKhqrMerchantCity);
+        model.addAttribute("genericKhqrCategoryCode", genericKhqrCategoryCode);
+        model.addAttribute("khqrUsdToKhrRate", khqrUsdToKhrRate);
+        model.addAttribute("dashboardCheckoutHint", dashboardCheckoutHint);
+        model.addAttribute("dashboardKhqrSectionTitle", dashboardKhqrSectionTitle);
+        model.addAttribute("dashboardKhqrAbaLabel", dashboardKhqrAbaLabel);
+        model.addAttribute("dashboardKhqrGenericLabel", dashboardKhqrGenericLabel);
+    }
+
+    /**
+     * Switch language for dashboard; LocaleChangeInterceptor sets cookie from
+     * ?lang=. Redirects back to current page.
+     */
     @GetMapping("/views/set-lang")
     public String setLang(@RequestParam String lang, HttpServletRequest request) {
         String redirectTo = "/dashboard";
@@ -234,8 +355,11 @@ public class PageController {
             try {
                 java.net.URL u = new java.net.URL(referer);
                 String path = u.getPath();
-                if (path != null && !path.isBlank()) redirectTo = path;
-            } catch (Exception ignored) { }
+                if (path != null && !path.isBlank()) {
+                    redirectTo = path;
+                }
+            } catch (Exception ignored) {
+            }
         }
         return "redirect:" + redirectTo;
     }
@@ -438,7 +562,8 @@ public class PageController {
             categoryService.deleteCategoryById(categoryId);
             return "redirect:/views/categories?success=Category deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/categories?error=Failed to delete category: " + e.getMessage();
+            return "redirect:/views/categories?error=" + java.net.URLEncoder
+                    .encode("Failed to delete category: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -530,7 +655,8 @@ public class PageController {
             brandService.deleteBrandById(id);
             return "redirect:/views/brands?success=Brand deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/brands?error=Failed to delete brand: " + e.getMessage();
+            return "redirect:/views/brands?error=" + java.net.URLEncoder
+                    .encode("Failed to delete brand: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -588,7 +714,9 @@ public class PageController {
 
     private static int normalizeProductPageSize(int size) {
         for (int allowed : PRODUCT_PAGE_SIZES) {
-            if (allowed == size) return size;
+            if (allowed == size) {
+                return size;
+            }
         }
         return 10;
     }
@@ -730,7 +858,8 @@ public class PageController {
             productService.deleteProductById(productId);
             return "redirect:/views/products?success=Product deleted successfully";
         } catch (Exception e) {
-            return "redirect:/views/products?error=Failed to delete product: " + e.getMessage();
+            return "redirect:/views/products?error=" + java.net.URLEncoder
+                    .encode("Failed to delete product: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -760,6 +889,7 @@ public class PageController {
             List<Category> categories = categoryService.getAllCategories();
             model.addAttribute("product", product);
             model.addAttribute("categories", categories);
+            model.addAttribute("favoriteCount", productService.countFavoriteUsersByProductId(productId));
             model.addAttribute("pageTitle", "Product Details");
         } catch (Exception e) {
             model.addAttribute("error", "Product not found: " + e.getMessage());
@@ -829,6 +959,7 @@ public class PageController {
         try {
             Product product = productService.getProductById(productId);
             model.addAttribute("product", product);
+            model.addAttribute("favoriteCount", productService.countFavoriteUsersByProductId(productId));
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load product details: " + e.getMessage());
         }
@@ -869,6 +1000,9 @@ public class PageController {
             Order order = orderRepository.findByIdWithOrderItemsAndProducts(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
             model.addAttribute("order", order);
+            paymentRepository.findByOrder(order).ifPresent(p -> model.addAttribute("payment", p));
+            model.addAttribute("posShopName", posShopName);
+            model.addAttribute("posShopAddress", posShopAddress);
             model.addAttribute("pageTitle", "Order Details #" + orderId);
         } catch (Exception e) {
             model.addAttribute("error", "Order not found: " + e.getMessage());
@@ -878,18 +1012,20 @@ public class PageController {
     }
 
     /** Status colors for order charts (could be moved to DB/settings later). */
-    private static final Map<OrderStatus, String> ORDER_STATUS_COLORS = new LinkedHashMap<>() {{
-        put(OrderStatus.DELIVERED, "#10b981");
-        put(OrderStatus.PAID, "#10b981");
-        put(OrderStatus.SUCCESS, "#10b981");
-        put(OrderStatus.PENDING, "#f59e0b");
-        put(OrderStatus.PROCESSING, "#f59e0b");
-        put(OrderStatus.PAYMENT_PENDING, "#f97316");
-        put(OrderStatus.PAYMENT, "#f97316");
-        put(OrderStatus.SHIPPED, "#3b82f6");
-        put(OrderStatus.CANCELLED, "#ef4444");
-        put(OrderStatus.FAILED, "#ef4444");
-    }};
+    private static final Map<OrderStatus, String> ORDER_STATUS_COLORS = new LinkedHashMap<>() {
+        {
+            put(OrderStatus.DELIVERED, "#10b981");
+            put(OrderStatus.PAID, "#10b981");
+            put(OrderStatus.SUCCESS, "#10b981");
+            put(OrderStatus.PENDING, "#f59e0b");
+            put(OrderStatus.PROCESSING, "#f59e0b");
+            put(OrderStatus.PAYMENT_PENDING, "#f97316");
+            put(OrderStatus.PAYMENT, "#f97316");
+            put(OrderStatus.SHIPPED, "#3b82f6");
+            put(OrderStatus.CANCELLED, "#ef4444");
+            put(OrderStatus.FAILED, "#ef4444");
+        }
+    };
 
     private static final String DEFAULT_STATUS_COLOR = "#6b7280";
 
@@ -906,7 +1042,8 @@ public class PageController {
             int totalPages = orderPage.getTotalPages();
 
             BigDecimal totalRevenue = orderRepository.sumOrderTotalAmount();
-            if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
+            if (totalRevenue == null)
+                totalRevenue = BigDecimal.ZERO;
             model.addAttribute("totalRevenue", totalRevenue);
 
             List<OrderStatusCountDto> orderStatusCounts = new ArrayList<>();
@@ -928,7 +1065,8 @@ public class PageController {
                 int m = ((Number) row[1]).intValue();
                 BigDecimal sum = BigDecimal.ZERO;
                 if (row[2] != null) {
-                    sum = row[2] instanceof BigDecimal ? (BigDecimal) row[2] : BigDecimal.valueOf(((Number) row[2]).doubleValue());
+                    sum = row[2] instanceof BigDecimal ? (BigDecimal) row[2]
+                            : BigDecimal.valueOf(((Number) row[2]).doubleValue());
                 }
                 String key = y + "-" + m;
                 monthToRevenue.put(key, sum);
@@ -937,7 +1075,8 @@ public class PageController {
             for (int i = 0; i < 12; i++) {
                 LocalDate d = since.plusMonths(i);
                 String key = d.getYear() + "-" + d.getMonthValue();
-                String label = d.getMonth().name().substring(0, 1) + d.getMonth().name().substring(1).toLowerCase() + " " + d.getYear();
+                String label = d.getMonth().name().substring(0, 1) + d.getMonth().name().substring(1).toLowerCase()
+                        + " " + d.getYear();
                 BigDecimal rev = monthToRevenue.getOrDefault(key, BigDecimal.ZERO);
                 salesByMonth.add(new SalesMonthDto(label, rev));
             }
@@ -958,9 +1097,12 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            Pageable recentPageable = PageRequest.of(0, 10, Sort.by("orderId").descending());
+            model.addAttribute("recentOrders", orderService.getAllUserOrders(recentPageable).getContent());
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load orders: " + e.getMessage());
             model.addAttribute("orders", List.<OrderDto>of());
+            model.addAttribute("recentOrders", List.<OrderDto>of());
             model.addAttribute("totalOrders", 0L);
             model.addAttribute("totalRevenue", BigDecimal.ZERO);
             model.addAttribute("orderStatusCounts", List.<OrderStatusCountDto>of());
@@ -1177,7 +1319,8 @@ public class PageController {
                 model.addAttribute("pageSubtitle", "Payment Record");
                 return "my-payments";
             }
-            // Load all user payments in one query (same as Payment Record pattern) then paginate in memory
+            // Load all user payments in one query (same as Payment Record pattern) then
+            // paginate in memory
             // to avoid JOIN FETCH + Pageable issues and ensure data always displays
             List<Payment> allPayments = paymentRepository.findByOrderUserIdWithOrderAndUser(user.getId());
             int total = allPayments != null ? allPayments.size() : 0;
@@ -1185,7 +1328,8 @@ public class PageController {
             int from = Math.min(page * PAGE_SIZE, total);
             int to = Math.min(from + PAGE_SIZE, total);
             List<Payment> payments = (allPayments != null && from < allPayments.size())
-                    ? allPayments.subList(from, to) : List.<Payment>of();
+                    ? allPayments.subList(from, to)
+                    : List.<Payment>of();
 
             java.math.BigDecimal sum = paymentRepository.sumAmountsByUserId(user.getId());
             double totalPaymentAmount = sum != null ? sum.doubleValue() : 0.0;
@@ -1216,46 +1360,347 @@ public class PageController {
 
     @GetMapping("/views/chat")
     @PreAuthorize("isAuthenticated()")
-    public String chatPage(@RequestParam(defaultValue = "0") int page, Model model) {
+    public String chatPage(
+            @RequestParam(required = false) String session,
+            Model model) {
+        try {
+            User currentUser = userService.getAuthenticatedUser();
+            boolean isAdmin = isAdmin(currentUser);
+
+            String sessionId = isAdmin
+                    ? (session != null && !session.isBlank() ? session.trim() : null)
+                    : chatSessionService.getOrCreateSessionId(currentUser);
+
+            List<ChatbotHistoryMessage> chatHistory = List.of();
+            List<ChatbotSessionSummary> chatSessions = List.of();
+
+            if (isAdmin) {
+                try {
+                    ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
+                    List<ChatbotSessionSummary> fromChatbot = sessionsResponse.getSessions() != null
+                            ? sessionsResponse.getSessions()
+                            : List.of();
+                    chatSessions = chatSessionService.buildAdminUserSessions(fromChatbot);
+                    enrichSessionSummariesWithUserDetails(chatSessions);
+                } catch (Exception ex) {
+                    // Still show all local users even if chatbot.skinme.store is unreachable
+                    try {
+                        chatSessions = chatSessionService.buildAdminUserSessions(List.of());
+                        enrichSessionSummariesWithUserDetails(chatSessions);
+                        model.addAttribute("sessionsWarning",
+                                "Chatbot sessions unavailable (" + ex.getMessage()
+                                        + "); showing local user accounts.");
+                    } catch (Exception localEx) {
+                        model.addAttribute("sessionsWarning", "Could not load sessions: " + ex.getMessage());
+                    }
+                }
+                model.addAttribute("chatSessions", chatSessions);
+                // Find selected session user info for admin
+                if (StringUtils.hasText(session)) {
+                    ChatbotSessionSummary selectedSession = chatSessions.stream()
+                            .filter(s -> session.equals(s.getSessionId()))
+                            .findFirst().orElse(null);
+                    enrichSessionSummaryWithUserDetails(selectedSession);
+                    model.addAttribute("selectedSessionUser", selectedSession);
+                }
+            }
+
+            if (StringUtils.hasText(sessionId)) {
+                try {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 500);
+                    if (history.getMessages() != null) {
+                        chatHistory = history.getMessages();
+                    }
+                    if (!isAdmin) {
+                        chatSessionService.saveSessionId(currentUser, sessionId);
+                    }
+                } catch (Exception ex) {
+                    model.addAttribute("historyWarning", "Could not load history: " + ex.getMessage());
+                }
+            }
+
+            if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null
+                    && !chatHistory.isEmpty()) {
+                ChatbotSessionSummary fallbackSession = new ChatbotSessionSummary();
+                fallbackSession.setSessionId(session);
+                String sender = chatHistory.stream()
+                        .map(ChatbotHistoryMessage::getSender)
+                        .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s))
+                        .findFirst().orElse(session);
+                fallbackSession.setUserName(sender);
+                fallbackSession.setUserEmail(sender);
+                model.addAttribute("selectedSessionUser", fallbackSession);
+            }
+
+            model.addAttribute("chatHistory", chatHistory);
+            model.addAttribute("chatUrl", chatbotService.getBaseUrl());
+            model.addAttribute("sessionId", sessionId);
+            model.addAttribute("webSocketUrl",
+                    StringUtils.hasText(sessionId)
+                            ? chatbotService.buildWebSocketUrl(sessionId, isAdmin ? "admin" : "user")
+                            : "");
+            model.addAttribute("chatRole", isAdmin ? "admin" : "user");
+            model.addAttribute("isAdmin", isAdmin);
+            model.addAttribute("currentUserId", currentUser.getId());
+            model.addAttribute("currentUserEmail", currentUser.getEmail());
+            model.addAttribute("currentUserName", ChatbotService.displayName(currentUser));
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load chat: " + e.getMessage());
+            model.addAttribute("chatHistory", List.<ChatbotHistoryMessage>of());
+            model.addAttribute("isAdmin", false);
+            model.addAttribute("chatUrl", "");
+            model.addAttribute("sessionId", "");
+            model.addAttribute("webSocketUrl", "");
+            model.addAttribute("chatRole", "user");
+        }
+        model.addAttribute("pageTitle", "Chat");
+        return "chat";
+    }
+
+    private void enrichSessionSummariesWithUserDetails(List<ChatbotSessionSummary> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+        for (ChatbotSessionSummary summary : sessions) {
+            enrichSessionSummaryWithUserDetails(summary);
+        }
+    }
+
+    private static boolean isAdmin(User user) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .map(role -> role.getName())
+                .filter(StringUtils::hasText)
+                .anyMatch(name -> "ADMIN".equalsIgnoreCase(name) || "ROLE_ADMIN".equalsIgnoreCase(name));
+    }
+
+    private void enrichSessionSummaryWithUserDetails(ChatbotSessionSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        if (!StringUtils.hasText(summary.getUserName()) || !StringUtils.hasText(summary.getUserEmail())
+                || summary.getOnline() == null) {
+            String userIdValue = summary.getUserId();
+            if (StringUtils.hasText(userIdValue)) {
+                try {
+                    long userId = Long.parseLong(userIdValue);
+                    User user = userService.getUserById(userId);
+                    if (!StringUtils.hasText(summary.getUserName())) {
+                        StringBuilder fullName = new StringBuilder();
+                        if (StringUtils.hasText(user.getFirstName())) {
+                            fullName.append(user.getFirstName().trim());
+                        }
+                        if (StringUtils.hasText(user.getLastName())) {
+                            if (fullName.length() > 0) {
+                                fullName.append(" ");
+                            }
+                            fullName.append(user.getLastName().trim());
+                        }
+                        if (fullName.length() > 0) {
+                            summary.setUserName(fullName.toString());
+                        } else if (StringUtils.hasText(user.getEmail())) {
+                            summary.setUserName(user.getEmail());
+                        }
+                    }
+                    if (!StringUtils.hasText(summary.getUserEmail())) {
+                        summary.setUserEmail(user.getEmail());
+                    }
+                    if (summary.getOnline() == null) {
+                        summary.setOnline(user.isOnline());
+                    }
+                } catch (Exception ignored) {
+                    // Ignore missing or invalid user keys; keep session summary values
+                }
+            }
+        }
+        if (!StringUtils.hasText(summary.getUserName()) && StringUtils.hasText(summary.getUserEmail())) {
+            summary.setUserName(summary.getUserEmail());
+        }
+    }
+
+    @GetMapping("/views/chat-history")
+    @PreAuthorize("isAuthenticated()")
+    public String chatHistoryPage(
+            @RequestParam(required = false) String session,
+            Model model) {
         try {
             User currentUser = userService.getAuthenticatedUser();
             boolean isAdmin = currentUser.getRoles().stream()
                     .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
 
-            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("timestamp").descending());
-            List<com.project.skin_me.model.ChatMessage> chatHistory;
-            int totalPages;
             if (isAdmin) {
-                var chatPage = chatMessageRepository.findAllByOrderByTimestampDesc(pageable);
-                chatHistory = chatPage.getContent();
-                totalPages = chatPage.getTotalPages();
-            } else {
-                var chatPage = chatMessageRepository.findByUserIdOrderByTimestampDesc(currentUser.getId(), pageable);
-                chatHistory = chatPage.getContent();
-                totalPages = chatPage.getTotalPages();
+                if (StringUtils.hasText(session)) {
+                    return "redirect:/views/chat-activity?session=" + java.net.URLEncoder.encode(session.trim(),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                }
+                return "redirect:/views/chat-activity";
             }
 
-            model.addAttribute("chatHistory", chatHistory);
-            model.addAttribute("aiResponses", List.<com.project.skin_me.model.ChatMessage>of());
+            List<ChatbotHistoryMessage> messages = List.of();
+            String sessionId = chatSessionService.getSessionId(currentUser);
+
+            {
+                model.addAttribute("pageSubtitle", "Your conversation history from SkinMe Assistant.");
+                model.addAttribute("sessions", List.of());
+                if (StringUtils.hasText(sessionId)) {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 200);
+                    messages = history.getMessages() != null ? history.getMessages() : List.of();
+                }
+            }
+
+            model.addAttribute("messages", messages);
+            model.addAttribute("sessionId", sessionId);
             model.addAttribute("isAdmin", isAdmin);
-            model.addAttribute("currentUserId", currentUser.getId());
-            model.addAttribute("currentUserEmail", currentUser.getEmail());
-            model.addAttribute("currentPage", page);
-            model.addAttribute("totalPages", totalPages);
-            model.addAttribute("hasNext", page < totalPages - 1);
-            model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("totalElements", messages.size());
         } catch (Exception e) {
-            model.addAttribute("error", "Failed to load chat: " + e.getMessage());
-            model.addAttribute("chatHistory", List.<com.project.skin_me.model.ChatMessage>of());
-            model.addAttribute("aiResponses", List.<com.project.skin_me.model.ChatMessage>of());
+            model.addAttribute("error", "Failed to load chat history: " + e.getMessage());
+            model.addAttribute("messages", List.<ChatbotHistoryMessage>of());
+            model.addAttribute("sessions", List.of());
             model.addAttribute("isAdmin", false);
-            model.addAttribute("currentPage", 0);
-            model.addAttribute("totalPages", 0);
-            model.addAttribute("hasNext", false);
-            model.addAttribute("hasPrev", false);
+            model.addAttribute("totalElements", 0);
         }
-        model.addAttribute("pageTitle", "Chat");
-        return "chat";
+        model.addAttribute("pageTitle", "Chat history");
+        model.addAttribute("currentPage", 0);
+        model.addAttribute("totalPages", 1);
+        model.addAttribute("hasNext", false);
+        model.addAttribute("hasPrev", false);
+        return "chat-history";
+    }
+
+    /** Admin-only: AI chat sessions from chatbot API + optional local DB tables. */
+    @GetMapping("/views/chat-activity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String chatActivityPage(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String session,
+            @RequestParam(defaultValue = "all") String filter,
+            @RequestParam(defaultValue = "0") int pageMsg,
+            @RequestParam(defaultValue = "0") int pageAi,
+            Model model) {
+        try {
+            List<ChatbotSessionSummary> allSessions = List.of();
+            List<ChatbotSessionSummary> filteredSessions = List.of();
+            ChatbotHistoryMessage selectedHistoryPreview = null;
+            int adminRepliedCount = 0;
+            int awaitingAdminCount = 0;
+
+            try {
+                ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
+                if (sessionsResponse.getSessions() != null) {
+                    allSessions = sessionsResponse.getSessions();
+                    for (ChatbotSessionSummary s : allSessions) {
+                        if (ChatbotSessionFilter.hasAdminReply(s)) {
+                            adminRepliedCount++;
+                        } else if (ChatbotSessionFilter.isLastFromUser(s)) {
+                            awaitingAdminCount++;
+                        }
+                    }
+                    filteredSessions = ChatbotSessionFilter.apply(allSessions, filter);
+                }
+            } catch (Exception ex) {
+                model.addAttribute("sessionsError", "Could not load AI sessions: " + ex.getMessage());
+            }
+
+            if (StringUtils.hasText(session)) {
+                try {
+                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(session.trim(), 1);
+                    if (history.getMessages() != null && !history.getMessages().isEmpty()) {
+                        selectedHistoryPreview = history.getMessages().get(history.getMessages().size() - 1);
+                    }
+                } catch (Exception ignored) {
+                    // preview optional
+                }
+            }
+
+            model.addAttribute("aiSessions", filteredSessions);
+            model.addAttribute("totalAiSessions", allSessions.size());
+            model.addAttribute("filteredCount", filteredSessions.size());
+            model.addAttribute("adminRepliedCount", adminRepliedCount);
+            model.addAttribute("awaitingAdminCount", awaitingAdminCount);
+            model.addAttribute("sessionFilter", filter != null ? filter : ChatbotSessionFilter.ALL);
+            model.addAttribute("selectedSessionId", StringUtils.hasText(session) ? session.trim() : null);
+            model.addAttribute("selectedHistoryPreview", selectedHistoryPreview);
+            model.addAttribute("chatbotUrl", chatbotService.getBaseUrl());
+
+            // --- chat_messages (local DB, optional) ---
+            Pageable pageableMsg = PageRequest.of(pageMsg, PAGE_SIZE, Sort.by("timestamp").descending());
+            org.springframework.data.domain.Page<com.project.skin_me.model.ChatMessage> msgPage;
+            if (userId != null) {
+                msgPage = chatMessageRepository.findByUserIdWithUserOrderByTimestampDesc(userId, pageableMsg);
+            } else {
+                msgPage = chatMessageRepository.findAllWithUserOrderByTimestampDesc(pageableMsg);
+            }
+            List<com.project.skin_me.model.ChatMessage> chatMessages = msgPage.getContent();
+            int totalPagesMsg = msgPage.getTotalPages();
+            long totalItemsMsg = msgPage.getTotalElements();
+
+            // --- chat_ai ---
+            Pageable pageableAi = PageRequest.of(pageAi, PAGE_SIZE, Sort.by("timestamp").descending());
+            org.springframework.data.domain.Page<ChatAi> chatPage;
+            if (session != null && !session.isBlank()) {
+                chatPage = chatAiRepository.findBySessionOrderByTimestampDesc(session.trim(), pageableAi);
+            } else {
+                chatPage = chatAiRepository.findAllByOrderByTimestampDesc(pageableAi);
+            }
+            List<ChatAi> chatAiList = chatPage.getContent();
+            int totalPagesAi = chatPage.getTotalPages();
+            long totalItemsAi = chatPage.getTotalElements();
+            List<String> distinctSessions = chatAiRepository.findDistinctSessions();
+
+            String encSession = (session != null && !session.isBlank())
+                    ? java.net.URLEncoder.encode(session.trim(), java.nio.charset.StandardCharsets.UTF_8).replace("+",
+                            "%20")
+                    : null;
+
+            model.addAttribute("chatMessages", chatMessages);
+            model.addAttribute("totalPagesMsg", totalPagesMsg);
+            model.addAttribute("currentPageMsg", pageMsg);
+            model.addAttribute("totalItemsMsg", totalItemsMsg);
+            model.addAttribute("hasNextMsg", pageMsg < totalPagesMsg - 1);
+            model.addAttribute("hasPrevMsg", pageMsg > 0);
+            model.addAttribute("chatAiList", chatAiList);
+            model.addAttribute("distinctSessions", distinctSessions != null ? distinctSessions : List.<String>of());
+            model.addAttribute("selectedSession", session != null && !session.isBlank() ? session.trim() : null);
+            model.addAttribute("totalPagesAi", totalPagesAi);
+            model.addAttribute("currentPageAi", pageAi);
+            model.addAttribute("totalItemsAi", totalItemsAi);
+            model.addAttribute("hasNextAi", pageAi < totalPagesAi - 1);
+            model.addAttribute("hasPrevAi", pageAi > 0);
+            model.addAttribute("allUsers", userRepository.findAll());
+            model.addAttribute("selectedUserId", userId);
+
+            StringBuilder base = new StringBuilder("/views/chat-activity?");
+            if (userId != null)
+                base.append("userId=").append(userId).append("&");
+            if (encSession != null)
+                base.append("session=").append(encSession).append("&");
+            model.addAttribute("paginationBaseMsg", base.toString() + "pageAi=" + pageAi + "&");
+            model.addAttribute("paginationBaseAi", base.toString() + "pageMsg=" + pageMsg + "&");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load chat activity: " + e.getMessage());
+            model.addAttribute("chatMessages", List.<com.project.skin_me.model.ChatMessage>of());
+            model.addAttribute("chatAiList", List.<ChatAi>of());
+            model.addAttribute("distinctSessions", List.<String>of());
+            model.addAttribute("allUsers", List.<User>of());
+            model.addAttribute("selectedUserId", null);
+            model.addAttribute("selectedSession", null);
+            model.addAttribute("totalPagesMsg", 0);
+            model.addAttribute("currentPageMsg", 0);
+            model.addAttribute("totalItemsMsg", 0L);
+            model.addAttribute("hasNextMsg", false);
+            model.addAttribute("hasPrevMsg", false);
+            model.addAttribute("totalPagesAi", 0);
+            model.addAttribute("currentPageAi", 0);
+            model.addAttribute("totalItemsAi", 0L);
+            model.addAttribute("hasNextAi", false);
+            model.addAttribute("hasPrevAi", false);
+            model.addAttribute("paginationBaseMsg", "/views/chat-activity?pageAi=0&");
+            model.addAttribute("paginationBaseAi", "/views/chat-activity?pageMsg=0&");
+        }
+        model.addAttribute("pageTitle", "Chat Activity");
+        return "chat-activity";
     }
 
     @GetMapping("/views/delivery")
@@ -1296,6 +1741,38 @@ public class PageController {
         return "delivery";
     }
 
+    @GetMapping("/views/user-feedback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String userFeedbackPage(@RequestParam(defaultValue = "0") int page, Model model) {
+        try {
+            Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<ProductFeedbackDto> feedbackPage = productFeedbackService.listAllForAdmin(pageable);
+            long totalInDb = productFeedbackRepository.count();
+            long visibleCount = productFeedbackRepository.countByVisibleOnFrontendTrue();
+            model.addAttribute("feedbackList", feedbackPage.getContent());
+            model.addAttribute("currentPage", feedbackPage.getNumber());
+            model.addAttribute("totalPages", feedbackPage.getTotalPages());
+            model.addAttribute("totalElements", feedbackPage.getTotalElements());
+            model.addAttribute("totalFeedbackCount", totalInDb);
+            model.addAttribute("visibleOnStorefrontCount", visibleCount);
+            model.addAttribute("hasNext", feedbackPage.hasNext());
+            model.addAttribute("hasPrev", feedbackPage.hasPrevious());
+            model.addAttribute("pageTitle", "User Feedback");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load feedback: " + e.getMessage());
+            model.addAttribute("feedbackList", List.<ProductFeedbackDto>of());
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("totalElements", 0L);
+            model.addAttribute("totalFeedbackCount", 0L);
+            model.addAttribute("visibleOnStorefrontCount", 0L);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
+            model.addAttribute("pageTitle", "User Feedback");
+        }
+        return "user-feedback";
+    }
+
     @GetMapping("/views/users")
     @PreAuthorize("hasRole('ADMIN')")
     public String usersListPage(@RequestParam(defaultValue = "0") int page, Model model) {
@@ -1313,6 +1790,7 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("currentUserId", userService.getAuthenticatedUser().getId());
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load users: " + e.getMessage());
             model.addAttribute("users", List.<User>of());
@@ -1322,6 +1800,7 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
+            model.addAttribute("currentUserId", null);
         }
         model.addAttribute("pageTitle", "User Management");
         return "users";
@@ -1434,8 +1913,12 @@ public class PageController {
         try {
             userService.deleteUser(userId);
             return "redirect:/views/users?success=User deleted successfully";
+        } catch (IllegalStateException e) {
+            return "redirect:/views/users?error="
+                    + java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return "redirect:/views/users?error=Failed to delete user: " + e.getMessage();
+            return "redirect:/views/users?error=" + java.net.URLEncoder
+                    .encode("Failed to delete user: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1446,7 +1929,8 @@ public class PageController {
             userService.assignRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role assigned successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to assign role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to assign role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1457,7 +1941,174 @@ public class PageController {
             userService.removeRole(userId, roleName);
             return "redirect:/views/users/" + userId + "?success=Role removed successfully";
         } catch (Exception e) {
-            return "redirect:/views/users/" + userId + "?error=Failed to remove role: " + e.getMessage();
+            return "redirect:/views/users/" + userId + "?error=" + java.net.URLEncoder
+                    .encode("Failed to remove role: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
+    // KHQR Bank Accounts (admin)
+    @GetMapping("/views/khqr-accounts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountsListPage(Model model) {
+        try {
+            List<KhqrBankAccount> accounts = bakongKhqrService.findAll();
+            model.addAttribute("accounts", accounts);
+            model.addAttribute("pageTitle", "KHQR Bank Accounts");
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to load bank accounts: " + e.getMessage());
+            model.addAttribute("accounts", List.<KhqrBankAccount>of());
+            model.addAttribute("pageTitle", "KHQR Bank Accounts");
+        }
+        return "khqr-accounts";
+    }
+
+    @GetMapping("/views/khqr-accounts/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountCreatePage(Model model) {
+        model.addAttribute("account", null);
+        model.addAttribute("pageTitle", "Add KHQR Bank Account");
+        return "khqr-account-form";
+    }
+
+    @GetMapping("/views/khqr-accounts/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountDetailPage(@PathVariable Long id, Model model) {
+        try {
+            KhqrBankAccount account = bakongKhqrService.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            model.addAttribute("account", account);
+            model.addAttribute("pageTitle", "Bank Account Details");
+            return "khqr-account-details";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=Account not found";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountCreate(
+            @RequestParam String gateway,
+            @RequestParam String account,
+            @RequestParam String merchantName,
+            @RequestParam String city,
+            @RequestParam(required = false) String categoryCode,
+            @RequestParam(required = false) String testAccountUsd,
+            @RequestParam(required = false) String testAccountKhr,
+            @RequestParam(defaultValue = "false") boolean useTestWhenEmpty,
+            @RequestParam(defaultValue = "true") boolean active,
+            @RequestParam(defaultValue = "0") int displayOrder,
+            @RequestParam(required = false) String bakongToken,
+            @RequestParam(required = false) String telegramChatId,
+            @RequestParam(required = false) String paywayMerchantId,
+            @RequestParam(required = false) String paywayPublicKey,
+            @RequestParam(required = false) String paywayApiUrl,
+            Model model) {
+        try {
+            KhqrBankAccount entity = KhqrBankAccount.builder()
+                    .gateway(gateway != null ? gateway.trim().toLowerCase() : "khqr")
+                    .account(account != null ? account.trim() : null)
+                    .merchantName(merchantName != null ? merchantName.trim() : "")
+                    .city(city != null ? city.trim() : "")
+                    .categoryCode(categoryCode != null && !categoryCode.isBlank() ? categoryCode.trim() : "5999")
+                    .testAccountUsd(testAccountUsd != null && !testAccountUsd.isBlank() ? testAccountUsd.trim() : null)
+                    .testAccountKhr(testAccountKhr != null && !testAccountKhr.isBlank() ? testAccountKhr.trim() : null)
+                    .useTestWhenEmpty(useTestWhenEmpty)
+                    .active(active)
+                    .displayOrder(displayOrder)
+                    .bakongToken(bakongToken != null && !bakongToken.isBlank() ? bakongToken.trim() : null)
+                    .telegramChatId(telegramChatId != null && !telegramChatId.isBlank() ? telegramChatId.trim() : null)
+                    .paywayMerchantId(
+                            paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
+                    .paywayPublicKey(
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
+                    .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
+                    .build();
+            bakongKhqrService.create(entity);
+            return "redirect:/views/khqr-accounts?success=Bank account created successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to create: " + e.getMessage());
+            model.addAttribute("account", null);
+            model.addAttribute("pageTitle", "Add KHQR Bank Account");
+            return "khqr-account-form";
+        }
+    }
+
+    @GetMapping("/views/khqr-accounts/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountEditPage(@PathVariable Long id, Model model) {
+        try {
+            KhqrBankAccount account = bakongKhqrService.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            model.addAttribute("account", account);
+            model.addAttribute("pageTitle", "Edit KHQR Bank Account");
+            return "khqr-account-form";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=Account not found";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/{id}/edit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountUpdate(
+            @PathVariable Long id,
+            @RequestParam String gateway,
+            @RequestParam String account,
+            @RequestParam String merchantName,
+            @RequestParam String city,
+            @RequestParam(required = false) String categoryCode,
+            @RequestParam(required = false) String testAccountUsd,
+            @RequestParam(required = false) String testAccountKhr,
+            @RequestParam(defaultValue = "false") boolean useTestWhenEmpty,
+            @RequestParam(defaultValue = "true") boolean active,
+            @RequestParam(defaultValue = "0") int displayOrder,
+            @RequestParam(required = false) String bakongToken,
+            @RequestParam(required = false) String telegramChatId,
+            @RequestParam(required = false) String paywayMerchantId,
+            @RequestParam(required = false) String paywayPublicKey,
+            @RequestParam(required = false) String paywayApiUrl,
+            Model model) {
+        try {
+            KhqrBankAccount entity = KhqrBankAccount.builder()
+                    .gateway(gateway != null ? gateway.trim().toLowerCase() : "khqr")
+                    .account(account != null ? account.trim() : null)
+                    .merchantName(merchantName != null ? merchantName.trim() : "")
+                    .city(city != null ? city.trim() : "")
+                    .categoryCode(categoryCode != null && !categoryCode.isBlank() ? categoryCode.trim() : "5999")
+                    .testAccountUsd(testAccountUsd != null && !testAccountUsd.isBlank() ? testAccountUsd.trim() : null)
+                    .testAccountKhr(testAccountKhr != null && !testAccountKhr.isBlank() ? testAccountKhr.trim() : null)
+                    .useTestWhenEmpty(useTestWhenEmpty)
+                    .active(active)
+                    .displayOrder(displayOrder)
+                    .bakongToken(bakongToken != null && !bakongToken.isBlank() ? bakongToken.trim() : null)
+                    .telegramChatId(telegramChatId != null && !telegramChatId.isBlank() ? telegramChatId.trim() : null)
+                    .paywayMerchantId(
+                            paywayMerchantId != null && !paywayMerchantId.isBlank() ? paywayMerchantId.trim() : null)
+                    .paywayPublicKey(
+                            paywayPublicKey != null && !paywayPublicKey.isBlank() ? paywayPublicKey.replaceAll("\\s+", "").trim() : null)
+                    .paywayApiUrl(paywayApiUrl != null && !paywayApiUrl.isBlank() ? paywayApiUrl.trim() : null)
+                    .build();
+            bakongKhqrService.update(id, entity);
+            return "redirect:/views/khqr-accounts?success=Bank account updated successfully";
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to update: " + e.getMessage());
+            try {
+                model.addAttribute("account", bakongKhqrService.findById(id).orElse(null));
+            } catch (Exception ignored) {
+            }
+            model.addAttribute("pageTitle", "Edit KHQR Bank Account");
+            return "khqr-account-form";
+        }
+    }
+
+    @PostMapping("/views/khqr-accounts/{id}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String khqrAccountDelete(@PathVariable Long id) {
+        try {
+            bakongKhqrService.deleteById(id);
+            return "redirect:/views/khqr-accounts?success=Bank account deleted successfully";
+        } catch (Exception e) {
+            return "redirect:/views/khqr-accounts?error=" + java.net.URLEncoder
+                    .encode("Failed to delete: " + e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -1465,38 +2116,71 @@ public class PageController {
     @GetMapping("/views/audit-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public String auditLogsPage(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String activityType,
             Model model) {
         try {
-            List<Activity> activities;
+            Pageable pageable = PageRequest.of(page, AUDIT_LOG_PAGE_SIZE,
+                    Sort.by(Sort.Direction.DESC, "timestamp"));
+            Page<Activity> activityPage;
 
             if (userId != null) {
-                activities = activityRepository.findByUserIdWithUserOrderByTimestampDesc(userId);
+                activityPage = activityRepository.findByUser_IdOrderByTimestampDesc(userId, pageable);
             } else if (activityType != null && !activityType.isEmpty()) {
                 try {
                     com.project.skin_me.enums.ActivityType type = com.project.skin_me.enums.ActivityType
                             .valueOf(activityType.toUpperCase());
-                    activities = activityRepository.findByActivityTypeWithUserOrderByTimestampDesc(type);
+                    activityPage = activityRepository.findByActivityTypeOrderByTimestampDesc(type, pageable);
                 } catch (IllegalArgumentException e) {
-                    activities = activityRepository.findAllWithUserOrderByTimestampDesc();
+                    activityPage = activityRepository.findAllByOrderByTimestampDesc(pageable);
                 }
             } else {
-                activities = activityRepository.findAllWithUserOrderByTimestampDesc();
+                activityPage = activityRepository.findAllByOrderByTimestampDesc(pageable);
             }
 
-            model.addAttribute("activities", activities);
-            model.addAttribute("totalActivities", activities.size());
+            model.addAttribute("activities", activityPage.getContent());
+            model.addAttribute("currentPage", activityPage.getNumber());
+            model.addAttribute("totalPages", activityPage.getTotalPages());
+            model.addAttribute("totalActivities", activityPage.getTotalElements());
+            model.addAttribute("hasNext", activityPage.hasNext());
+            model.addAttribute("hasPrev", activityPage.hasPrevious());
+            model.addAttribute("auditPageSize", AUDIT_LOG_PAGE_SIZE);
             model.addAttribute("pageTitle", "Audit Log Management");
+            model.addAttribute("filterUserId", userId);
+            model.addAttribute("filterActivityType",
+                    activityType != null && !activityType.isBlank() ? activityType : null);
 
-            // Get filter options
-            List<User> allUsers = userRepository.findAll();
-            model.addAttribute("allUsers", allUsers);
+            StringBuilder paginationBase = new StringBuilder("/views/audit-logs");
+            boolean firstQuery = true;
+            if (userId != null) {
+                paginationBase.append(firstQuery ? "?" : "&").append("userId=").append(userId);
+                firstQuery = false;
+            }
+            if (activityType != null && !activityType.isEmpty()) {
+                paginationBase.append(firstQuery ? "?" : "&").append("activityType=").append(activityType);
+            }
+            model.addAttribute("auditLogsPaginationBase", paginationBase.toString());
+
+            model.addAttribute("allUsers", userRepository.findAll());
 
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load audit logs: " + e.getMessage());
             model.addAttribute("activities", List.<Activity>of());
-            model.addAttribute("totalActivities", 0);
+            model.addAttribute("totalActivities", 0L);
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrev", false);
+            model.addAttribute("auditPageSize", AUDIT_LOG_PAGE_SIZE);
+            model.addAttribute("auditLogsPaginationBase", "/views/audit-logs");
+            model.addAttribute("filterUserId", null);
+            model.addAttribute("filterActivityType", null);
+            try {
+                model.addAttribute("allUsers", userRepository.findAll());
+            } catch (Exception ignored) {
+                model.addAttribute("allUsers", List.<User>of());
+            }
         }
         return "audit-logs";
     }

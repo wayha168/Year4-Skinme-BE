@@ -16,7 +16,8 @@ public class NotificationDto {
     private String userId;
     private String title;
     private String message;
-    private String type; // "ORDER", "DELIVERY", "PRODUCT", "PROMOTION"
+    /** ORDER, DELIVERY, PRODUCT, PROMOTION, PAYMENT, FEEDBACK, USER, AUTH, INFO, … */
+    private String type;
     private String status; // "UNREAD", "READ"
     private LocalDateTime createdAt;
     private String actionUrl;

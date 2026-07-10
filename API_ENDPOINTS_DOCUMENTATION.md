@@ -351,6 +351,18 @@ await fetch(`http://localhost:8080/api/v1/delivery/address/${orderId}`, {
 | Verify Payment | POST | `/api/v1/payment/verify-khqr/{orderId}` | ✅ |
 | Confirm Payment | POST | `/api/v1/payment/confirm-payment/{paymentIntentId}` | ✅ |
 
+### Admin — KHQR bank accounts (same rules as web `/views/khqr-accounts`)
+
+Requires **JWT** with **`ROLE_ADMIN`**. Body fields match `KhqrBankAccountRequest` (gateway, account, merchantName, city, categoryCode, testAccountUsd, testAccountKhr, useTestWhenEmpty, active, displayOrder).
+
+| Operation | Method | Endpoint | Status |
+|-----------|--------|----------|--------|
+| List | GET | `/api/v1/admin/khqr-accounts` | ✅ |
+| Get one | GET | `/api/v1/admin/khqr-accounts/{id}` | ✅ |
+| Create | POST | `/api/v1/admin/khqr-accounts` | ✅ |
+| Update | PUT | `/api/v1/admin/khqr-accounts/{id}` | ✅ |
+| Delete | DELETE | `/api/v1/admin/khqr-accounts/{id}` | ✅ |
+
 ## Error Responses
 
 All endpoints return consistent error format:

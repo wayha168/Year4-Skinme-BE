@@ -16,6 +16,7 @@ import com.project.skin_me.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -78,14 +79,55 @@ public class ProductController {
     @GetMapping("product/{productId}/product")
     public ResponseEntity<ApiResponse> getProductById(@PathVariable Long productId) {
         try {
-            Product products = productService.getProductById(productId);
-            ProductDto productDto = productService.convertToDto(products);
+            ProductDto productDto = productService.getProductDtoByIdWithFavoriteCount(productId);
 
             return ResponseEntity.ok(new ApiResponse("sucsess", productDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         }
 
+    }
+
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PostMapping("/product/{productId}/barcode/generate")
+    public ResponseEntity<ApiResponse> generateBarcodeForProduct(@PathVariable Long productId) {
+        try {
+            Product product = productService.generateBarcodeForProduct(productId);
+            Map<String, Object> barcodeData = Map.of(
+                    "productId", product.getId(),
+                    "barcode", product.getBarcode(),
+                    "barcodeImage", productService.generateBarcodeImage(product.getBarcode())
+            );
+            return ResponseEntity.ok(new ApiResponse("Barcode generated successfully", barcodeData));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/product/{productId}/barcode")
+    public ResponseEntity<ApiResponse> getBarcodeByProductId(@PathVariable Long productId) {
+        try {
+            Product product = productService.generateBarcodeForProduct(productId);
+            Map<String, Object> barcodeData = Map.of(
+                    "productId", product.getId(),
+                    "barcode", product.getBarcode(),
+                    "barcodeImage", productService.generateBarcodeImage(product.getBarcode())
+            );
+            return ResponseEntity.ok(new ApiResponse("success", barcodeData));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/scan")
+    public ResponseEntity<ApiResponse> scanBarcode(@RequestParam String barcode) {
+        try {
+            Product product = productService.getProductByBarcode(barcode);
+            ProductDto productDto = productService.convertToDto(product);
+            return ResponseEntity.ok(new ApiResponse("success", productDto));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
     }
 
     @GetMapping("product/by-product-type")

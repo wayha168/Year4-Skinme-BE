@@ -1,7 +1,9 @@
 package com.project.skin_me.service.auth;
 
+import com.google.api.client.auth.oauth2.TokenResponseException;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
@@ -29,6 +31,7 @@ import com.project.skin_me.security.user.ShopUserDetails;
 import com.project.skin_me.service.email.EmailService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.sms.SmsService;
+import com.project.skin_me.service.telegram.TelegramNotificationService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,6 +49,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -71,6 +76,7 @@ public class AuthService implements IAuthService {
     private final ActivityRepository activityRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final TelegramNotificationService telegramNotificationService;
     private final PhoneOtpRepository phoneOtpRepository;
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final SmsService smsService;
@@ -90,7 +96,8 @@ public class AuthService implements IAuthService {
     @Value("${app.sms.dev.return-otp-when-delivery-fails:false}")
     private boolean returnOtpWhenDeliveryFails;
 
-    @Value("${app.oauth.redirect-uri:https://skinme.store/oauth-callback}")
+    /** Must match the redirect URI used by the frontend in the Google auth request and in Google Cloud Console. */
+    @Value("${spring.security.oauth2.client.registration.google.redirect-uri}")
     private String googleRedirectUri;
 
     @Override
@@ -170,44 +177,98 @@ public class AuthService implements IAuthService {
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse> googleLogin(String code, HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<ApiResponse> googleLogin(String code, String credential, String redirectUri, HttpServletRequest request, HttpServletResponse response) {
         try {
-            // Validate code parameter
-            if (code == null || code.isBlank()) {
-                logger.warn("Google login failed: Authorization code is missing");
+            final GoogleIdToken idToken;
+            if (code != null && !code.isBlank()) {
+                logger.debug("Google login: auth-code flow (prefix={}...)", code.substring(0, Math.min(8, code.length())));
+                try {
+                    idToken = exchangeAuthCodeForGoogleIdToken(code.trim(), redirectUri);
+                } catch (TokenResponseException e) {
+                    logger.error(
+                            "Google token endpoint rejected auth code (redirect_uri must match frontend; codes are single-use and expire quickly): {}",
+                            e.getMessage());
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
+                } catch (IOException e) {
+                    logger.error("Google auth code exchange failed: {}", e.getMessage(), e);
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
+                }
+            } else if (credential != null && !credential.isBlank()) {
+                logger.debug("Google login: ID token (credential) flow");
+                try {
+                    idToken = verifyGoogleCredentialJwt(credential.trim());
+                } catch (GeneralSecurityException | IOException e) {
+                    logger.error("Google credential verification failed: {}", e.getMessage());
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.credential.invalid", null));
+                }
+                if (idToken == null) {
+                    return ResponseEntity.status(UNAUTHORIZED)
+                            .body(ApiResponse.ofKey("api.auth.google.credential.invalid", null));
+                }
+            } else {
                 return ResponseEntity.status(BAD_REQUEST)
-                        .body(ApiResponse.ofKey("api.auth.google.code.required", null));
+                        .body(ApiResponse.ofKey("api.auth.google.payload.required", null));
             }
 
-            logger.debug("Processing Google OAuth2 login with code: {}", code.substring(0, Math.min(10, code.length())) + "...");
-            
-            // Exchange authorization code for tokens
-            GoogleTokenResponse tokenResponse;
-            try {
-                tokenResponse = new GoogleAuthorizationCodeTokenRequest(
-                        new NetHttpTransport(),
-                        JacksonFactory.getDefaultInstance(),
-                        "https://oauth2.googleapis.com/token",
-                        googleClientId,
-                        googleClientSecret,
-                        code,
-                        googleRedirectUri).execute();
-            } catch (Exception e) {
-                logger.error("Failed to exchange Google authorization code: {}", e.getMessage());
-                return ResponseEntity.status(UNAUTHORIZED)
-                        .body(ApiResponse.ofKey("api.auth.google.code.invalid", null));
-            }
+            return completeGoogleLoginWithIdToken(idToken, request, response);
 
-            // Parse ID token
-            GoogleIdToken idToken;
-            try {
-                idToken = tokenResponse.parseIdToken();
-            } catch (Exception e) {
-                logger.error("Failed to parse Google ID token: {}", e.getMessage());
-                return ResponseEntity.status(UNAUTHORIZED)
-                        .body(ApiResponse.ofKey("api.auth.google.token.failed", null));
-            }
+        } catch (IllegalArgumentException e) {
+            logger.error("Google login failed - invalid argument: {}", e.getMessage(), e);
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        } catch (RuntimeException e) {
+            logger.error("Google login failed - runtime error: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        } catch (Exception e) {
+            logger.error("Google login failed - unexpected error: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
+        }
+    }
 
+    /**
+     * Auth-code flow: exchange at Google's token endpoint. {@code redirectUri} must match the client that issued the code
+     * (often {@code postmessage} for GIS popup).
+     */
+    private GoogleIdToken exchangeAuthCodeForGoogleIdToken(String code, String redirectUri) throws IOException {
+        String redirectUriForToken = (redirectUri != null && !redirectUri.isBlank())
+                ? redirectUri.trim()
+                : googleRedirectUri;
+        logger.debug("Google token exchange using redirect_uri={}", redirectUriForToken);
+
+        GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
+                new NetHttpTransport(),
+                JacksonFactory.getDefaultInstance(),
+                "https://oauth2.googleapis.com/token",
+                googleClientId,
+                googleClientSecret,
+                code,
+                redirectUriForToken).execute();
+
+        GoogleIdToken idToken = tokenResponse.parseIdToken();
+        if (idToken == null) {
+            throw new IOException("No ID token in Google token response");
+        }
+        return idToken;
+    }
+
+    /**
+     * ID-token flow (Sign in with Google button / {@code google.accounts.id}): verify JWT using Google's certs; no client secret.
+     */
+    private GoogleIdToken verifyGoogleCredentialJwt(String credentialJwt) throws GeneralSecurityException, IOException {
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(),
+                JacksonFactory.getDefaultInstance())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
+        return verifier.verify(credentialJwt);
+    }
+
+    private ResponseEntity<ApiResponse> completeGoogleLoginWithIdToken(GoogleIdToken idToken, HttpServletRequest request, HttpServletResponse response) {
             GoogleIdToken.Payload payload = idToken.getPayload();
 
             // Extract user information
@@ -232,7 +293,9 @@ public class AuthService implements IAuthService {
             logger.debug("Google user info: email={}, googleId={}", email, googleId);
 
             // Find or create user
+            final boolean[] createdViaGoogle = { false };
             User user = userRepository.findByEmail(email).orElseGet(() -> {
+                createdViaGoogle[0] = true;
                 Role userRole = roleRepository.findByName("ROLE_USER")
                         .orElseThrow(() -> {
                             logger.error("Default role ROLE_USER not found");
@@ -251,6 +314,24 @@ public class AuthService implements IAuthService {
                 logger.info("Creating new user for Google login: {}", email);
                 return registerUser(newUser);
             });
+            if (createdViaGoogle[0]) {
+                try {
+                    String dn = ((user.getFirstName() != null ? user.getFirstName() : "")
+                            + " " + (user.getLastName() != null ? user.getLastName() : "")).trim();
+                    notificationService.notifyAdminsNewUserRegistered(
+                            user.getEmail(), dn.isEmpty() ? null : dn, user.getId());
+                } catch (Exception e) {
+                    logger.warn("Failed to notify admins of new Google user: {}", e.getMessage());
+                }
+                try {
+                    String dn = ((user.getFirstName() != null ? user.getFirstName() : "")
+                            + " " + (user.getLastName() != null ? user.getLastName() : "")).trim();
+                    telegramNotificationService.notifyNewUserRegistered(
+                            user.getEmail(), dn.isEmpty() ? null : dn, user.getId(), "GOOGLE");
+                } catch (Exception e) {
+                    logger.warn("Failed to send Telegram alert for new Google user: {}", e.getMessage());
+                }
+            }
             
             // Update Google ID if user exists but doesn't have it set (for existing email/password users)
             if (user.getGoogleId() == null || user.getGoogleId().isEmpty()) {
@@ -317,20 +398,6 @@ public class AuthService implements IAuthService {
             }
             
             return ResponseEntity.ok(ApiResponse.ofKey("api.auth.google.success", jwtResponse));
-
-        } catch (IllegalArgumentException e) {
-            logger.error("Google login failed - invalid argument: {}", e.getMessage(), e);
-            return ResponseEntity.status(BAD_REQUEST)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        } catch (RuntimeException e) {
-            logger.error("Google login failed - runtime error: {}", e.getMessage(), e);
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        } catch (Exception e) {
-            logger.error("Google login failed - unexpected error: {}", e.getMessage(), e);
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.ofKey("api.error.generic", new Object[]{e.getMessage()}, null));
-        }
     }
 
     @Override
@@ -394,7 +461,23 @@ public class AuthService implements IAuthService {
             } catch (Exception e) {
                 logger.warn("Failed to send signup notification: {}", e.getMessage());
             }
-            
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                notificationService.notifyAdminsNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+            } catch (Exception e) {
+                logger.warn("Failed to notify admins of new user: {}", e.getMessage());
+            }
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                telegramNotificationService.notifyNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId(), "EMAIL");
+            } catch (Exception e) {
+                logger.warn("Failed to send Telegram alert for new user: {}", e.getMessage());
+            }
+
             return ResponseEntity.status(CREATED)
                     .body(ApiResponse.ofKey("api.auth.signup.success", savedUser));
         } catch (Exception e) {
@@ -804,6 +887,22 @@ public class AuthService implements IAuthService {
                 );
             } catch (Exception e) {
                 logger.warn("Failed to send signup notification: {}", e.getMessage());
+            }
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                notificationService.notifyAdminsNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId());
+            } catch (Exception e) {
+                logger.warn("Failed to notify admins of new user: {}", e.getMessage());
+            }
+            try {
+                String dn = ((savedUser.getFirstName() != null ? savedUser.getFirstName() : "")
+                        + " " + (savedUser.getLastName() != null ? savedUser.getLastName() : "")).trim();
+                telegramNotificationService.notifyNewUserRegistered(
+                        savedUser.getEmail(), dn.isEmpty() ? null : dn, savedUser.getId(), "PHONE");
+            } catch (Exception e) {
+                logger.warn("Failed to send Telegram alert for new phone-registered user: {}", e.getMessage());
             }
 
             return ResponseEntity.status(CREATED)

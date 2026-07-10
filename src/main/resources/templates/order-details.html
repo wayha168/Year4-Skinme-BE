@@ -1,6 +1,7 @@
 <!doctype html>
 <html
   xmlns:th="http://www.thymeleaf.org"
+  xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
   lang="en"
   th:replace="~{app :: layout(~{::main}, ~{::style}, ~{::script})}"
 >
@@ -12,14 +13,35 @@
       <link rel="stylesheet" href="/css/badges.css" />
       <link rel="stylesheet" href="/css/tables.css" />
       <style>
-        .order-details-table { font-family: sans-serif; margin-bottom: 0; }
-        .order-details-table thead th { font-weight: 600; font-size: 0.8rem; }
+        .order-details-table { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; margin-bottom: 0; }
+        .order-details-table thead th {
+          font-weight: 700;
+          font-size: 0.72rem;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          background: #f1f5f9;
+          border: 1px solid #111;
+        }
+        .order-details-table td { border: 1px solid #111; }
         .order-summary-row { background: #f8fafc; font-weight: 600; color: #334155; }
         .delivery-row { background: #f0fdf4; color: #166534; }
+        .invoice-print-header {
+          display: none;
+          font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+          margin-bottom: 1.25rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 2px solid #111;
+        }
+        .invoice-print-header .shop-name {
+          font-size: 1.15rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
         .no-print { }
         @media print {
           .no-print { display: none !important; }
-          .print-only { display: block !important; }
+          .print-only, .invoice-print-header { display: block !important; }
           body * { visibility: hidden; }
           .app-content, .app-content * { visibility: visible; }
           .app-content { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
@@ -41,9 +63,10 @@
     <th:block th:fragment="main">
     <main class="main-content">
       <div class="no-print" th:replace="~{components/page-header :: page-header}" th:with="pageIcon='bi-bag-check'"></div>
-      <div class="print-only invoice-header" style="display: none; margin-bottom: 1rem; padding: 0 1rem;">
-        <h2 class="mb-0">Order Invoice</h2>
-        <p class="text-muted mb-0 small" th:if="${order}" th:text="${'Order #' + order.orderId}">Order #</p>
+      <div class="print-only invoice-print-header" th:if="${order}">
+        <div class="shop-name" th:text="${posShopName != null ? posShopName : 'SkinMe Store'}">SkinMe Store</div>
+        <div class="small text-muted" th:if="${posShopAddress != null}" th:text="${posShopAddress}">Address</div>
+        <div class="small mt-1" th:text="${'Invoice INV-' + #numbers.formatInteger(order.orderId, 4) + ' · ' + (order.orderDate != null ? #temporals.format(order.orderDate, 'dd.MM.yyyy') : '')}">Invoice</div>
       </div>
 
       <div class="container-fluid px-4 mb-2 no-print">
@@ -95,6 +118,14 @@
                 <span class="summary-label">Order Date</span>
                 <span class="summary-value" th:text="${order.orderDate != null ? #temporals.format(order.orderDate, 'MM/dd/yyyy') : 'N/A'}">Date</span>
               </div>
+              <div class="summary-line" th:with="sub=${order.itemsSubtotalAmount != null ? order.itemsSubtotalAmount : order.orderTotalAmount}">
+                <span class="summary-label">Subtotal</span>
+                <span class="summary-value" th:text="'$' + ${#numbers.formatDecimal(sub != null ? sub : 0, 1, 2)}">$0.00</span>
+              </div>
+              <div class="summary-line" th:if="${order.deliveryFeeAmount != null and order.deliveryFeeAmount.signum() > 0}">
+                <span class="summary-label">Delivery</span>
+                <span class="summary-value" th:text="'$' + ${#numbers.formatDecimal(order.deliveryFeeAmount, 1, 2)}">$1.00</span>
+              </div>
               <div class="summary-line">
                 <span class="summary-label">Total Amount</span>
                 <span class="summary-value info-value badge-gradient" th:text="'$' + ${#numbers.formatDecimal(order.orderTotalAmount != null ? order.orderTotalAmount : 0, 1, 2)}">$0.00</span>
@@ -108,16 +139,31 @@
                 <span th:if="${order.orderStatus != null and (order.orderStatus.name() == 'COMPLETED' or order.orderStatus.name() == 'SUCCESS' or order.orderStatus.name() == 'DELIVERED')}" class="status-badge-active"><i class="bi bi-check-circle-fill"></i> <span th:text="${order.orderStatus}">COMPLETED</span></span>
                 <span th:if="${order.orderStatus == null or (order.orderStatus.name() != 'COMPLETED' and order.orderStatus.name() != 'SUCCESS' and order.orderStatus.name() != 'DELIVERED')}" class="status-badge-inactive" th:text="${order.orderStatus != null ? order.orderStatus : 'PENDING'}">PENDING</span>
               </div>
+              <div class="summary-line" th:if="${payment != null}">
+                <span class="summary-label">Payment</span>
+                <span class="summary-value" th:text="${payment.method != null ? #strings.replace(payment.method.name(), '_', ' ') : '—'}">CASH</span>
+              </div>
+              <div class="summary-line" th:if="${order.pickupFulfillment}">
+                <span class="summary-label">Fulfillment</span>
+                <span class="summary-value">Pickup (in-store)</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 3. Delivery -->
+        <!-- 3. Delivery / Pickup -->
         <div class="card detail-card summary-card summary-card--delivery mb-4">
           <div class="card-header detail-header">
-            <h5 class="mb-0 text-white"><i class="bi bi-truck"></i> Delivery</h5>
+            <h5 class="mb-0 text-white">
+              <i class="bi" th:classappend="${order.pickupFulfillment} ? ' bi-shop' : ' bi-truck'"></i>
+              <span th:text="${order.pickupFulfillment} ? 'Pickup' : 'Delivery'">Delivery</span>
+            </h5>
           </div>
           <div class="card-body">
+            <div th:if="${order.pickupFulfillment}" class="alert alert-info py-2 small mb-2">
+              <i class="bi bi-info-circle"></i> Customer picks up in store. Collect cash at pickup, then use <strong>Order success</strong> below when payment is received.
+            </div>
+
             <div th:if="${order.trackingNumber != null and order.trackingNumber != ''}" class="mb-1">
               <span class="text-muted">Tracking:</span> <span class="fw-semibold" th:text="${order.trackingNumber}">-</span>
             </div>
@@ -148,6 +194,53 @@
             </div>
           </div>
         </div>
+
+        <!-- Admin: pickup cash / delivery workflow -->
+        <div class="card detail-card no-print" sec:authorize="hasRole('ROLE_ADMIN')" th:if="${order}">
+          <div class="card-header detail-header">
+            <h5 class="mb-0">
+              <i class="bi" th:classappend="${order.pickupFulfillment} ? ' bi-cash-coin' : ' bi-truck'"></i>
+              <span th:text="${order.pickupFulfillment} ? 'Admin — Pickup (cash)' : 'Admin — Delivery'">Admin</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div th:if="${order.pickupFulfillment}">
+              <p class="text-muted small mb-2">Customer pays in cash at pickup. When payment is received, mark the order as paid and completed.</p>
+              <div class="d-flex gap-2 flex-wrap mb-3">
+                <button type="button" class="btn btn-success" id="btnConfirmCashPickup"
+                        th:if="${order.orderStatus != null and order.orderStatus.name() != 'DELIVERED'}">
+                  <i class="bi bi-check2-circle"></i> Order success — cash received
+                </button>
+                <span class="text-muted small align-self-center"
+                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">
+                  <i class="bi bi-check-circle text-success"></i> Pickup completed and payment recorded.
+                </span>
+              </div>
+            </div>
+            <div th:unless="${order.pickupFulfillment}">
+              <p class="text-muted small mb-2">Mark this order as shipped, then as delivered when the customer receives it.</p>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-primary" id="btnAdminShip"
+                        th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAID' or order.orderStatus.name() == 'SUCCESS')}">
+                  <i class="bi bi-box-seam"></i> Mark shipped
+                </button>
+                <button type="button" class="btn btn-outline-success" id="btnAdminDeliver"
+                        th:if="${order.orderStatus != null and order.orderStatus.name() == 'SHIPPED'}">
+                  <i class="bi bi-check2-circle"></i> Mark delivered
+                </button>
+                <span class="text-muted small align-self-center"
+                      th:if="${order.orderStatus != null and order.orderStatus.name() == 'DELIVERED'}">This order is delivered.</span>
+              </div>
+            </div>
+
+            <div class="border-top pt-3 mt-2" sec:authorize="hasRole('ROLE_ADMIN')"
+                 th:if="${order.orderStatus != null and (order.orderStatus.name() == 'PAYMENT_PENDING' or order.orderStatus.name() == 'PENDING')}">
+              <button type="button" class="btn btn-outline-danger" id="btnCancelOrder">
+                <i class="bi bi-x-circle"></i> Cancel order
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="container-fluid px-4 mb-5" th:unless="${order}">
@@ -161,6 +254,124 @@
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
+          var API_PREFIX = /*[[${api != null ? api.prefix : '/api/v1'}]]*/ '/api/v1';
+          function orderApiHeaders(method) {
+            var h = { 'Accept': 'application/json' };
+            if (method && method !== 'GET') {
+              h['Content-Type'] = 'application/json';
+            }
+            var c = document.querySelector('meta[name="_csrf"]');
+            var ch = document.querySelector('meta[name="_csrf_header"]');
+            if (c && ch) {
+              h[ch.getAttribute('content') || 'X-CSRF-TOKEN'] = c.getAttribute('content') || c.content;
+            }
+            return h;
+          }
+          var el = document.getElementById('orderDetailsContent');
+          var oid = el && el.getAttribute('data-order-id');
+          var btnShip = document.getElementById('btnAdminShip');
+          var btnDel = document.getElementById('btnAdminDeliver');
+          var btnCashPickup = document.getElementById('btnConfirmCashPickup');
+          var btnCancelOrder = document.getElementById('btnCancelOrder');
+
+          if (btnCashPickup && oid) {
+            btnCashPickup.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Complete pickup order',
+                message: 'Confirm cash payment received for order #' + oid + '. The order will be marked as PAID and completed.',
+                confirmText: 'Order success',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                btnCashPickup.disabled = true;
+                fetch(API_PREFIX + '/orders/' + oid + '/confirm-cash-pickup', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: orderApiHeaders('POST')
+                })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order completed — cash payment recorded', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) {
+                    btnCashPickup.disabled = false;
+                    if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error');
+                  });
+              });
+            });
+          }
+          if (btnShip && oid) {
+            btnShip.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Mark order as shipped',
+                message: 'Order #' + oid + ' will be marked as shipped and a tracking number will be assigned.',
+                confirmText: 'Mark shipped',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/orders/' + oid + '/ship', { method: 'PUT', credentials: 'same-origin', headers: orderApiHeaders('PUT') })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order marked as shipped', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) { if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error'); });
+              });
+            });
+          }
+          if (btnCancelOrder && oid) {
+            btnCancelOrder.addEventListener('click', function() {
+              showConfirmModal({
+                title: 'Cancel order',
+                message: 'Cancel order #' + oid + '. No further payment/completion actions will be allowed.',
+                confirmText: 'Cancel order',
+                cancelText: 'Keep order',
+                danger: true
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/admin/pos/cancel/' + oid, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: orderApiHeaders('POST')
+                })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order cancelled', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) {
+                    if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error');
+                  });
+              });
+            });
+          }
+
+          if (btnDel && oid) {
+            btnDel.addEventListener('click', function() {
+
+              showConfirmModal({
+
+                title: 'Mark order as delivered',
+                message: 'Confirm that order #' + oid + ' has been delivered to the customer.',
+                confirmText: 'Mark delivered',
+                cancelText: 'Cancel',
+                danger: false
+              }).then(function(ok) {
+                if (!ok) return;
+                fetch(API_PREFIX + '/orders/' + oid + '/deliver', { method: 'PUT', credentials: 'same-origin', headers: orderApiHeaders('PUT') })
+                  .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || 'Error'); }); return r.json(); })
+                  .then(function() {
+                    if (typeof showToast === 'function') showToast('Order marked as delivered', 'success');
+                    setTimeout(function() { window.location.reload(); }, 450);
+                  })
+                  .catch(function(e) { if (typeof showToast === 'function') showToast(e.message || 'Failed', 'error'); });
+              });
+            });
+          }
+
           var btnPrint = document.getElementById('btnPrintOrder');
           if (btnPrint) btnPrint.addEventListener('click', function() { window.print(); });
 
@@ -169,8 +380,9 @@
             btnDownload.addEventListener('click', function() {
               var el = document.getElementById('orderDetailsContent');
               var orderId = el && el.getAttribute('data-order-id') ? el.getAttribute('data-order-id') : 'invoice';
-              var invoiceStyles = '<style>body{font-family:system-ui,-apple-system,sans-serif;margin:1.5rem;color:#333;}.no-print{display:none!important}.invoice-title{margin-bottom:1rem;}.invoice-title h2{margin:0;font-size:1.5rem;}.invoice-table,.order-details-table table{border-collapse:collapse;width:100%;margin:1rem 0;}.invoice-table th,.invoice-table td,.order-details-table th,.order-details-table td{border:1px solid #dee2e6;padding:0.5rem 0.75rem;text-align:left;}.invoice-table th,.order-details-table thead th{background:#2c3e50;color:#fff;}.text-center{text-align:center}.text-end{text-align:right}.card{border:1px solid #dee2e6;border-radius:8px;padding:1rem;margin:1rem 0;}.delivery-row{background:#f0f8f0;}</style>';
-              var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order #' + orderId + ' - Invoice</title>' + invoiceStyles + '</head><body><div class="invoice-title"><h2>Order Invoice</h2><p style="margin:0;color:#6c757d;font-size:0.875rem">Order #' + orderId + '</p></div>' + (el ? el.outerHTML : '') + '</body></html>';
+              var invoiceStyles = '<style>body{font-family:Helvetica,Arial,sans-serif;margin:1.5rem;color:#111;}.no-print{display:none!important}.invoice-print-header{display:block!important;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:2px solid #111;}.invoice-print-header .shop-name{font-size:1.15rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}.invoice-table,.order-details-table table{border-collapse:collapse;width:100%;margin:1rem 0;}.invoice-table th,.invoice-table td,.order-details-table th,.order-details-table td{border:1px solid #111;padding:0.5rem 0.65rem;}.invoice-table th,.order-details-table thead th{background:#f1f5f9;color:#111;font-size:0.72rem;text-transform:uppercase;}.text-center{text-align:center}.text-end{text-align:right}.card{border:1px solid #111;border-radius:0;padding:1rem;margin:1rem 0;box-shadow:none;}.detail-header{background:#fff!important;color:#111!important;border-bottom:1px solid #111;}.summary-card .summary-line{display:flex;justify-content:space-between;max-width:280px;margin-left:auto;border-bottom:1px solid #e5e7eb;padding:0.35rem 0;}</style>';
+              var header = document.querySelector('.invoice-print-header');
+              var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order #' + orderId + ' - Invoice</title>' + invoiceStyles + '</head><body>' + (header ? header.outerHTML : '') + (el ? el.outerHTML : '') + '</body></html>';
               var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
               var url = URL.createObjectURL(blob);
               var link = document.createElement('a');

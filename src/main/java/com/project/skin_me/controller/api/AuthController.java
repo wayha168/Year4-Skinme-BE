@@ -63,11 +63,21 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
         String code = requestBody != null ? requestBody.get("code") : null;
-        if (code == null || code.isBlank()) {
-            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.ofKey("api.auth.google.code.required", null));
+        String credential = null;
+        if (requestBody != null) {
+            credential = requestBody.get("credential");
+            if (credential == null || credential.isBlank()) {
+                credential = requestBody.get("id_token");
+            }
         }
-        return authService.googleLogin(code, request, response);
+        String redirectUri = null;
+        if (requestBody != null) {
+            redirectUri = requestBody.get("redirectUri");
+            if (redirectUri == null || redirectUri.isBlank()) {
+                redirectUri = requestBody.get("redirect_uri");
+            }
+        }
+        return authService.googleLogin(code, credential, redirectUri, request, response);
     }
 
     @PostMapping("/send-otp")

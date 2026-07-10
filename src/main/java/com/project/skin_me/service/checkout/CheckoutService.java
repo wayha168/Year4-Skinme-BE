@@ -14,6 +14,7 @@ public class CheckoutService implements ICheckoutService {
 
     @Override
     public Session createCheckoutSession(Long orderId, Long amountCents) throws StripeException {
+        String orderKey = String.valueOf(orderId);
         SessionCreateParams params = SessionCreateParams.builder()
                 // Enable card payment method - Stripe Checkout Session automatically provides card input form
                 // When CARD payment method type is added, Stripe displays a secure card input form
@@ -21,6 +22,14 @@ public class CheckoutService implements ICheckoutService {
                 .setMode(SessionCreateParams.Mode.PAYMENT)
                 .setSuccessUrl(frontendUrl + "/payment-success?orderId=" + orderId)
                 .setCancelUrl(frontendUrl + "/payment-cancel?orderId=" + orderId)
+                // Session + PaymentIntent metadata so webhooks (especially payment_intent.succeeded) can resolve the order
+                .putMetadata("order_id", orderKey)
+                .putMetadata("orderId", orderKey)
+                .setPaymentIntentData(
+                        SessionCreateParams.PaymentIntentData.builder()
+                                .putMetadata("order_id", orderKey)
+                                .putMetadata("orderId", orderKey)
+                                .build())
                 // Enable billing address collection for card payments
                 .setBillingAddressCollection(SessionCreateParams.BillingAddressCollection.AUTO)
                 .addLineItem(

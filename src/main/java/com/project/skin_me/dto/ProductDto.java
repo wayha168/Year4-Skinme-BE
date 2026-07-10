@@ -20,6 +20,7 @@ public class ProductDto {
     private BigDecimal price;
     private String productType;
     private int inventory;
+    private String barcode;
     private String description;
     private String howToUse;
     /** Brand (category is brand.getCategory()). Omit in API responses to avoid Hibernate proxy serialization. */
@@ -30,5 +31,7 @@ public class ProductDto {
     private String brandName;
     /** Category name for API responses (use instead of category entity to avoid proxy serialization). */
     private String categoryName;
+    /** How many users have this product in a favorites list. */
+    private long favoriteCount;
     private List<ImageDto> images;
 }

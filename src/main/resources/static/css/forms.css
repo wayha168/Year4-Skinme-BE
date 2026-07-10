@@ -30,6 +30,37 @@
     padding: 0;
 }
 
+/* Section titles inside form-body (padding was 0 — naked h6/p could look “missing” on some themes) */
+.detail-card .card-body.form-body .form-section-divider {
+    margin: 0;
+    border: 0;
+    border-top: 1px solid #e2e8f0;
+    opacity: 1;
+}
+
+.detail-card .card-body.form-body .form-section-header {
+    padding: 1rem 1.75rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.detail-card .card-body.form-body .form-section-title {
+    margin: 0 0 0.35rem 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #0f172a !important;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.detail-card .card-body.form-body .form-section-desc {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #64748b !important;
+    line-height: 1.45;
+}
+
 /* Table-like form row: label left, control right (same look as .info-row) */
 .form-row {
     display: flex;

@@ -1,9 +1,11 @@
 package com.project.skin_me.repository;
 
+import com.project.skin_me.enums.PromotionType;
 import com.project.skin_me.model.Promotion;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,14 +18,24 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
     List<Promotion> findByActiveTrue();
     
     List<Promotion> findByProductId(Long productId);
+
+    List<Promotion> findByPromotionType(PromotionType promotionType);
     
     @Query("SELECT p FROM Promotion p WHERE p.active = true AND p.startDate <= :now AND p.deadline >= :now")
     List<Promotion> findActivePromotions(@Param("now") LocalDateTime now);
+
+    @Query("SELECT p FROM Promotion p WHERE p.promotionType = :ptype AND p.active = true AND p.startDate <= :now AND p.deadline >= :now")
+    List<Promotion> findActivePromotionsByType(@Param("ptype") PromotionType ptype, @Param("now") LocalDateTime now);
     
-    @Query("SELECT p FROM Promotion p WHERE p.product.id = :productId AND p.active = true AND p.startDate <= :now AND p.deadline >= :now")
+    @Query("SELECT p FROM Promotion p WHERE p.promotionType = com.project.skin_me.enums.PromotionType.PRODUCT_DISCOUNT AND p.product.id = :productId AND p.active = true AND p.startDate <= :now AND p.deadline >= :now")
     Optional<Promotion> findActivePromotionByProductId(@Param("productId") Long productId, @Param("now") LocalDateTime now);
     
     List<Promotion> findByDeadlineBefore(LocalDateTime dateTime);
+
+    /** Persist active=false for promotions whose deadline has passed. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Promotion p SET p.active = false WHERE p.active = true AND p.deadline < :now")
+    int deactivateExpiredPromotions(@Param("now") LocalDateTime now);
     
     List<Promotion> findAllByOrderByCreatedAtDesc();
     

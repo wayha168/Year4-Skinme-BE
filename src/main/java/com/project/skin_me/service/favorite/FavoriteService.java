@@ -56,7 +56,7 @@ public class FavoriteService implements IFavoriteService {
                     "Product liked",
                     product.getName() + " added to your favorites",
                     "FAVORITE",
-                    "/products/" + productId);
+                    "/view/products/" + productId);
         } catch (Exception e) {
             // Don't fail favorite add if notification fails
         }

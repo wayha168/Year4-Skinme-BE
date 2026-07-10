@@ -1,9 +1,11 @@
 package com.project.skin_me.controller.api;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.project.skin_me.dto.OrderDto;
 import com.project.skin_me.dto.RealTimeUpdateDto;
+import com.project.skin_me.enums.LogisticCompany;
 import com.project.skin_me.enums.OrderStatus;
 import com.project.skin_me.enums.PaymentMethod;
 import com.project.skin_me.exception.ResourceNotFoundException;
@@ -34,7 +37,8 @@ import com.project.skin_me.response.ApiResponse;
 import com.project.skin_me.service.checkout.ICheckoutService;
 import com.project.skin_me.service.notification.NotificationService;
 import com.project.skin_me.service.order.IOrderService;
-import com.project.skin_me.service.payment.KhqrService;
+import com.project.skin_me.service.payment.IBakongKhqrService;
+import com.project.skin_me.util.PayWayWebhookNormalizer;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
@@ -53,29 +57,139 @@ public class PaymentController {
     private final IOrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final KhqrService khqrService;
+    private final IBakongKhqrService bakongKhqrService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Value("${stripe.webhook.secret}")
     private String webhookSecret;
 
+    @Value("${api.prefix:/api/v1}")
+    private String apiPrefix;
+
+    @Value("${payment.khqr.usd-to-khr-rate:4100}")
+    private int khqrUsdToKhrRate;
+
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * Creates an order from the cart and either a Stripe Checkout session (card) or
+     * a KHQR-only payload (no Stripe — avoids Stripe minimum amount and wrong gateway).
+     * <p>
+     * Pass {@code orderId} in the JSON body to resume checkout for an existing order (same user only).
+     * Prevents duplicate orders and reuses an open Stripe Checkout session when one already exists.
+     * <p>
+     * KHQR: pass {@code paymentMethod} in the JSON body or query as {@code KHQR}, {@code ABA},
+     * {@code ABA_KHQR}, or {@code PAYWAY}. Then call {@code GET /payment/generate-khqr} with the returned {@code orderId} and {@code amount}.
+     */
     @PostMapping("/create-checkout-session/{userId}")
     public ResponseEntity<ApiResponse> createCheckoutSession(
             @PathVariable Long userId,
+            @RequestParam(required = false) String paymentMethod,
             @RequestBody(required = false) Map<String, Object> body) {
         try {
-            Order order = orderService.placeOrderItem(userId);
-            if (body != null) {
-                applyDeliveryToOrder(order, body);
+            Order order = resolveOrderForCheckout(userId, body);
+
+            if (checkoutWantsKhqr(body, paymentMethod)) {
+                order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
+                order.setStripeSessionId(null);
                 orderService.updateOrder(order);
+
+                String currency = "USD";
+                if (body != null && body.get("currency") != null) {
+                    String c = body.get("currency").toString().trim();
+                    if ("USD".equalsIgnoreCase(c) || "KHR".equalsIgnoreCase(c)) {
+                        currency = c.toUpperCase();
+                    }
+                }
+                String gateway = "aba";
+                if (body != null && body.get("gateway") != null) {
+                    gateway = body.get("gateway").toString().trim().toLowerCase();
+                }
+
+                try {
+                    notificationService.notifyUserWithAction(
+                            order.getUser().getId().toString(),
+                            "Pay with KHQR",
+                            "Your order #" + order.getId() + " is ready. Scan the KHQR code to pay.",
+                            "PAYMENT",
+                            "/view/orders/" + order.getId());
+
+                    RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                            .entityType("ORDER")
+                            .entityId(order.getId().toString())
+                            .action("PAYMENT_PENDING_KHQR")
+                            .timestamp(LocalDateTime.now())
+                            .affectedUsers(order.getUser().getId().toString())
+                            .data(Map.of(
+                                    "orderId", order.getId(),
+                                    "status", "PAYMENT_PENDING",
+                                    "paymentMethod", "KHQR",
+                                    "amount", order.getOrderTotalAmount(),
+                                    "currency", currency,
+                                    "gateway", gateway))
+                            .build();
+                    messagingTemplate.convertAndSend("/topic/orders", update);
+                } catch (Exception e) {
+                    log.debug("KHQR checkout notification: {}", e.getMessage());
+                }
+
+                Map<String, Object> data = new HashMap<>();
+                data.put("checkoutUrl", null);
+                data.put("sessionId", null);
+                data.put("orderId", order.getId());
+                data.put("amount", order.getOrderTotalAmount());
+                data.put("currency", currency);
+                data.put("gateway", gateway);
+                data.put("paymentMethod", "KHQR");
+                data.put("nextStep",
+                        "GET " + (apiPrefix != null ? apiPrefix : "/api/v1") + "/payment/generate-khqr?orderId=" + order.getId()
+                                + "&amount=" + order.getOrderTotalAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
+                                + "&currency=" + currency + "&gateway=" + gateway);
+                return ResponseEntity.ok(new ApiResponse(
+                        "Order created for KHQR. Do not open Stripe — call generate-khqr.", data));
             }
+
             long amountInCents = order.getOrderTotalAmount()
                     .multiply(BigDecimal.valueOf(100))
+                    .setScale(0, RoundingMode.HALF_UP)
                     .longValue();
+            if (amountInCents < 50) {
+                return ResponseEntity.status(400).body(new ApiResponse(
+                        "Order total is below Stripe minimum (~USD 0.50). Use paymentMethod KHQR in this request body, "
+                                + "or POST /api/v1/orders/order and pay with KHQR.", Map.of(
+                                "orderId", order.getId(),
+                                "amountInCents", amountInCents,
+                                "hint", "Set paymentMethod to KHQR (or ABA) on create-checkout-session")));
+            }
+
+            StripeCheckoutResolution stripeRes = resolveStripeCheckoutForOrder(order);
+            if (stripeRes.kind() == StripeCheckoutResolution.Kind.REUSE_OPEN_SESSION) {
+                Session session = stripeRes.session();
+                order.setStripeSessionId(session.getId());
+                order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
+                orderService.updateOrder(order);
+                Payment payment = upsertPendingCardPayment(order, session.getId());
+                Map<String, Object> data = new HashMap<>();
+                data.put("checkoutUrl", session.getUrl());
+                data.put("orderId", order.getId());
+                data.put("sessionId", session.getId());
+                data.put("paymentMethod", "CARD");
+                data.put("reusedSession", true);
+                data.put("paymentId", payment.getId());
+                return ResponseEntity.ok(new ApiResponse("Existing Stripe checkout session (not charged twice)", data));
+            }
+            if (stripeRes.kind() == StripeCheckoutResolution.Kind.ALREADY_PAID_OR_COMPLETE) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("checkoutUrl", null);
+                data.put("orderId", order.getId());
+                data.put("sessionId", order.getStripeSessionId());
+                data.put("paymentMethod", "CARD");
+                data.put("reusedSession", true);
+                data.put("alreadyPaid", true);
+                return ResponseEntity.ok(new ApiResponse(stripeRes.message(), data));
+            }
 
             Session session = checkoutService.createCheckoutSession(order.getId(), amountInCents);
 
@@ -83,16 +197,7 @@ public class PaymentController {
             order.setOrderStatus(OrderStatus.PAYMENT_PENDING);
             orderService.updateOrder(order);
 
-            // Save initial payment record
-            Payment payment = Payment.builder()
-                    .order(order)
-                    .amount(order.getOrderTotalAmount())
-                    .method(PaymentMethod.CREDIT_CARD)
-                    .status(OrderStatus.PENDING)
-                    .transactionRef(session.getId())
-                    .transactionTime(LocalDateTime.now())
-                    .build();
-            paymentRepository.save(payment);
+            Payment payment = upsertPendingCardPayment(order, session.getId());
 
             try {
                 notificationService.notifyUserWithAction(
@@ -119,18 +224,65 @@ public class PaymentController {
                 System.err.println("Failed to send payment pending notification: " + e.getMessage());
             }
 
-            Map<String, Object> data = Map.of(
-                    "checkoutUrl", session.getUrl(),
-                    "orderId", order.getId(),
-                    "sessionId", session.getId());
+            Map<String, Object> data = new HashMap<>();
+            data.put("checkoutUrl", session.getUrl());
+            data.put("orderId", order.getId());
+            data.put("sessionId", session.getId());
+            data.put("paymentMethod", "CARD");
+            data.put("reusedSession", false);
             return ResponseEntity.ok(new ApiResponse("Stripe checkout session created", data));
         } catch (StripeException e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Stripe error: " + e.getMessage(), null));
+        } catch (IllegalStateException e) {
+            int status = "Order already paid".equals(e.getMessage()) ? 409 : 400;
+            return ResponseEntity.status(status).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalArgumentException e) {
+            int status = e.getMessage() != null && e.getMessage().contains("does not belong") ? 403 : 400;
+            return ResponseEntity.status(status).body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error: " + e.getMessage(), null));
         }
+    }
+
+    /** True when client intends ABA/KHQR / PayWay local QR — must not create a Stripe session. */
+    private static boolean checkoutWantsKhqr(Map<String, Object> body, String paymentMethodQuery) {
+        String raw = paymentMethodQuery;
+        if (body != null && body.get("paymentMethod") != null) {
+            raw = String.valueOf(body.get("paymentMethod"));
+        }
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        String p = raw.trim().toUpperCase().replace('-', '_').replace(" ", "_");
+        return "KHQR".equals(p) || "ABA".equals(p) || "ABA_KHQR".equals(p) || "PAYWAY".equals(p) || "PAYWAY_KHQR".equals(p);
+    }
+
+    private static boolean khqrAmountMatchesOrder(BigDecimal orderTotal, BigDecimal requested, String currency,
+            int usdToKhrRate) {
+        if (orderTotal == null || requested == null) {
+            return false;
+        }
+        if ("KHR".equalsIgnoreCase(currency)) {
+            BigDecimal expectedKhr = orderTotal.multiply(BigDecimal.valueOf(usdToKhrRate));
+            return expectedKhr.setScale(0, RoundingMode.HALF_UP)
+                    .compareTo(requested.setScale(0, RoundingMode.HALF_UP)) == 0;
+        }
+        return orderTotal.setScale(2, RoundingMode.HALF_UP)
+                .compareTo(requested.setScale(2, RoundingMode.HALF_UP)) == 0;
+    }
+
+    private static boolean payWayAmountMatchesPayment(BigDecimal expected, BigDecimal received, String currency) {
+        if (expected == null || received == null) {
+            return true; // Some channels may omit amount; keep backward compatibility.
+        }
+        if ("KHR".equalsIgnoreCase(currency)) {
+            return expected.setScale(0, RoundingMode.HALF_UP)
+                    .compareTo(received.setScale(0, RoundingMode.HALF_UP)) == 0;
+        }
+        return expected.setScale(2, RoundingMode.HALF_UP)
+                .compareTo(received.setScale(2, RoundingMode.HALF_UP)) == 0;
     }
 
     private void applyDeliveryToOrder(Order order, Map<String, Object> body) {
@@ -146,6 +298,17 @@ public class PaymentController {
         if (body.get("deliveryLongitude") != null) {
             Object v = body.get("deliveryLongitude");
             if (v instanceof Number) order.setDeliveryLongitude(((Number) v).doubleValue());
+        }
+        if (body.containsKey("logisticCompany")) {
+            Object lc = body.get("logisticCompany");
+            if (lc == null) {
+                order.setLogisticCompany(null);
+            } else {
+                LogisticCompany parsed = LogisticCompany.fromString(lc.toString());
+                if (parsed != null) {
+                    order.setLogisticCompany(parsed);
+                }
+            }
         }
     }
 
@@ -216,32 +379,68 @@ public class PaymentController {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
-            // Create PaymentIntent
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
+
+            Optional<Payment> existingPay = paymentRepository.findByOrder(order);
+            if (existingPay.isPresent() && existingPay.get().getStatus() == OrderStatus.SUCCESS) {
+                return ResponseEntity.status(409).body(new ApiResponse("Payment already completed for this order",
+                        Map.of("orderId", orderId)));
+            }
+
+            if (existingPay.isPresent() && existingPay.get().getTransactionRef() != null
+                    && existingPay.get().getTransactionRef().startsWith("pi_")) {
+                PaymentIntent existingPi = PaymentIntent.retrieve(existingPay.get().getTransactionRef());
+                String st = existingPi.getStatus();
+                if ("requires_payment_method".equals(st) || "requires_confirmation".equals(st)
+                        || "requires_action".equals(st) || "processing".equals(st)) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("clientSecret", existingPi.getClientSecret());
+                    data.put("paymentIntentId", existingPi.getId());
+                    data.put("orderId", orderId);
+                    data.put("reusedPaymentIntent", true);
+                    return ResponseEntity.ok(new ApiResponse("Existing payment intent (not charged twice)", data));
+                }
+            }
+
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                     .setAmount(amountCents)
                     .setCurrency("usd")
                     .setDescription("Skin.me Order #" + order.getOrderId())
+                    .putMetadata("order_id", orderId.toString())
                     .putMetadata("orderId", orderId.toString())
                     .putMetadata("orderNumber", order.getOrderId().toString())
                     .build();
 
             PaymentIntent paymentIntent = PaymentIntent.create(params);
 
-            // Save payment record
-            Payment payment = Payment.builder()
-                    .order(order)
-                    .amount(order.getOrderTotalAmount())
-                    .method(PaymentMethod.CREDIT_CARD)
-                    .status(OrderStatus.PENDING)
-                    .transactionRef(paymentIntent.getId())
-                    .transactionTime(LocalDateTime.now())
-                    .build();
-            paymentRepository.save(payment);
+            Payment payment;
+            if (existingPay.isPresent() && existingPay.get().getStatus() != OrderStatus.SUCCESS) {
+                payment = existingPay.get();
+                payment.setMethod(PaymentMethod.CREDIT_CARD);
+                payment.setStatus(OrderStatus.PENDING);
+                payment.setTransactionRef(paymentIntent.getId());
+                payment.setAmount(order.getOrderTotalAmount());
+                payment.setTransactionTime(LocalDateTime.now());
+                payment = paymentRepository.save(payment);
+            } else {
+                payment = Payment.builder()
+                        .order(order)
+                        .amount(order.getOrderTotalAmount())
+                        .method(PaymentMethod.CREDIT_CARD)
+                        .status(OrderStatus.PENDING)
+                        .transactionRef(paymentIntent.getId())
+                        .transactionTime(LocalDateTime.now())
+                        .build();
+                payment = paymentRepository.save(payment);
+            }
 
             Map<String, Object> data = new HashMap<>();
             data.put("clientSecret", paymentIntent.getClientSecret());
             data.put("paymentIntentId", paymentIntent.getId());
             data.put("orderId", orderId);
+            data.put("reusedPaymentIntent", false);
 
             return ResponseEntity.ok(new ApiResponse("Payment intent created", data));
         } catch (StripeException e) {
@@ -259,11 +458,19 @@ public class PaymentController {
             PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
 
             if ("succeeded".equals(paymentIntent.getStatus())) {
-                // Find order by payment intent ID
                 Payment payment = paymentRepository.findByTransactionRef(paymentIntentId)
                         .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
 
                 Order order = payment.getOrder();
+                if (order.getOrderStatus() == OrderStatus.PAID || payment.getStatus() == OrderStatus.SUCCESS) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("orderId", order.getId());
+                    data.put("paymentIntentId", paymentIntentId);
+                    data.put("status", "succeeded");
+                    data.put("alreadyConfirmed", true);
+                    return ResponseEntity.ok(new ApiResponse("Payment already confirmed", data));
+                }
+
                 payment.setStatus(OrderStatus.SUCCESS);
                 payment.setTransactionTime(LocalDateTime.now());
                 paymentRepository.save(payment);
@@ -463,8 +670,25 @@ public class PaymentController {
             Map<String, Object> processedEvents) {
         orderService.getOrderByStripeSessionId(sessionId).ifPresentOrElse(
                 order -> {
-                    paymentRepository.findByTransactionRef(sessionId).ifPresentOrElse(
+                    if (order.getOrderStatus() == OrderStatus.PAID) {
+                        processedEvents.put("skipped", "order_already_paid");
+                        processedEvents.put("order_id", order.getId());
+                        log.info("Webhook: checkout.session.completed ignored (already paid) session {} order {}",
+                                sessionId, order.getId());
+                        return;
+                    }
+                    Optional<Payment> payOpt = paymentRepository.findByTransactionRef(sessionId)
+                            .or(() -> paymentRepository.findByOrder(order));
+                    payOpt.ifPresentOrElse(
                             payment -> {
+                                if (payment.getStatus() == OrderStatus.SUCCESS) {
+                                    if (order.getOrderStatus() != OrderStatus.PAID) {
+                                        orderService.confirmOrderPayment(order);
+                                    }
+                                    processedEvents.put("skipped", "payment_already_success");
+                                    processedEvents.put("order_id", order.getId());
+                                    return;
+                                }
                                 if (paymentIntentId != null && !paymentIntentId.isEmpty()) {
                                     payment.setPaymentIntentId(paymentIntentId);
                                 }
@@ -477,58 +701,171 @@ public class PaymentController {
                                 log.info("Webhook: checkout.session.completed processed for session {} order {}",
                                         sessionId, order.getId());
                             },
-                            () -> log.warn("Webhook: payment not found for sessionId {}", sessionId));
+                            () -> log.warn("Webhook: payment not found for sessionId {} order {}", sessionId, order.getId()));
                 },
                 () -> log.warn("Webhook: order not found for stripe sessionId {}", sessionId));
     }
 
     private void processPaymentIntentSucceeded(String paymentIntentId, Map<String, Object> processedEvents) {
-        paymentRepository.findByPaymentIntentId(paymentIntentId)
-                .or(() -> paymentRepository.findByTransactionRef(paymentIntentId))
-                .ifPresentOrElse(
-                        payment -> {
-                            Order order = payment.getOrder();
-                            if (order.getOrderStatus() != OrderStatus.PAID) {
-                                payment.setPaymentIntentId(paymentIntentId);
-                                payment.setStatus(OrderStatus.SUCCESS);
-                                payment.setTransactionTime(LocalDateTime.now());
-                                paymentRepository.save(payment);
-                                orderService.confirmOrderPayment(order);
-                                log.info("Webhook: payment_intent.succeeded processed for pi {} order {}",
-                                        paymentIntentId, order.getId());
+        Optional<Payment> paymentOpt = paymentRepository.findByPaymentIntentId(paymentIntentId)
+                .or(() -> paymentRepository.findByTransactionRef(paymentIntentId));
+
+        if (paymentOpt.isEmpty()) {
+            // Fallback: PaymentIntent has metadata order_id (set when creating Checkout Session)
+            try {
+                PaymentIntent pi = PaymentIntent.retrieve(paymentIntentId);
+                if (pi.getMetadata() != null) {
+                    String orderIdStr = null;
+                    if (pi.getMetadata().containsKey("order_id")) {
+                        orderIdStr = pi.getMetadata().get("order_id");
+                    } else if (pi.getMetadata().containsKey("orderId")) {
+                        orderIdStr = pi.getMetadata().get("orderId");
+                    }
+                    if (orderIdStr != null && !orderIdStr.isBlank()) {
+                        try {
+                            Long oid = Long.parseLong(orderIdStr.trim());
+                            Order order = orderRepository.findById(oid).orElse(null);
+                            if (order != null) {
+                                paymentOpt = paymentRepository.findByOrder(order);
                             }
-                            processedEvents.put("payment_intent", paymentIntentId);
-                            processedEvents.put("order_id", order.getId());
-                        },
-                        () -> log.warn("Webhook: payment not found for paymentIntentId {}", paymentIntentId));
+                        } catch (NumberFormatException ignored) { }
+                    }
+                }
+            } catch (StripeException e) {
+                log.warn("Webhook: could not retrieve PaymentIntent {} for metadata fallback: {}", paymentIntentId, e.getMessage());
+            }
+        }
+
+        paymentOpt.ifPresentOrElse(
+                payment -> {
+                    Order order = payment.getOrder();
+                    if (order.getOrderStatus() != OrderStatus.PAID) {
+                        payment.setPaymentIntentId(paymentIntentId);
+                        payment.setStatus(OrderStatus.SUCCESS);
+                        payment.setTransactionTime(LocalDateTime.now());
+                        paymentRepository.save(payment);
+                        orderService.confirmOrderPayment(order);
+                        log.info("Webhook: payment_intent.succeeded processed for pi {} order {}",
+                                paymentIntentId, order.getId());
+                    }
+                    processedEvents.put("payment_intent", paymentIntentId);
+                    processedEvents.put("order_id", order.getId());
+                },
+                () -> log.warn("Webhook: payment not found for paymentIntentId {}", paymentIntentId));
+    }
+
+    /**
+     * PayWay (ABA / KHQR) webhook. POST JSON, HTTPS.
+     * Accepts common field variants ({@code merchant_ref}, {@code merchant_ref_no}, {@code tran_id}, etc.).
+     * Success: numeric {@code 0} or strings {@code "0"}, {@code "00"}.
+     * {@code merchant_ref} must match our order PK (embedded in KHQR EMV tag 62.01) or {@link Payment#getTransactionRef()}.
+     */
+    @PostMapping("/webhook/payway")
+    public ResponseEntity<ApiResponse> handlePayWayWebhook(@RequestBody(required = false) JsonNode root) {
+        if (root == null || root.isNull()) {
+            return ResponseEntity.badRequest().body(new ApiResponse("Missing JSON body", null));
+        }
+        Optional<PayWayWebhookNormalizer.NormalizedPayWayWebhook> normalizedOpt = PayWayWebhookNormalizer.parse(root);
+        if (normalizedOpt.isEmpty()) {
+            log.warn("PayWay webhook: could not parse payload or missing merchant reference");
+            return ResponseEntity.badRequest().body(new ApiResponse("Missing merchant_ref (or merchant_ref_no)", null));
+        }
+        PayWayWebhookNormalizer.NormalizedPayWayWebhook n = normalizedOpt.get();
+        String merchantRef = n.merchantRef();
+
+        Optional<Payment> paymentOpt = Optional.empty();
+        try {
+            Long orderId = Long.parseLong(merchantRef.trim());
+            paymentOpt = orderRepository.findById(orderId).flatMap(paymentRepository::findByOrder);
+        } catch (NumberFormatException ignored) {
+            paymentOpt = paymentRepository.findByTransactionRef(merchantRef.trim());
+        }
+        if (paymentOpt.isEmpty()) {
+            log.warn("PayWay webhook: no payment found for merchant_ref={}", merchantRef);
+            return ResponseEntity.ok(new ApiResponse("No matching order/payment for merchant_ref",
+                    Map.of("merchant_ref", merchantRef)));
+        }
+        Payment payment = paymentOpt.get();
+        if (payment.getMethod() != PaymentMethod.KHQR) {
+            payment.setMethod(PaymentMethod.KHQR);
+        }
+        if (n.success()) {
+            if (!payWayAmountMatchesPayment(payment.getAmount(), n.amount(), n.currency())) {
+                log.warn("PayWay webhook: amount mismatch for order {}. expected={} received={} currency={}",
+                        payment.getOrder().getId(), payment.getAmount(), n.amount(), n.currency());
+                return ResponseEntity.badRequest().body(new ApiResponse("Amount mismatch", Map.of(
+                        "merchant_ref", merchantRef,
+                        "expectedAmount", payment.getAmount(),
+                        "receivedAmount", n.amount(),
+                        "currency", n.currency())));
+            }
+            if (payment.getStatus() != OrderStatus.SUCCESS) {
+                payment.setStatus(OrderStatus.SUCCESS);
+                payment.setTransactionTime(LocalDateTime.now());
+                if (n.transactionId() != null && !n.transactionId().isBlank()) {
+                    payment.setMessage("PayWay: " + n.transactionId());
+                }
+                if (n.payerAccount() != null && !n.payerAccount().isBlank()) {
+                    payment.setPayerAccount(n.payerAccount());
+                }
+                paymentRepository.save(payment);
+                orderService.confirmOrderPayment(payment.getOrder());
+                log.info("PayWay webhook: payment confirmed for order {} transaction_id={}",
+                        payment.getOrder().getId(), n.transactionId());
+            }
+        } else {
+            log.debug("PayWay webhook: status not success for merchant_ref={} raw_status={}",
+                    merchantRef, root.path("status"));
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("transaction_id", n.transactionId());
+        data.put("merchant_ref", merchantRef);
+        data.put("status", root.path("status"));
+        data.put("processed", n.success());
+        return ResponseEntity.ok(new ApiResponse("Webhook received", data));
     }
 
     @GetMapping("/generate-khqr")
     public ResponseEntity<ApiResponse> generateKhqr(
             @RequestParam Long orderId,
-            @RequestParam Double amount,
+            @RequestParam BigDecimal amount,
             @RequestParam(defaultValue = "USD") String currency,
             @RequestParam(defaultValue = "aba") String gateway) {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
             // Support both currencies: USD and Khmer Riel (KHR)
             if (currency == null || (!"USD".equalsIgnoreCase(currency) && !"KHR".equalsIgnoreCase(currency))) {
                 currency = "USD";
             }
 
-            BigDecimal amountDecimal = BigDecimal.valueOf(amount);
-            Map<String, String> khqrData = khqrService.generateKhqrForOrder(amountDecimal, currency, gateway);
+            BigDecimal amountDecimal = amount;
+            if (!khqrAmountMatchesOrder(order.getOrderTotalAmount(), amountDecimal, currency, khqrUsdToKhrRate)) {
+                BigDecimal expected = "KHR".equalsIgnoreCase(currency)
+                        ? order.getOrderTotalAmount().multiply(BigDecimal.valueOf(khqrUsdToKhrRate))
+                                .setScale(0, RoundingMode.HALF_UP)
+                        : order.getOrderTotalAmount().setScale(2, RoundingMode.HALF_UP);
+                return ResponseEntity.status(400).body(new ApiResponse(
+                        "Amount must match order total. Expected " + expected
+                                + " " + currency + " for order " + orderId + ".", null));
+            }
+
+            Map<String, String> khqrData = bakongKhqrService.generateKhqrForOrder(amountDecimal, currency, gateway, orderId);
 
             // Create or update payment record for KHQR
             Payment payment = paymentRepository.findByOrder(order).orElse(null);
+            /* transactionRef = order PK string: matches EMV 62.01 in QR and PayWay merchant_ref */
+            String paywayRef = String.valueOf(orderId);
             if (payment == null) {
                 payment = Payment.builder()
                         .order(order)
                         .amount(amountDecimal)
                         .method(PaymentMethod.KHQR)
                         .status(OrderStatus.PENDING)
-                        .transactionRef("KHQR-" + orderId + "-" + System.currentTimeMillis())
+                        .transactionRef(paywayRef)
                         .transactionTime(LocalDateTime.now())
                         .build();
             } else {
@@ -536,6 +873,7 @@ public class PaymentController {
                 payment.setAmount(amountDecimal);
                 payment.setStatus(OrderStatus.PENDING);
                 payment.setTransactionTime(LocalDateTime.now());
+                payment.setTransactionRef(paywayRef);
             }
             paymentRepository.save(payment);
 
@@ -556,39 +894,192 @@ public class PaymentController {
         }
     }
 
+    @GetMapping("/status/{orderId}")
+    public ResponseEntity<ApiResponse> getPaymentStatus(@PathVariable Long orderId) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+            Optional<Payment> paymentOpt = paymentRepository.findByOrder(order);
+            Payment payment = paymentOpt.orElse(null);
+
+            boolean paid = order.getOrderStatus() == OrderStatus.PAID
+                    || order.getOrderStatus() == OrderStatus.DELIVERED
+                    || (payment != null && payment.getStatus() == OrderStatus.SUCCESS);
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("orderId", order.getId());
+            data.put("orderStatus", order.getOrderStatus() != null ? order.getOrderStatus().name() : null);
+            data.put("paid", paid);
+            data.put("posOrder", order.isPosOrder());
+            if (payment != null) {
+                data.put("paymentId", payment.getId());
+                data.put("paymentStatus", payment.getStatus() != null ? payment.getStatus().name() : null);
+                data.put("paymentMethod", payment.getMethod() != null ? payment.getMethod().name() : null);
+                data.put("transactionRef", payment.getTransactionRef());
+                data.put("transactionTime", payment.getTransactionTime());
+                data.put("message", payment.getMessage());
+            } else {
+                data.put("paymentStatus", null);
+                data.put("paymentMethod", null);
+            }
+
+            return ResponseEntity.ok(new ApiResponse("Payment status", data));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse("Error loading payment status: " + e.getMessage(), null));
+        }
+    }
+
     @PostMapping("/verify-khqr/{orderId}")
     public ResponseEntity<ApiResponse> verifyKhqrPayment(@PathVariable Long orderId) {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                return ResponseEntity.status(409).body(new ApiResponse("Order already paid", Map.of("orderId", orderId)));
+            }
 
             Payment payment = paymentRepository.findByOrder(order)
                     .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+
+            if (payment.getStatus() == OrderStatus.SUCCESS) {
+                return ResponseEntity.status(409).body(new ApiResponse("Payment already completed", Map.of("orderId", orderId)));
+            }
 
             if (payment.getMethod() != PaymentMethod.KHQR) {
                 return ResponseEntity.status(400)
                         .body(new ApiResponse("Payment method is not KHQR", null));
             }
 
-            // Update and persist payment record so it appears in user payment table with latest state
+            // Mark payment as received and confirm order (order -> PAID, Telegram + in-app notifications)
             payment.setTransactionTime(LocalDateTime.now());
-            payment.setMessage("User confirmed payment; pending bank verification");
+            payment.setMessage("KHQR payment confirmed");
+            payment.setStatus(OrderStatus.SUCCESS);
             paymentRepository.save(payment);
 
-            // In production you would verify with bank/KHQR API and then:
-            // payment.setStatus(OrderStatus.SUCCESS); orderService.confirmOrderPayment(order);
+            orderService.confirmOrderPayment(order);
 
             Map<String, Object> data = new HashMap<>();
             data.put("orderId", orderId);
             data.put("paymentId", payment.getId());
             data.put("status", payment.getStatus().toString());
-            data.put("message",
-                    "Payment verification initiated. Your payment record has been updated.");
+            data.put("message", "Payment confirmed. Order is now paid. Telegram and in-app notifications have been sent.");
 
-            return ResponseEntity.ok(new ApiResponse("KHQR payment verification initiated", data));
+            return ResponseEntity.ok(new ApiResponse("KHQR payment verified successfully", data));
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse("Error verifying KHQR payment: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * New checkout: creates order from cart. Existing checkout: pass {@code orderId} in the body
+     * so repeated clicks do not create multiple orders.
+     */
+    private Order resolveOrderForCheckout(Long userId, Map<String, Object> body) {
+        Long existingOrderId = null;
+        if (body != null && body.get("orderId") != null) {
+            Object o = body.get("orderId");
+            if (o != null && !o.toString().isBlank()) {
+                existingOrderId = Long.parseLong(o.toString().trim());
+            }
+        }
+        if (existingOrderId != null) {
+            Order order = orderRepository.findById(existingOrderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+            if (order.getUser() == null || !order.getUser().getId().equals(userId)) {
+                throw new IllegalArgumentException("Order does not belong to this user");
+            }
+            if (order.getOrderStatus() == OrderStatus.PAID) {
+                throw new IllegalStateException("Order already paid");
+            }
+            if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
+                throw new IllegalStateException("Order cannot be checked out in status: " + order.getOrderStatus());
+            }
+            if (body != null) {
+                applyDeliveryToOrder(order, body);
+                orderService.updateOrder(order);
+            }
+            return order;
+        }
+        Order order = orderService.placeOrderItem(userId);
+        if (body != null) {
+            applyDeliveryToOrder(order, body);
+            orderService.updateOrder(order);
+        }
+        return order;
+    }
+
+    /** One pending card payment row per order; updates amount/ref when creating or reusing a Checkout session. */
+    private Payment upsertPendingCardPayment(Order order, String stripeSessionId) {
+        Optional<Payment> existing = paymentRepository.findByOrder(order);
+        if (existing.isPresent()) {
+            Payment p = existing.get();
+            if (p.getStatus() == OrderStatus.SUCCESS) {
+                return p;
+            }
+            p.setMethod(PaymentMethod.CREDIT_CARD);
+            p.setStatus(OrderStatus.PENDING);
+            p.setTransactionRef(stripeSessionId);
+            p.setAmount(order.getOrderTotalAmount());
+            p.setTransactionTime(LocalDateTime.now());
+            return paymentRepository.save(p);
+        }
+        Payment payment = Payment.builder()
+                .order(order)
+                .amount(order.getOrderTotalAmount())
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(OrderStatus.PENDING)
+                .transactionRef(stripeSessionId)
+                .transactionTime(LocalDateTime.now())
+                .build();
+        return paymentRepository.save(payment);
+    }
+
+    private StripeCheckoutResolution resolveStripeCheckoutForOrder(Order order) {
+        String sid = order.getStripeSessionId();
+        if (sid == null || sid.isBlank()) {
+            return StripeCheckoutResolution.createNew();
+        }
+        try {
+            Session existing = Session.retrieve(sid);
+            if ("open".equals(existing.getStatus())) {
+                return StripeCheckoutResolution.reuseOpen(existing);
+            }
+            if ("complete".equals(existing.getStatus()) && "paid".equalsIgnoreCase(existing.getPaymentStatus())) {
+                Order fresh = orderRepository.findByIdWithOrderItemsAndProducts(order.getId()).orElse(order);
+                if (fresh.getOrderStatus() == OrderStatus.PAID) {
+                    return StripeCheckoutResolution.alreadyPaid("Order already paid");
+                }
+                orderService.confirmOrderPayment(fresh);
+                return StripeCheckoutResolution.alreadyPaid("Checkout session completed; order confirmed");
+            }
+            if ("expired".equals(existing.getStatus())) {
+                return StripeCheckoutResolution.createNew();
+            }
+        } catch (StripeException e) {
+            log.debug("Stripe session {} not reusable ({}), creating new session", sid, e.getMessage());
+        }
+        return StripeCheckoutResolution.createNew();
+    }
+
+    private record StripeCheckoutResolution(Kind kind, Session session, String message) {
+        enum Kind {
+            CREATE_NEW, REUSE_OPEN_SESSION, ALREADY_PAID_OR_COMPLETE
+        }
+
+        static StripeCheckoutResolution createNew() {
+            return new StripeCheckoutResolution(Kind.CREATE_NEW, null, null);
+        }
+
+        static StripeCheckoutResolution reuseOpen(Session session) {
+            return new StripeCheckoutResolution(Kind.REUSE_OPEN_SESSION, session, null);
+        }
+
+        static StripeCheckoutResolution alreadyPaid(String message) {
+            return new StripeCheckoutResolution(Kind.ALREADY_PAID_OR_COMPLETE, null, message);
         }
     }
 }

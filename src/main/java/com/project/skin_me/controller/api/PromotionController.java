@@ -1,7 +1,9 @@
 package com.project.skin_me.controller.api;
 
 import com.project.skin_me.dto.ImageDto;
+import com.project.skin_me.dto.PromotionCheckoutSummaryDto;
 import com.project.skin_me.dto.PromotionDto;
+import com.project.skin_me.enums.PromotionType;
 import com.project.skin_me.request.CreatePromotionRequest;
 import com.project.skin_me.request.UpdatePromotionRequest;
 import com.project.skin_me.response.ApiResponse;
@@ -85,6 +87,31 @@ public class PromotionController {
             logger.error("Error retrieving active promotions: {}", e.getMessage(), e);
             return ResponseEntity.status(INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse("Error retrieving active promotions: " + e.getMessage(), null));
+        }
+    }
+
+    /** Active promotions grouped for cart/checkout (product vs free delivery vs minimum spend). */
+    @GetMapping("/active/checkout-summary")
+    public ResponseEntity<ApiResponse> getActiveCheckoutSummary() {
+        try {
+            PromotionCheckoutSummaryDto summary = promotionService.getActiveCheckoutSummary();
+            return ResponseEntity.ok(new ApiResponse("Checkout promotion summary retrieved successfully", summary));
+        } catch (Exception e) {
+            logger.error("Error retrieving checkout summary: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Error retrieving checkout summary: " + e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/active/type/{promotionType}")
+    public ResponseEntity<ApiResponse> getActivePromotionsByType(@PathVariable PromotionType promotionType) {
+        try {
+            List<PromotionDto> promotions = promotionService.getActivePromotionsByType(promotionType);
+            return ResponseEntity.ok(new ApiResponse("Active promotions retrieved successfully", promotions));
+        } catch (Exception e) {
+            logger.error("Error retrieving promotions by type: {}", e.getMessage(), e);
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Error retrieving promotions: " + e.getMessage(), null));
         }
     }
 

@@ -2,7 +2,10 @@ package com.project.skin_me.repository;
 
 import com.project.skin_me.model.Activity;
 import com.project.skin_me.enums.ActivityType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -28,8 +31,18 @@ public interface ActivityRepository extends JpaRepository<Activity,Long> {
 
     @Query("SELECT a FROM Activity a LEFT JOIN FETCH a.user u LEFT JOIN FETCH u.roles WHERE a.activityType = :type ORDER BY a.timestamp DESC")
     List<Activity> findByActivityTypeWithUserOrderByTimestampDesc(@Param("type") ActivityType type);
+
+    Page<Activity> findAllByOrderByTimestampDesc(Pageable pageable);
+
+    Page<Activity> findByUser_IdOrderByTimestampDesc(Long userId, Pageable pageable);
+
+    Page<Activity> findByActivityTypeOrderByTimestampDesc(ActivityType activityType, Pageable pageable);
     
     List<Activity> findByTimestampBetween(LocalDateTime start, LocalDateTime end);
     
     List<Activity> findByUserIdAndActivityType(Long userId, ActivityType activityType);
+
+    @Modifying
+    @Query("DELETE FROM Activity a WHERE a.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

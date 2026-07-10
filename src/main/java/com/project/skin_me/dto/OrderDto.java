@@ -18,6 +18,10 @@ public class OrderDto {
     private String userEmail;
     private String userName;
     private LocalDate orderDate;
+    /** Line items sum before delivery fee (null on legacy orders). */
+    private BigDecimal itemsSubtotalAmount;
+    /** Delivery fee included in {@link #totalAmount} when applicable. */
+    private BigDecimal deliveryFeeAmount;
     private BigDecimal totalAmount;
     private String orderStatus;
     private String trackingNumber;
@@ -31,4 +35,7 @@ public class OrderDto {
     private String deliveryAddressFull;
     private Double deliveryLatitude;
     private Double deliveryLongitude;
+
+    /** VET, JNT (J&T), DHL — set at checkout or when marking delivered. */
+    private String logisticCompany;
 }
