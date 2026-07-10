@@ -21,7 +21,7 @@ public class ProductChangeListener {
 
     private final IProductService productService;
 
-    @Value("${catalog.export.dir}")
+    @Value("${catalog.export.dir:exported-catalog}")
     private String exportDir;
 
     private Path getExportDir() {
