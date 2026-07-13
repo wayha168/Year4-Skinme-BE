@@ -1,11 +1,24 @@
 <!doctype html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en" th:fragment="layout(content, head, scripts)">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:lang="${currentLocale != null ? currentLocale : 'en'}"
+      th:fragment="layout(content, head, scripts)">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="_csrf" th:content="${_csrf.token}" />
     <meta name="_csrf_header" th:content="${_csrf.headerName}" />
     <title th:text="${pageTitle != null} ? ${pageTitle} : 'SkinMe'">SkinMe</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('skinme-theme') || 'rose';
+          if (!/^(rose|gold|teal|blue|green)$/.test(t)) t = 'rose';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'rose');
+        }
+      })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link
       rel="stylesheet"
@@ -20,13 +33,18 @@
     <th:block th:replace="${head}"></th:block>
     <!-- Turbo Drive: instant navigation without full page reload (no multi-second refresh) -->
     <script src="https://unpkg.com/@hotwired/turbo@8.0.4/dist/turbo.es2017-umd.min.js"></script>
+    <!-- Bootstrap JS loaded ONCE here in <head>. Turbo merges the head on navigation so this
+         is never re-evaluated. Loading it again (in body or child templates) registers duplicate
+         document-level listeners and makes dropdowns open then instantly close. -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
       /* Turbo progress bar: quick visual feedback when navigating */
       .turbo-progress-bar { background: linear-gradient(90deg, #c9a86c, #b8956b); height: 3px; }
     </style>
   </head>
   <body>
-    <span id="msgLoggingOut" style="display:none" aria-hidden="true">Logging out...</span>
+    <span id="msgLoggingOut" style="display:none" aria-hidden="true" th:text="#{common.logging.out}">Logging out...</span>
+    <span id="msgNoNotifications" style="display:none" aria-hidden="true" th:text="#{header.notifications.empty}">No notifications</span>
     <div class="app-shell" id="appShell" th:attr="data-api-prefix=${api != null ? api.prefix : '/api/v1'}">
       <button type="button" class="btn-mobile-menu" id="btnMobileMenu" aria-label="Open menu" title="Open menu" style="display: none;">
         <i class="bi bi-list"></i>
@@ -42,24 +60,25 @@
 
     <!-- Right-side notification panel (35% width), opened by header bell -->
     <div class="notification-panel-overlay" id="notificationPanelOverlay" aria-hidden="true"></div>
-    <div class="notification-panel-right" id="notificationPanelRight" role="dialog" aria-label="Notifications">
+    <div class="notification-panel-right" id="notificationPanelRight" role="dialog" th:aria-label="#{header.notifications}">
       <div class="notification-panel-header">
-        <h2 class="notification-panel-title">Notifications</h2>
-        <button type="button" class="notification-panel-close" id="notificationPanelClose" aria-label="Close">&times;</button>
+        <h2 class="notification-panel-title" th:text="#{header.notifications}">Notifications</h2>
+        <button type="button" class="notification-panel-close" id="notificationPanelClose" th:aria-label="#{header.notifications.close}">&times;</button>
       </div>
       <div class="notification-panel-toolbar">
-        <button type="button" class="btn-notification-mark-all-panel" id="notificationPanelMarkAllRead">Mark all read</button>
+        <button type="button" class="btn-notification-mark-all-panel" id="notificationPanelMarkAllRead" th:text="#{header.notifications.markAll}">Mark all read</button>
       </div>
       <div class="notification-panel-list" id="notificationPanelList">
-        <div class="notification-panel-empty" id="notificationPanelEmpty">Loading...</div>
+        <div class="notification-panel-empty" id="notificationPanelEmpty" th:text="#{header.notifications.loading}">Loading...</div>
       </div>
       <div class="notification-panel-see-more-wrap" id="notificationPanelSeeMoreWrap" hidden>
-        <button type="button" class="btn-notification-see-more" id="notificationPanelSeeMore">See more</button>
+        <button type="button" class="btn-notification-see-more" id="notificationPanelSeeMore" th:text="#{header.notifications.seeMore}">See more</button>
       </div>
       <div class="notification-panel-footer">
-        <a th:href="@{/views/chat}" class="notification-panel-link">Open Chat</a>
+        <a th:href="@{/views/chat}" class="notification-panel-link" th:text="#{header.notifications.openChat}">Open Chat</a>
       </div>
     </div>
+    <span id="msgConfirmLogout" style="display:none" aria-hidden="true" th:text="#{common.confirm.logout}">Are you sure you want to logout?</span>
     
     <!-- Toast Notification Container (flexible dropdown, auto-dismiss) -->
     <div id="toastContainer"></div>
@@ -248,111 +267,21 @@
       <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     </form>
 
-    <!-- Sidebar collapse toggle: click to close/open sidebar (runs on every page) -->
-    <script>
-      (function() {
-        var STORAGE_KEY = 'skinme-sidebar-collapsed';
-        var SIDEBAR_COLLAPSED_CLASS = 'sidebar-collapsed';
-        var CONTAINER_COLLAPSED_CLASS = 'sidebar-container-collapsed';
-        var MOBILE_OPEN_CLASS = 'sidebar-mobile-open';
-
-        function getSidebar() { return document.getElementById('sidebar'); }
-        function getAppSidebar() { return document.getElementById('appSidebar'); }
-        function getToggleBtn() { return document.getElementById('sidebarToggle'); }
-        function getMobileBtn() { return document.getElementById('btnMobileMenu'); }
-        function getOverlay() { return document.getElementById('sidebarOverlay'); }
-        function getAppShell() { return document.getElementById('appShell'); }
-
-        function isCollapsed() {
-          var sidebar = getSidebar();
-          return sidebar && sidebar.classList.contains(SIDEBAR_COLLAPSED_CLASS);
-        }
-
-        function setCollapsed(collapsed) {
-          var sidebar = getSidebar();
-          var container = getAppSidebar();
-          var btn = getToggleBtn();
-          if (!sidebar || !container) return;
-          if (collapsed) {
-            sidebar.classList.add(SIDEBAR_COLLAPSED_CLASS);
-            container.classList.add(CONTAINER_COLLAPSED_CLASS);
-            if (btn) {
-              btn.setAttribute('aria-label', 'Expand sidebar');
-              btn.setAttribute('title', 'Expand sidebar');
-              var icon = btn.querySelector('.sidebar-toggle-icon');
-              if (icon) icon.classList.add('sidebar-toggle-icon-rotated');
-            }
-            try { localStorage.setItem(STORAGE_KEY, '1'); } catch (e) {}
-          } else {
-            sidebar.classList.remove(SIDEBAR_COLLAPSED_CLASS);
-            container.classList.remove(CONTAINER_COLLAPSED_CLASS);
-            if (btn) {
-              btn.setAttribute('aria-label', 'Collapse sidebar');
-              btn.setAttribute('title', 'Collapse sidebar');
-              var icon = btn.querySelector('.sidebar-toggle-icon');
-              if (icon) icon.classList.remove('sidebar-toggle-icon-rotated');
-            }
-            try { localStorage.setItem(STORAGE_KEY, '0'); } catch (e) {}
-          }
-        }
-
-        function toggleCollapsed(e) {
-          if (e) { e.preventDefault(); e.stopPropagation(); }
-          setCollapsed(!isCollapsed());
-        }
-
-        function initSidebarToggle() {
-          var btn = getToggleBtn();
-          if (btn) {
-            btn.addEventListener('click', toggleCollapsed);
-          }
-          try {
-            if (localStorage.getItem(STORAGE_KEY) === '1') setCollapsed(true);
-          } catch (e) {}
-        }
-
-        function isMobile() { return window.matchMedia('(max-width: 991.98px)').matches; }
-        function openMobileSidebar() { var s = getAppShell(); if (s) s.classList.add(MOBILE_OPEN_CLASS); }
-        function closeMobileSidebar() { var s = getAppShell(); if (s) s.classList.remove(MOBILE_OPEN_CLASS); }
-
-        function updateMobileUI() {
-          var mobileBtn = getMobileBtn(), overlay = getOverlay(), shell = getAppShell();
-          if (!mobileBtn || !overlay || !shell) return;
-          if (isMobile()) {
-            mobileBtn.style.display = 'flex';
-            overlay.onclick = closeMobileSidebar;
-            mobileBtn.onclick = openMobileSidebar;
-          } else {
-            mobileBtn.style.display = 'none';
-            shell.classList.remove(MOBILE_OPEN_CLASS);
-            overlay.onclick = null;
-            mobileBtn.onclick = null;
-          }
-        }
-
-        function init() {
-          initSidebarToggle();
-          updateMobileUI();
-          window.addEventListener('resize', updateMobileUI);
-        }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', init);
-        } else {
-          init();
-        }
-      })();
-    </script>
-    
+    <!-- Bootstrap JS is loaded once in <head> (see top of this file). Do NOT load it again
+         here or in child templates: a second load double-registers dropdown/collapse handlers.
+         Sidebar collapse/mobile behavior lives in components/sidebar.html. -->
     <th:block th:replace="${scripts}"></th:block>
     
-    <!-- WebSocket Client Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
-    <script src="/js/websocket-client.js"></script>
+    <!-- WebSocket Client Scripts (data-turbo-eval="false": evaluated once per full page load,
+         never re-run on Turbo navigation, so we don't open duplicate socket connections) -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js" data-turbo-eval="false"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js" data-turbo-eval="false"></script>
+    <script src="/js/websocket-client.js" data-turbo-eval="false"></script>
     <script>
-      // Initialize WebSocket notifications on page load
-      document.addEventListener('DOMContentLoaded', function() {
+      // Initialize WebSocket subscriptions exactly once per full page load
+      function skinmeInitWebSocket() {
+        if (window.__skinmeWsInit) return;
+        window.__skinmeWsInit = true;
         if (typeof window.webSocketClient !== 'undefined' && window.webSocketClient) {
           // Subscribe to notifications
           window.webSocketClient.subscribeToNotifications(function(notification) {
@@ -377,7 +306,12 @@
           });
           /* New feedback: persisted notifications + /user/topic/notifications (toast + bell); optional /topic/feedback for other clients */
         }
-      });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', skinmeInitWebSocket);
+      } else {
+        skinmeInitWebSocket();
+      }
     </script>
 
     <!-- Right-side notification panel (header bell): toggle, load list, update header badge, scroll lock -->
@@ -419,7 +353,7 @@
             var mpub = u.match(/^\/products\/(\d+)(?:\/.*)?$/);
             if (mpub) return '/view/products/' + mpub[1];
             if (u === '/chat' || u.indexOf('/chat?') === 0) {
-              return u.indexOf('/chat?') === 0 ? '/views/chat' + u.substring('/chat'.length()) : '/views/chat';
+              return u.indexOf('/chat?') === 0 ? '/views/chat' + u.substring('/chat'.length) : '/views/chat';
             }
             if (u.indexOf('/views/users') === 0) return u;
             return u;
@@ -507,7 +441,7 @@
           currentPage = page || 0;
           totalPages = pages || 0;
           if (!notifications || notifications.length === 0) {
-            if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
+            if (emptyEl) { emptyEl.textContent = (document.getElementById('msgNoNotifications') && document.getElementById('msgNoNotifications').textContent) || 'No notifications'; emptyEl.style.display = 'block'; }
           } else {
             if (emptyEl) emptyEl.style.display = 'none';
             appendNotificationItems(notifications);
@@ -534,7 +468,7 @@
                   renderPanelList(notifs, res.data.unreadCount, page, totalPages);
                 }
               } else if (!append) {
-                if (emptyEl) { emptyEl.textContent = 'No notifications'; emptyEl.style.display = 'block'; }
+                if (emptyEl) { emptyEl.textContent = (document.getElementById('msgNoNotifications') && document.getElementById('msgNoNotifications').textContent) || 'No notifications'; emptyEl.style.display = 'block'; }
                 if (seeMoreWrap) seeMoreWrap.hidden = true;
               }
             })
@@ -560,14 +494,20 @@
         }
 
         loadPanel();
-        document.addEventListener('skinme-notification', function(e) {
+        /* This script re-runs on every Turbo render (new DOM elements each time), so drop the
+           previous document-level listener before adding one bound to the fresh elements. */
+        if (window.__skinmeNotifListener) {
+          document.removeEventListener('skinme-notification', window.__skinmeNotifListener);
+        }
+        window.__skinmeNotifListener = function(e) {
           var n = e.detail;
           if (!listEl) return;
           if (emptyEl) emptyEl.style.display = 'none';
           n.status = 'UNREAD';
           listEl.insertBefore(createNotificationItem(n), listEl.firstChild);
           if (headerBadge) updateHeaderBadge((parseInt(headerBadge.textContent, 10) || 0) + 1);
-        });
+        };
+        document.addEventListener('skinme-notification', window.__skinmeNotifListener);
       })();
     </script>
     
@@ -637,64 +577,6 @@
           // Silently ignore all errors - LiveReload is optional
           console.error = originalError;
         }
-      })();
-    </script>
-    
-    <!-- Auto-refresh polling script (works for Docker and localhost) -->
-    <script>
-      // Polling-based auto-refresh - checks for page updates every 2 seconds
-      // Works in both Docker and localhost environments
-      (function() {
-        let lastModified = null;
-        let lastCheck = Date.now();
-        
-        // Initial check to get baseline
-        fetch(window.location.href, { 
-          method: 'HEAD', 
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        })
-          .then(function(response) {
-            lastModified = response.headers.get('Last-Modified') || response.headers.get('ETag');
-            lastCheck = Date.now();
-          })
-          .catch(function() {
-            // Ignore initial errors
-          });
-        
-        // Poll for changes every 2 seconds
-        setInterval(function() {
-          fetch(window.location.href, { 
-            method: 'HEAD', 
-            cache: 'no-store',
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
-          })
-            .then(function(response) {
-              const currentModified = response.headers.get('Last-Modified') || response.headers.get('ETag');
-              const currentTime = Date.now();
-              
-              // Check if page was modified or if it's been more than 30 seconds (force check)
-              if (currentModified && currentModified !== lastModified) {
-                lastModified = currentModified;
-                window.location.reload();
-              } else if (currentTime - lastCheck > 30000) {
-                // Force refresh check every 30 seconds
-                lastCheck = currentTime;
-                if (currentModified) {
-                  lastModified = currentModified;
-                }
-              }
-            })
-            .catch(function(error) {
-              // Silently ignore network errors
-            });
-        }, 2000); // Check every 2 seconds
       })();
     </script>
     

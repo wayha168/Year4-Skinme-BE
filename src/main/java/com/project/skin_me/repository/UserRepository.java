@@ -17,6 +17,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
     Optional<User> findByPhone(String phone);
+    Optional<User> findByChatSessionId(String chatSessionId);
     boolean existsByEmail(String email);
     boolean existsByPhone(String phone);
     /** Count users registered after the given time (for dashboard stats without loading all users). */

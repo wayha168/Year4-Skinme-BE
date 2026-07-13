@@ -3,66 +3,187 @@
     <div class="d-flex justify-content-between align-items-center">
       <div class="page-title-section">
         <h1 class="page-title mb-0">
-          <span th:text="${pageTitle != null} ? ${pageTitle} : 'Page'">Page</span>
+          <span th:text="${pageTitle != null} ? ${pageTitle} : #{app.default.page}">Page</span>
         </h1>
         <p class="page-subtitle" th:if="${pageSubtitle != null}" th:text="${pageSubtitle}">Page subtitle</p>
       </div>
-      
-      <div class="d-flex align-items-center gap-3">
-        <!-- Notification icon: click to open right-side panel (35%) -->
+
+      <div class="d-flex align-items-center gap-2 header-toolbar">
+        <!-- Language dropdown -->
+        <div class="dropdown header-lang-dropdown">
+          <button class="btn btn-header-tool dropdown-toggle" type="button" id="headerLangDropdown"
+            data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false"
+            th:aria-label="#{header.language}" th:title="#{header.language}">
+            <i class="bi bi-translate" aria-hidden="true"></i>
+            <span class="header-tool-label" th:text="${currentLocale == 'km'} ? #{lang.km} : #{lang.en}">English</span>
+            <i class="bi bi-chevron-down header-tool-chevron" aria-hidden="true"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end header-tool-menu" aria-labelledby="headerLangDropdown">
+            <li>
+              <a class="dropdown-item" th:href="@{/views/set-lang(lang='en')}" data-turbo="false"
+                th:classappend="${currentLocale == 'en'} ? ' active' : ''">
+                <span class="lang-code">EN</span>
+                <span th:text="#{lang.en}">English</span>
+                <i class="bi bi-check2 ms-auto" th:if="${currentLocale == 'en'}" aria-hidden="true"></i>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" th:href="@{/views/set-lang(lang='km')}" data-turbo="false"
+                th:classappend="${currentLocale == 'km'} ? ' active' : ''">
+                <span class="lang-code">KM</span>
+                <span th:text="#{lang.km}">Khmer</span>
+                <i class="bi bi-check2 ms-auto" th:if="${currentLocale == 'km'}" aria-hidden="true"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Theme color dropdown -->
+        <div class="dropdown header-theme-dropdown">
+          <button class="btn btn-header-tool dropdown-toggle" type="button" id="headerThemeDropdown"
+            data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false"
+            th:aria-label="#{header.theme}" th:title="#{header.theme}">
+            <i class="bi bi-palette" aria-hidden="true"></i>
+            <span class="header-theme-swatch" id="headerThemeSwatch" aria-hidden="true"></span>
+            <i class="bi bi-chevron-down header-tool-chevron" aria-hidden="true"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end header-tool-menu header-theme-menu" aria-labelledby="headerThemeDropdown">
+            <li class="dropdown-header" th:text="#{header.theme}">Theme color</li>
+            <li>
+              <button type="button" class="dropdown-item theme-option" data-theme="rose">
+                <span class="theme-swatch theme-swatch-rose"></span>
+                <span th:text="#{theme.rose}">Rose</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item theme-option" data-theme="gold">
+                <span class="theme-swatch theme-swatch-gold"></span>
+                <span th:text="#{theme.gold}">Gold</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item theme-option" data-theme="teal">
+                <span class="theme-swatch theme-swatch-teal"></span>
+                <span th:text="#{theme.teal}">Teal</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item theme-option" data-theme="blue">
+                <span class="theme-swatch theme-swatch-blue"></span>
+                <span th:text="#{theme.blue}">Blue</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item theme-option" data-theme="green">
+                <span class="theme-swatch theme-swatch-green"></span>
+                <span th:text="#{theme.green}">Green</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Notification icon -->
         <button type="button" class="btn btn-icon btn-notification-header" id="headerNotificationBtn" th:if="${currentUser != null}"
-          aria-label="Notifications" title="Notifications" onclick="typeof window.toggleNotificationPanel === 'function' && window.toggleNotificationPanel();">
+          th:aria-label="#{header.notifications}" th:title="#{header.notifications}"
+          onclick="typeof window.toggleNotificationPanel === 'function' && window.toggleNotificationPanel();">
           <i class="bi bi-bell"></i>
           <span class="notification-badge-header" id="headerNotificationBadge" style="display: none;">0</span>
         </button>
+
         <!-- Profile Dropdown -->
         <div class="dropdown" th:if="${currentUser != null}">
-        <button 
-          class="btn btn-profile dropdown-toggle" 
-          type="button" 
-          id="profileDropdown" 
-          data-bs-toggle="dropdown" 
-          data-bs-popper-config='{"strategy":"fixed"}'
-          aria-expanded="false"
-        >
-          <i class="bi bi-person-circle"></i>
-          <span class="profile-name">
-            <span th:if="${currentUser.firstName != null}" th:text="${currentUser.firstName}">Administrator</span>
-            <span th:if="${currentUser.firstName == null and currentUser.lastName == null}">Administrator</span>
-            <span th:if="${currentUser.firstName == null and currentUser.lastName != null}" th:text="${currentUser.lastName}">Administrator</span>
-          </span>
-          <i class="bi bi-chevron-down ms-1"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end profile-dropdown" aria-labelledby="profileDropdown">
-          <li>
-            <div class="dropdown-header profile-header">
-              <div class="profile-info">
-                <i class="bi bi-person-circle profile-icon"></i>
-                <div class="profile-details">
-                  <div class="profile-name-display">
-                    <span th:if="${currentUser.firstName != null}" th:text="${currentUser.firstName}">Administrator</span>
-                    <span th:if="${currentUser.firstName == null and currentUser.lastName == null}">Administrator</span>
-                    <span th:if="${currentUser.firstName == null and currentUser.lastName != null}" th:text="${currentUser.lastName}">Administrator</span>
+          <button
+            class="btn btn-profile dropdown-toggle"
+            type="button"
+            id="profileDropdown"
+            data-bs-toggle="dropdown"
+            data-bs-popper-config='{"strategy":"fixed"}'
+            aria-expanded="false"
+          >
+            <i class="bi bi-person-circle"></i>
+            <span class="profile-name">
+              <span th:if="${currentUser.firstName != null}" th:text="${currentUser.firstName}">Administrator</span>
+              <span th:if="${currentUser.firstName == null and currentUser.lastName == null}" th:text="#{common.administrator}">Administrator</span>
+              <span th:if="${currentUser.firstName == null and currentUser.lastName != null}" th:text="${currentUser.lastName}">Administrator</span>
+            </span>
+            <i class="bi bi-chevron-down ms-1"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end profile-dropdown" aria-labelledby="profileDropdown">
+            <li>
+              <div class="dropdown-header profile-header">
+                <div class="profile-info">
+                  <i class="bi bi-person-circle profile-icon"></i>
+                  <div class="profile-details">
+                    <div class="profile-name-display">
+                      <span th:if="${currentUser.firstName != null}" th:text="${currentUser.firstName}">Administrator</span>
+                      <span th:if="${currentUser.firstName == null and currentUser.lastName == null}" th:text="#{common.administrator}">Administrator</span>
+                      <span th:if="${currentUser.firstName == null and currentUser.lastName != null}" th:text="${currentUser.lastName}">Administrator</span>
+                    </div>
+                    <div class="profile-email" th:text="${currentUser.email}">admin@example.com</div>
                   </div>
-                  <div class="profile-email" th:text="${currentUser.email}">admin@example.com</div>
                 </div>
               </div>
-            </div>
-          </li>
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <a 
-              class="dropdown-item logout-item" 
-              href="#"
-              onclick="handleLogout(event);"
-            >
-              <i class="bi bi-box-arrow-left"></i> Logout
-            </a>
-          </li>
-        </ul>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a
+                class="dropdown-item logout-item"
+                href="#"
+                onclick="handleLogout(event);"
+              >
+                <i class="bi bi-box-arrow-left"></i> <span th:text="#{header.logout}">Logout</span>
+              </a>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
-</div>
+  <script>
+    (function () {
+      var STORAGE_KEY = 'skinme-theme';
+      var VALID = { rose: 1, gold: 1, teal: 1, blue: 1, green: 1 };
 
+      function applyTheme(theme) {
+        if (!VALID[theme]) theme = 'rose';
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+        document.querySelectorAll('.theme-option').forEach(function (btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
+        });
+      }
+
+      function currentTheme() {
+        var saved = 'rose';
+        try { saved = localStorage.getItem(STORAGE_KEY) || 'rose'; } catch (e) {}
+        return VALID[saved] ? saved : 'rose';
+      }
+
+      /* Delegated click survives Turbo Drive body swaps; guard prevents
+         duplicate document listeners when this fragment re-executes. */
+      if (!window.__skinmeThemeInit) {
+        window.__skinmeThemeInit = true;
+        document.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('.theme-option') : null;
+          if (btn) applyTheme(btn.getAttribute('data-theme'));
+        });
+        document.addEventListener('turbo:load', function () {
+          applyTheme(currentTheme());
+        });
+        /* Close any open Bootstrap dropdown before Turbo snapshots the page,
+           otherwise restored pages show a stale open menu. */
+        document.addEventListener('turbo:before-cache', function () {
+          document.querySelectorAll('.dropdown-menu.show').forEach(function (menu) {
+            menu.classList.remove('show');
+          });
+          document.querySelectorAll('[data-bs-toggle="dropdown"][aria-expanded="true"]').forEach(function (toggle) {
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.classList.remove('show');
+          });
+        });
+      }
+
+      applyTheme(currentTheme());
+    })();
+  </script>
+</div>

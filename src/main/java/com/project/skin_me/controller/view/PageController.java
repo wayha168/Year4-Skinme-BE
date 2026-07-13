@@ -355,8 +355,18 @@ public class PageController {
             try {
                 java.net.URL u = new java.net.URL(referer);
                 String path = u.getPath();
-                if (path != null && !path.isBlank()) {
+                if (path != null && !path.isBlank() && !path.contains("/set-lang")) {
                     redirectTo = path;
+                    // Keep filters/pagination but drop any stale lang param
+                    String query = u.getQuery();
+                    if (query != null && !query.isBlank()) {
+                        String cleaned = java.util.Arrays.stream(query.split("&"))
+                                .filter(p -> !p.startsWith("lang="))
+                                .collect(java.util.stream.Collectors.joining("&"));
+                        if (!cleaned.isBlank()) {
+                            redirectTo += "?" + cleaned;
+                        }
+                    }
                 }
             } catch (Exception ignored) {
             }
@@ -1367,6 +1377,10 @@ public class PageController {
             User currentUser = userService.getAuthenticatedUser();
             boolean isAdmin = isAdmin(currentUser);
 
+            if (isAdmin && StringUtils.hasText(session)) {
+                chatSessionService.ensureSessionBound(session.trim());
+            }
+
             String sessionId = isAdmin
                     ? (session != null && !session.isBlank() ? session.trim() : null)
                     : chatSessionService.getOrCreateSessionId(currentUser);
@@ -1375,60 +1389,90 @@ public class PageController {
             List<ChatbotSessionSummary> chatSessions = List.of();
 
             if (isAdmin) {
+                // Load local users first so the page never hangs on chatbot.skinme.store
+                List<ChatbotSessionSummary> fromChatbot = List.of();
+                boolean chatbotTimedOut = false;
                 try {
-                    ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(200);
-                    List<ChatbotSessionSummary> fromChatbot = sessionsResponse.getSessions() != null
-                            ? sessionsResponse.getSessions()
-                            : List.of();
-                    chatSessions = chatSessionService.buildAdminUserSessions(fromChatbot);
-                    enrichSessionSummariesWithUserDetails(chatSessions);
+                    fromChatbot = java.util.concurrent.CompletableFuture
+                            .supplyAsync(() -> {
+                                ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(50);
+                                return sessionsResponse.getSessions() != null
+                                        ? sessionsResponse.getSessions()
+                                        : List.<ChatbotSessionSummary>of();
+                            })
+                            .orTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+                            .join();
                 } catch (Exception ex) {
-                    // Still show all local users even if chatbot.skinme.store is unreachable
-                    try {
-                        chatSessions = chatSessionService.buildAdminUserSessions(List.of());
-                        enrichSessionSummariesWithUserDetails(chatSessions);
-                        model.addAttribute("sessionsWarning",
-                                "Chatbot sessions unavailable (" + ex.getMessage()
-                                        + "); showing local user accounts.");
-                    } catch (Exception localEx) {
-                        model.addAttribute("sessionsWarning", "Could not load sessions: " + ex.getMessage());
-                    }
+                    chatbotTimedOut = true;
+                    fromChatbot = List.of();
+                }
+                if (chatbotTimedOut) {
+                    model.addAttribute("sessionsWarning",
+                            "Live chatbot sessions unavailable; showing local user accounts.");
+                }
+                try {
+                    chatSessions = chatSessionService.buildAdminUserSessions(fromChatbot);
+                } catch (Exception localEx) {
+                    model.addAttribute("sessionsWarning", "Could not load users: " + shortError(localEx));
+                    chatSessions = List.of();
                 }
                 model.addAttribute("chatSessions", chatSessions);
-                // Find selected session user info for admin
+
                 if (StringUtils.hasText(session)) {
                     ChatbotSessionSummary selectedSession = chatSessions.stream()
                             .filter(s -> session.equals(s.getSessionId()))
-                            .findFirst().orElse(null);
-                    enrichSessionSummaryWithUserDetails(selectedSession);
-                    model.addAttribute("selectedSessionUser", selectedSession);
+                            .findFirst()
+                            .orElse(null);
+                    if (selectedSession == null) {
+                        selectedSession = chatSessionService.resolveSessionUser(session).orElse(null);
+                    }
+                    if (selectedSession != null) {
+                        enrichSessionSummaryWithUserDetails(selectedSession);
+                        model.addAttribute("selectedSessionUser", selectedSession);
+                    }
                 }
             }
 
             if (StringUtils.hasText(sessionId)) {
                 try {
-                    ChatbotHistoryResponse history = chatbotService.getSessionHistory(sessionId, 500);
-                    if (history.getMessages() != null) {
+                    ChatbotHistoryResponse history = java.util.concurrent.CompletableFuture
+                            .supplyAsync(() -> chatbotService.getSessionHistory(sessionId, 80))
+                            .orTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+                            .exceptionally(ex -> null)
+                            .join();
+                    if (history != null && history.getMessages() != null) {
                         chatHistory = history.getMessages();
+                    } else if (history == null) {
+                        model.addAttribute("historyWarning", "Could not load chat history right now.");
                     }
                     if (!isAdmin) {
                         chatSessionService.saveSessionId(currentUser, sessionId);
                     }
                 } catch (Exception ex) {
-                    model.addAttribute("historyWarning", "Could not load history: " + ex.getMessage());
+                    model.addAttribute("historyWarning", "Could not load history: " + shortError(ex));
                 }
             }
 
-            if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null
-                    && !chatHistory.isEmpty()) {
-                ChatbotSessionSummary fallbackSession = new ChatbotSessionSummary();
-                fallbackSession.setSessionId(session);
-                String sender = chatHistory.stream()
-                        .map(ChatbotHistoryMessage::getSender)
-                        .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s))
-                        .findFirst().orElse(session);
-                fallbackSession.setUserName(sender);
-                fallbackSession.setUserEmail(sender);
+            if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null) {
+                ChatbotSessionSummary fallbackSession = chatSessionService.resolveSessionUser(session)
+                        .orElseGet(() -> {
+                            ChatbotSessionSummary s = new ChatbotSessionSummary();
+                            s.setSessionId(session);
+                            s.setUserName(session);
+                            s.setOnline(false);
+                            return s;
+                        });
+                if (!chatHistory.isEmpty() && !StringUtils.hasText(fallbackSession.getUserEmail())) {
+                    String sender = chatHistory.stream()
+                            .map(ChatbotHistoryMessage::getSender)
+                            .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s)
+                                    && !"admin".equalsIgnoreCase(s))
+                            .findFirst().orElse(null);
+                    if (StringUtils.hasText(sender)) {
+                        fallbackSession.setUserName(sender);
+                        fallbackSession.setUserEmail(sender);
+                    }
+                }
                 model.addAttribute("selectedSessionUser", fallbackSession);
             }
 
@@ -1447,6 +1491,7 @@ public class PageController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load chat: " + e.getMessage());
             model.addAttribute("chatHistory", List.<ChatbotHistoryMessage>of());
+            model.addAttribute("chatSessions", List.<ChatbotSessionSummary>of());
             model.addAttribute("isAdmin", false);
             model.addAttribute("chatUrl", "");
             model.addAttribute("sessionId", "");
@@ -1455,6 +1500,20 @@ public class PageController {
         }
         model.addAttribute("pageTitle", "Chat");
         return "chat";
+    }
+
+    private static String shortError(Throwable ex) {
+        if (ex == null) {
+            return "unknown error";
+        }
+        String msg = ex.getMessage();
+        if (!StringUtils.hasText(msg) && ex.getCause() != null) {
+            msg = ex.getCause().getMessage();
+        }
+        if (!StringUtils.hasText(msg)) {
+            msg = ex.getClass().getSimpleName();
+        }
+        return msg.length() > 160 ? msg.substring(0, 160) + "…" : msg;
     }
 
     private void enrichSessionSummariesWithUserDetails(List<ChatbotSessionSummary> sessions) {

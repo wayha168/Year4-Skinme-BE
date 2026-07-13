@@ -13,6 +13,12 @@ import java.util.Locale;
 @Configuration
 public class LocaleConfig implements WebMvcConfigurer {
 
+    private final PageTitleI18nInterceptor pageTitleI18nInterceptor;
+
+    public LocaleConfig(PageTitleI18nInterceptor pageTitleI18nInterceptor) {
+        this.pageTitleI18nInterceptor = pageTitleI18nInterceptor;
+    }
+
     @Bean
     public LocaleResolver localeResolver() {
         ApiAwareLocaleResolver resolver = new ApiAwareLocaleResolver();
@@ -33,5 +39,6 @@ public class LocaleConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(localeChangeInterceptor());
+        registry.addInterceptor(pageTitleI18nInterceptor);
     }
 }
