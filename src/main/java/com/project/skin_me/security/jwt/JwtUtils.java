@@ -23,6 +23,7 @@ public class JwtUtils {
     @Value("${auth.token.jwtExpirationMs}")
     private int JwtExpirationTime;
 
+    //function that generates a token for a user based on their authentication
     public String generateTokenForUser(Authentication authentication) {
         ShopUserDetails userPrincipal = (ShopUserDetails) authentication.getPrincipal();
 
@@ -43,6 +44,7 @@ public class JwtUtils {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(JwtSecret));
     }
 
+    //function that extracts the username from a token
     public String getUsernameFromToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key())
@@ -52,6 +54,7 @@ public class JwtUtils {
                 .getSubject();
     }
 
+    //function that validates a token
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()

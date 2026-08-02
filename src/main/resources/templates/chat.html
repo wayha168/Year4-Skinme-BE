@@ -837,7 +837,7 @@
                       >
                     </div>
                     <div class="message-bubble">
-                      <div class="message-content" th:utext="${message.content}">Message content</div>
+                      <div class="message-content" th:text="${message.content}">Message content</div>
                     </div>
                   </div>
                 </div>
@@ -1068,7 +1068,9 @@
           const content = message.content || "";
           const timestamp = message.timestamp
             ? new Date(message.timestamp).toLocaleString()
-            : new Date().toLocaleString();
+            : message.created_at
+              ? new Date(message.created_at).toLocaleString()
+              : new Date().toLocaleString();
           const metaHtml =
             '<div class="message-meta">' +
             avatarHtmlFor(sender) +
@@ -1079,7 +1081,7 @@
           messageDiv.innerHTML =
             metaHtml +
             '<div class="message-bubble"><div class="message-content">' +
-            content +
+            escapeHtml(content) +
             "</div>" +
             '<div class="message-time">' +
             escapeHtml(timestamp) +
@@ -1186,13 +1188,17 @@
 
         async function apiFetch(path, options) {
           const headers = Object.assign(
-            { "Content-Type": "application/json" },
+            { Accept: "application/json" },
             (options && options.headers) || {},
           );
-          const meta = document.querySelector('meta[name="_csrf"]');
-          const param = document.querySelector('meta[name="_csrf_parameter"]');
-          if (meta && param) {
-            headers[param.getAttribute("content") || "X-CSRF-TOKEN"] = meta.getAttribute("content");
+          if (!(options && options.body instanceof FormData)) {
+            headers["Content-Type"] = headers["Content-Type"] || "application/json";
+          }
+          const csrf = document.querySelector('meta[name="_csrf"]');
+          const csrfHeader = document.querySelector('meta[name="_csrf_header"]');
+          if (csrf && csrfHeader) {
+            headers[csrfHeader.getAttribute("content") || "X-CSRF-TOKEN"] =
+              csrf.getAttribute("content") || csrf.content;
           }
           const res = await fetch(
             API_PREFIX + path,
@@ -1201,6 +1207,87 @@
           const json = await res.json();
           if (!res.ok) throw new Error(json.message || "Request failed");
           return json.data;
+        }
+
+        function renderSessionList(sessions) {
+          const list = document.getElementById("session-list");
+          if (!list || !IS_ADMIN) return;
+          const wrap = list.querySelector("div") || list;
+          if (!sessions || !sessions.length) {
+            wrap.innerHTML = '<p class="text-muted small p-3 mb-0">No sessions yet.</p>';
+            return;
+          }
+          wrap.innerHTML = sessions
+            .map(function (s) {
+              const sid = s.session_id || s.sessionId || "";
+              const name = s.user_name || s.userName || s.user_email || s.userEmail || sid || "User";
+              const email = s.user_email || s.userEmail || s.last_message || s.lastMessage || "No messages yet";
+              const online = s.online === true;
+              const active = SESSION_ID && sid === SESSION_ID ? " active" : "";
+              const initial = (name.charAt(0) || "U").toUpperCase();
+              return (
+                '<button type="button" class="chat-user-item' +
+                active +
+                '" data-session-id="' +
+                escapeHtml(sid) +
+                '" onclick="selectSession(\'' +
+                escapeHtml(sid).replace(/'/g, "\\'") +
+                "')\">" +
+                '<div class="chat-user-avatar">' +
+                escapeHtml(initial) +
+                "</div>" +
+                '<div class="chat-user-meta"><span class="chat-user-name">' +
+                escapeHtml(name) +
+                '</span><div class="chat-user-preview"><span>' +
+                escapeHtml(email) +
+                '</span><span class="user-online-badge' +
+                (online ? "" : " offline") +
+                '">' +
+                (online ? "Online" : "Offline") +
+                "</span></div></div></button>"
+              );
+            })
+            .join("");
+        }
+
+        async function refreshSessionsFromApi() {
+          if (!IS_ADMIN) return;
+          try {
+            const data = await apiFetch("/chat/sessions?limit=200");
+            const sessions = data && (data.sessions || data) ? data.sessions || data : [];
+            if (Array.isArray(sessions)) renderSessionList(sessions);
+          } catch (e) {
+            console.warn("Could not refresh chat sessions from API", e);
+          }
+        }
+
+        async function refreshHistoryFromApi() {
+          if (!SESSION_ID) return;
+          const container = document.getElementById("chat-messages");
+          if (container && !container.querySelector(".message")) {
+            container.innerHTML =
+              '<div class="text-center text-muted py-4" id="chat-history-loading">Loading conversation…</div>';
+          }
+          try {
+            const history = await fetchChatHistory(100);
+            if (history && Array.isArray(history.messages)) {
+              if (history.messages.length === 0) {
+                if (container) {
+                  container.innerHTML =
+                    '<div class="text-center text-muted py-5 px-3"><p class="mb-0">No messages yet. Start the conversation.</p></div>';
+                }
+              } else {
+                renderChatHistory(history.messages);
+                showLoadMoreButton(history.messages.length >= 80);
+              }
+            }
+          } catch (e) {
+            console.warn("Could not load chat history", e);
+            const loading = document.getElementById("chat-history-loading");
+            if (loading) {
+              loading.textContent = "Could not load history from chatbot. You can still send messages.";
+            }
+          }
         }
 
         async function sendChatMessage(content) {
@@ -1264,10 +1351,11 @@
           form.append("message", document.getElementById("message-input").value.trim());
           if (SESSION_ID) form.append("session_id", SESSION_ID);
           const meta = document.querySelector('meta[name="_csrf"]');
-          const param = document.querySelector('meta[name="_csrf_parameter"]');
+          const headerMeta = document.querySelector('meta[name="_csrf_header"]');
           const headers = {};
-          if (meta && param)
-            headers[param.getAttribute("content") || "X-CSRF-TOKEN"] = meta.getAttribute("content");
+          if (meta && headerMeta)
+            headers[headerMeta.getAttribute("content") || "X-CSRF-TOKEN"] =
+              meta.getAttribute("content") || meta.content;
           const res = await fetch(API_PREFIX + "/chat/with-image", {
             method: "POST",
             body: form,
@@ -1363,7 +1451,8 @@
                 const name = (item.getAttribute("data-user-name") || "").toLowerCase();
                 const email = (item.getAttribute("data-user-email") || "").toLowerCase();
                 const session = (item.getAttribute("data-session-id") || "").toLowerCase();
-                const match = !q || name.includes(q) || email.includes(q) || session.includes(q);
+                const text = (item.textContent || "").toLowerCase();
+                const match = !q || name.includes(q) || email.includes(q) || session.includes(q) || text.includes(q);
                 item.style.display = match ? "" : "none";
               });
             });
@@ -1377,14 +1466,11 @@
               applyChatFilter();
             });
           });
-          // Defer websocket initialization until the chat session is confirmed by the remote chatbot service.
           applyChatFilter();
           updateNewMessageIndicator(false);
-          // Ensure initial scroll and track user's scroll position
           scrollChatToBottom();
           const messagesContainer = document.getElementById("chat-messages");
           if (messagesContainer) {
-            // Track whether the user has scrolled away from the bottom
             messagesContainer.addEventListener("scroll", function () {
               const atBottom =
                 messagesContainer.scrollTop + messagesContainer.clientHeight >=
@@ -1396,9 +1482,45 @@
           const loadMoreBtn = document.getElementById("load-more-history");
           if (loadMoreBtn) {
             loadMoreBtn.addEventListener("click", loadMoreHistory);
-            if (SESSION_ID && messagesContainer && messagesContainer.children.length >= 100) {
-              showLoadMoreButton(true);
-            }
+          }
+
+          // Load live chatbot sessions + history via API (page itself stays fast & complete)
+          refreshSessionsFromApi();
+          refreshHistoryFromApi().then(function () {
+            if (SESSION_ID) initChatbotWebSocket();
+          });
+
+          const form = document.getElementById("chat-form");
+          if (form) {
+            form.addEventListener("submit", function (e) {
+              e.preventDefault();
+              const input = document.getElementById("message-input");
+              const text = input ? input.value : "";
+              sendChatMessage(text).catch(function (err) {
+                if (typeof showToast === "function") showToast(err.message || "Send failed", "error");
+              });
+            });
+          }
+          const aiBtn = document.getElementById("ai-chat-btn");
+          if (aiBtn) {
+            aiBtn.addEventListener("click", function () {
+              isAiMode = !isAiMode;
+              aiBtn.classList.toggle("active", isAiMode);
+              if (typeof showToast === "function") {
+                showToast(isAiMode ? "AI assistant mode on" : "Normal chat mode", "info");
+              }
+            });
+          }
+          const imageInput = document.getElementById("image-input");
+          if (imageInput) {
+            imageInput.addEventListener("change", function () {
+              if (imageInput.files && imageInput.files[0]) {
+                sendImage(imageInput.files[0]).catch(function (err) {
+                  if (typeof showToast === "function") showToast(err.message || "Upload failed", "error");
+                });
+                imageInput.value = "";
+              }
+            });
           }
         });
       </script>

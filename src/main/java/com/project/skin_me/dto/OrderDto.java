@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -25,6 +26,14 @@ public class OrderDto {
     private BigDecimal totalAmount;
     private String orderStatus;
     private String trackingNumber;
+    private LocalDateTime shippedAt;
+    private LocalDateTime outForDeliveryAt;
+    private LocalDateTime deliveredAt;
+    /**
+     * Fulfillment tracking stage 0–4:
+     * 0 = awaiting payment, 1 = prepare, 2 = on shipping, 3 = delivery, 4 = user received.
+     */
+    private int trackingStage;
     private List<OrderItemDto> orderItems;
 
     // Delivery address

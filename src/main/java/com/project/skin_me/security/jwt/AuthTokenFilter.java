@@ -41,6 +41,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             "/.well-known"
     );
 
+    //function that filters the request and response
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -103,6 +104,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    //function that parses the token from the request
     private String parseToken(HttpServletRequest request) {
         // Try Authorization header first
         String header = request.getHeader("Authorization");
@@ -123,6 +125,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         return null;
     }
 
+    //function that clears the token cookie
     private void clearTokenCookie(HttpServletResponse response) {
         jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie("token", null);
         cookie.setPath("/");

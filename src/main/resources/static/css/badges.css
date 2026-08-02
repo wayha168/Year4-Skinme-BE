@@ -140,7 +140,7 @@
 
 /* Product Status Badges - active = green */
 .badge-status {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     padding: 0.35rem 0.75rem;
     border-radius: 8px;
     font-weight: 600;
@@ -164,7 +164,7 @@
 
 /* Order / Payment Status Badges - alert-box style; active/success = green */
 .status-badge {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     padding: 0.35rem 0.75rem;
     border-radius: 8px;
     font-weight: 600;
@@ -257,7 +257,7 @@
 
 /* Status Badge Active - Green (same as alert-box success) */
 .status-badge-active {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -277,7 +277,7 @@
 
 /* Status Badge Inactive - Gray */
 .status-badge-inactive {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;

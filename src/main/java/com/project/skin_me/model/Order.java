@@ -51,6 +51,7 @@ public class Order {
 
     private String trackingNumber;
     private LocalDateTime shippedAt;
+    private LocalDateTime outForDeliveryAt;
     private LocalDateTime deliveredAt;
 
     /**

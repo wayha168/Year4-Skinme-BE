@@ -18,6 +18,11 @@ html[data-theme="rose"] {
   --color-sale-price: #c78d89;
   --color-sale-badge-background: #ffffff;
   --color-reviews: #c78d89;
+  /* English UI: Plus Jakarta Sans; Khmer glyphs fall back to Noto Sans Khmer */
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Khmer", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Khmer UI: Noto Sans Khmer first for correct Khmer shaping */
+  --font-khmer: "Noto Sans Khmer", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-ui: var(--font-sans);
 }
 
 html[data-theme="gold"] {
@@ -56,12 +61,28 @@ html[data-theme="green"] {
   box-sizing: border-box;
 }
 
+html {
+  font-family: var(--font-ui);
+}
+
+html[lang="km"] {
+  --font-ui: var(--font-khmer);
+  line-height: 1.55;
+}
+
+html,
+body {
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /* App shell - Fixed sidebar with scrolling main content */
 .app-shell {
   width: 100%;
   display: flex;
   min-height: 100vh;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: var(--font-ui);
   color: var(--text-dark);
   background: var(--light-bg);
   position: relative;
@@ -1265,7 +1286,7 @@ button.nav-link.dropdown-toggle {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   min-width: 200px;
   max-width: min(400px, calc(100vw - 24px));
-  font-family: sans-serif;
+  font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;

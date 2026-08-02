@@ -1043,8 +1043,16 @@ public class PageController {
     @PreAuthorize("hasRole('ADMIN')")
     public String ordersListPage(@RequestParam(defaultValue = "0") int page, Model model) {
         try {
+            if (page < 0) {
+                page = 0;
+            }
             Pageable pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
             var orderPage = orderService.getAllUserOrders(pageable);
+            if (page > 0 && page >= orderPage.getTotalPages() && orderPage.getTotalPages() > 0) {
+                page = orderPage.getTotalPages() - 1;
+                pageable = PageRequest.of(page, PAGE_SIZE, Sort.by("orderId").descending());
+                orderPage = orderService.getAllUserOrders(pageable);
+            }
             List<OrderDto> orders = orderPage.getContent();
             long totalOrders = orderPage.getTotalElements();
             long completedOrders = orderRepository.countByOrderStatus(OrderStatus.DELIVERED);
@@ -1107,6 +1115,7 @@ public class PageController {
             model.addAttribute("totalPages", totalPages);
             model.addAttribute("hasNext", page < totalPages - 1);
             model.addAttribute("hasPrev", page > 0);
+            model.addAttribute("pageSize", PAGE_SIZE);
             Pageable recentPageable = PageRequest.of(0, 10, Sort.by("orderId").descending());
             model.addAttribute("recentOrders", orderService.getAllUserOrders(recentPageable).getContent());
         } catch (Exception e) {
@@ -1125,6 +1134,7 @@ public class PageController {
             model.addAttribute("totalPages", 0);
             model.addAttribute("hasNext", false);
             model.addAttribute("hasPrev", false);
+            model.addAttribute("pageSize", PAGE_SIZE);
         }
         model.addAttribute("pageTitle", "All Orders");
         return "orders";
@@ -1385,33 +1395,14 @@ public class PageController {
                     ? (session != null && !session.isBlank() ? session.trim() : null)
                     : chatSessionService.getOrCreateSessionId(currentUser);
 
+            // SSR must not call chatbot.skinme.store — that hung the response
+            // (ERR_INCOMPLETE_CHUNKED_ENCODING). Sessions/history load via /api/v1/chat/*.
             List<ChatbotHistoryMessage> chatHistory = List.of();
             List<ChatbotSessionSummary> chatSessions = List.of();
 
             if (isAdmin) {
-                // Load local users first so the page never hangs on chatbot.skinme.store
-                List<ChatbotSessionSummary> fromChatbot = List.of();
-                boolean chatbotTimedOut = false;
                 try {
-                    fromChatbot = java.util.concurrent.CompletableFuture
-                            .supplyAsync(() -> {
-                                ChatbotSessionsResponse sessionsResponse = chatbotService.listSessions(50);
-                                return sessionsResponse.getSessions() != null
-                                        ? sessionsResponse.getSessions()
-                                        : List.<ChatbotSessionSummary>of();
-                            })
-                            .orTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-                            .join();
-                } catch (Exception ex) {
-                    chatbotTimedOut = true;
-                    fromChatbot = List.of();
-                }
-                if (chatbotTimedOut) {
-                    model.addAttribute("sessionsWarning",
-                            "Live chatbot sessions unavailable; showing local user accounts.");
-                }
-                try {
-                    chatSessions = chatSessionService.buildAdminUserSessions(fromChatbot);
+                    chatSessions = chatSessionService.buildAdminUserSessions(List.of());
                 } catch (Exception localEx) {
                     model.addAttribute("sessionsWarning", "Could not load users: " + shortError(localEx));
                     chatSessions = List.of();
@@ -1433,26 +1424,6 @@ public class PageController {
                 }
             }
 
-            if (StringUtils.hasText(sessionId)) {
-                try {
-                    ChatbotHistoryResponse history = java.util.concurrent.CompletableFuture
-                            .supplyAsync(() -> chatbotService.getSessionHistory(sessionId, 80))
-                            .orTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-                            .exceptionally(ex -> null)
-                            .join();
-                    if (history != null && history.getMessages() != null) {
-                        chatHistory = history.getMessages();
-                    } else if (history == null) {
-                        model.addAttribute("historyWarning", "Could not load chat history right now.");
-                    }
-                    if (!isAdmin) {
-                        chatSessionService.saveSessionId(currentUser, sessionId);
-                    }
-                } catch (Exception ex) {
-                    model.addAttribute("historyWarning", "Could not load history: " + shortError(ex));
-                }
-            }
-
             if (isAdmin && StringUtils.hasText(session) && model.getAttribute("selectedSessionUser") == null) {
                 ChatbotSessionSummary fallbackSession = chatSessionService.resolveSessionUser(session)
                         .orElseGet(() -> {
@@ -1462,17 +1433,6 @@ public class PageController {
                             s.setOnline(false);
                             return s;
                         });
-                if (!chatHistory.isEmpty() && !StringUtils.hasText(fallbackSession.getUserEmail())) {
-                    String sender = chatHistory.stream()
-                            .map(ChatbotHistoryMessage::getSender)
-                            .filter(s -> StringUtils.hasText(s) && !"assistant".equalsIgnoreCase(s)
-                                    && !"admin".equalsIgnoreCase(s))
-                            .findFirst().orElse(null);
-                    if (StringUtils.hasText(sender)) {
-                        fallbackSession.setUserName(sender);
-                        fallbackSession.setUserEmail(sender);
-                    }
-                }
                 model.addAttribute("selectedSessionUser", fallbackSession);
             }
 
@@ -1488,6 +1448,7 @@ public class PageController {
             model.addAttribute("currentUserId", currentUser.getId());
             model.addAttribute("currentUserEmail", currentUser.getEmail());
             model.addAttribute("currentUserName", ChatbotService.displayName(currentUser));
+            model.addAttribute("loadChatFromApi", true);
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load chat: " + e.getMessage());
             model.addAttribute("chatHistory", List.<ChatbotHistoryMessage>of());
@@ -1497,6 +1458,7 @@ public class PageController {
             model.addAttribute("sessionId", "");
             model.addAttribute("webSocketUrl", "");
             model.addAttribute("chatRole", "user");
+            model.addAttribute("loadChatFromApi", true);
         }
         model.addAttribute("pageTitle", "Chat");
         return "chat";

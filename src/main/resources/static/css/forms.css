@@ -15,7 +15,7 @@
 .detail-card .card-header h5 {
     margin: 0;
     font-weight: 600;
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -70,7 +70,7 @@
     border-bottom: 1px solid #f1f5f9;
     background: #fafafa;
     margin: 0;
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
 }
 
 .form-row:nth-child(even) {
@@ -138,7 +138,7 @@
 
 /* Form Labels - clean alert-box style */
 .form-label {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     font-weight: 600;
     font-size: 0.875rem;
     color: #334155;
@@ -155,7 +155,7 @@
 /* Form Controls - soft border, clean */
 .form-control,
 .form-select {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     padding: 0.65rem 0.875rem;
@@ -189,7 +189,7 @@ textarea.form-control {
 
 /* Buttons in Forms - clean, not loud */
 .btn-primary {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     background: #334155;
     border: 1px solid #334155;
     color: #fff;
@@ -210,7 +210,7 @@ textarea.form-control {
 }
 
 .btn-outline-secondary {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     border: 1px solid #e2e8f0;
     color: #475569;
     background: #f8fafc;
@@ -228,7 +228,7 @@ textarea.form-control {
 }
 
 .btn-outline-primary {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     border: 1px solid #e2e8f0;
     color: #334155;
     background: #f8fafc;

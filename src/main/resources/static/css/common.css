@@ -24,7 +24,7 @@
 /* Global Styles */
 body {
     background: var(--light-bg);
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", system-ui, sans-serif);
     color: var(--text-dark);
     margin: 0;
     padding: 0;

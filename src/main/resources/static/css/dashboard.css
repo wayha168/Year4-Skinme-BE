@@ -1,7 +1,7 @@
 /* Tailwind-like utilities + custom colours */
 @import "https://cdn.jsdelivr.net/npm/lucide-static@latest/font/lucide.css";
 
-body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:#f3f4f6; }
+body { margin:0; font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", system-ui, sans-serif); background:#f3f4f6; }
 .flex { display:flex; }
 .min-h-screen { min-height:100vh; }
 .bg-gray-100 { background:#f3f4f6; }

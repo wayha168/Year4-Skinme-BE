@@ -36,7 +36,8 @@ public class DeliveryService implements IDeliveryService {
     public Order createShipment(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-        if (order.getOrderStatus() != OrderStatus.PAID && order.getOrderStatus() != OrderStatus.SUCCESS) {
+        if (order.getOrderStatus() != OrderStatus.PAID && order.getOrderStatus() != OrderStatus.SUCCESS
+                && order.getOrderStatus() != OrderStatus.PROCESSING) {
             throw new IllegalStateException(
                     "Order must be paid before creating shipment. Current status: " + order.getOrderStatus());
         }
@@ -52,12 +53,15 @@ public class DeliveryService implements IDeliveryService {
     public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-        if (order.getOrderStatus() != OrderStatus.SHIPPED) {
+        if (order.getOrderStatus() != OrderStatus.SHIPPED && order.getOrderStatus() != OrderStatus.OUT_FOR_DELIVERY) {
             throw new IllegalStateException(
-                    "Order must be shipped before marking as delivered. Current status: " + order.getOrderStatus());
+                    "Order must be shipped or out for delivery before marking as delivered. Current status: " + order.getOrderStatus());
         }
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
+        if (order.getOutForDeliveryAt() == null) {
+            order.setOutForDeliveryAt(LocalDateTime.now());
+        }
         if (logisticCompany != null) {
             order.setLogisticCompany(logisticCompany);
         }

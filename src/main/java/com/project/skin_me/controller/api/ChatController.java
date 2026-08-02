@@ -118,26 +118,26 @@ public class ChatController {
     @GetMapping("/sessions")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> listSessions(
-            @RequestParam(defaultValue = "50") int limit) {
+            @RequestParam(defaultValue = "100") int limit) {
+        int capped = Math.min(Math.max(limit, 1), 500);
+        List<ChatbotSessionSummary> fromBot = List.of();
         try {
-            ChatbotSessionsResponse fromBot = chatbotService.listSessions(Math.min(Math.max(limit, 200), 500));
-            List<ChatbotSessionSummary> merged = chatSessionService.buildAdminUserSessions(
-                    fromBot.getSessions() != null ? fromBot.getSessions() : List.of());
+            ChatbotSessionsResponse botResponse = chatbotService.listSessions(capped);
+            if (botResponse != null && botResponse.getSessions() != null) {
+                fromBot = botResponse.getSessions();
+            }
+        } catch (Exception e) {
+            // Continue with local users only
+        }
+        try {
+            List<ChatbotSessionSummary> merged = chatSessionService.buildAdminUserSessions(fromBot);
             ChatbotSessionsResponse response = new ChatbotSessionsResponse();
             response.setSessions(merged);
             response.setCount(merged.size());
             return ResponseEntity.ok(ApiResponse.ofKey("api.chat.sessions.success", response));
         } catch (Exception e) {
-            try {
-                List<ChatbotSessionSummary> localOnly = chatSessionService.buildAdminUserSessions(List.of());
-                ChatbotSessionsResponse response = new ChatbotSessionsResponse();
-                response.setSessions(localOnly);
-                response.setCount(localOnly.size());
-                return ResponseEntity.ok(ApiResponse.ofKey("api.chat.sessions.success", response));
-            } catch (Exception localEx) {
-                return ResponseEntity.status(502)
-                        .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
-            }
+            return ResponseEntity.status(502)
+                    .body(ApiResponse.ofKey("api.error.generic", new Object[] { e.getMessage() }, null));
         }
     }
 

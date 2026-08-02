@@ -188,8 +188,9 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<OrderDto> getAllUserOrders(Pageable pageable) {
-        Page<Order> page = orderRepository.findAllWithOrderItemsAndUser(pageable);
+        Page<Order> page = orderRepository.findAllPagedWithUser(pageable);
         List<OrderDto> dtos = page.getContent().stream().map(this::convertToDto).toList();
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
@@ -218,6 +219,10 @@ public class OrderService implements IOrderService {
         dto.setTotalAmount(order.getOrderTotalAmount());
         dto.setOrderStatus(order.getOrderStatus() != null ? order.getOrderStatus().toString() : null);
         dto.setTrackingNumber(order.getTrackingNumber());
+        dto.setShippedAt(order.getShippedAt());
+        dto.setOutForDeliveryAt(order.getOutForDeliveryAt());
+        dto.setDeliveredAt(order.getDeliveredAt());
+        dto.setTrackingStage(resolveTrackingStage(order.getOrderStatus()));
         dto.setDeliveryStreet(order.getDeliveryStreet());
         dto.setDeliveryCity(order.getDeliveryCity());
         dto.setDeliveryProvince(order.getDeliveryProvince());
@@ -228,7 +233,7 @@ public class OrderService implements IOrderService {
         dto.setLogisticCompany(order.getLogisticCompany() != null ? order.getLogisticCompany().name() : null);
 
         List<OrderItemDto> itemDtos = new ArrayList<>();
-        if (order.getOrderItems() != null) {
+        if (order.getOrderItems() != null && org.hibernate.Hibernate.isInitialized(order.getOrderItems())) {
             for (OrderItem item : order.getOrderItems()) {
                 OrderItemDto itemDto = new OrderItemDto();
                 Product product = item.getProduct();
@@ -246,6 +251,23 @@ public class OrderService implements IOrderService {
         }
         dto.setOrderItems(itemDtos);
         return dto;
+    }
+
+    /**
+     * Map order status to fulfillment tracking stage:
+     * 0 awaiting payment, 1 prepare, 2 on shipping, 3 delivery, 4 user received.
+     */
+    public static int resolveTrackingStage(OrderStatus status) {
+        if (status == null) {
+            return 0;
+        }
+        return switch (status) {
+            case PAID, SUCCESS, PROCESSING -> 1;
+            case SHIPPED -> 2;
+            case OUT_FOR_DELIVERY -> 3;
+            case DELIVERED, COMPLETED -> 4;
+            default -> 0;
+        };
     }
 
     /**
@@ -434,7 +456,8 @@ public class OrderService implements IOrderService {
                         .data(Map.of(
                                 "orderId", managedOrder.getId(),
                                 "status", "PAID",
-                                "message", "Payment confirmed successfully"))
+                                "trackingStage", 1,
+                                "message", "Payment confirmed — order is being prepared"))
                         .build();
                 messagingTemplate.convertAndSend("/topic/orders", update);
             }
@@ -483,7 +506,7 @@ public class OrderService implements IOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         OrderStatus st = order.getOrderStatus();
-        if (st != OrderStatus.PAID && st != OrderStatus.SUCCESS) {
+        if (st != OrderStatus.PAID && st != OrderStatus.SUCCESS && st != OrderStatus.PROCESSING) {
             throw new IllegalStateException("Order must be paid before shipping. Current status: " + st);
         }
 
@@ -513,7 +536,9 @@ public class OrderService implements IOrderService {
                     .data(Map.of(
                             "orderId", order.getId(),
                             "status", "SHIPPED",
-                            "trackingNumber", trackingNumber))
+                            "trackingStage", 2,
+                            "trackingNumber", trackingNumber,
+                            "message", "Your order is on shipping"))
                     .build();
             messagingTemplate.convertAndSend("/topic/orders", update);
         } catch (Exception e) {
@@ -525,17 +550,63 @@ public class OrderService implements IOrderService {
 
     @Override
     @Transactional
-    public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
+    public Order markOutForDelivery(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         if (order.getOrderStatus() != OrderStatus.SHIPPED) {
             throw new IllegalStateException(
-                    "Order must be shipped before marking delivered. Current status: " + order.getOrderStatus());
+                    "Order must be shipped before marking out for delivery. Current status: " + order.getOrderStatus());
+        }
+
+        order.setOrderStatus(OrderStatus.OUT_FOR_DELIVERY);
+        order.setOutForDeliveryAt(LocalDateTime.now());
+        Order savedOrder = orderRepository.save(order);
+
+        try {
+            notificationService.notifyDeliveryUpdate(
+                    order.getUser().getId().toString(),
+                    order.getId().toString(),
+                    "OUT_FOR_DELIVERY");
+
+            RealTimeUpdateDto update = RealTimeUpdateDto.builder()
+                    .entityType("ORDER")
+                    .entityId(order.getId().toString())
+                    .action("UPDATE")
+                    .timestamp(LocalDateTime.now())
+                    .affectedUsers(order.getUser().getId().toString())
+                    .data(Map.of(
+                            "orderId", order.getId(),
+                            "status", "OUT_FOR_DELIVERY",
+                            "trackingStage", 3,
+                            "trackingNumber", order.getTrackingNumber() != null ? order.getTrackingNumber() : "",
+                            "message", "Your order is out for delivery"))
+                    .build();
+            messagingTemplate.convertAndSend("/topic/orders", update);
+        } catch (Exception e) {
+            System.err.println("Failed to send out-for-delivery notification: " + e.getMessage());
+        }
+
+        return savedOrder;
+    }
+
+    @Override
+    @Transactional
+    public Order markAsDelivered(Long orderId, LogisticCompany logisticCompany) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+        OrderStatus st = order.getOrderStatus();
+        if (st != OrderStatus.SHIPPED && st != OrderStatus.OUT_FOR_DELIVERY) {
+            throw new IllegalStateException(
+                    "Order must be shipped or out for delivery before marking delivered. Current status: " + st);
         }
 
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
+        if (order.getOutForDeliveryAt() == null && st == OrderStatus.SHIPPED) {
+            order.setOutForDeliveryAt(LocalDateTime.now());
+        }
         if (logisticCompany != null) {
             order.setLogisticCompany(logisticCompany);
         }
@@ -558,6 +629,7 @@ public class OrderService implements IOrderService {
                     .data(Map.of(
                             "orderId", order.getId(),
                             "status", "DELIVERED",
+                            "trackingStage", 4,
                             "message", "Your order has been delivered"))
                     .build();
             messagingTemplate.convertAndSend("/topic/orders", update);

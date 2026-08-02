@@ -6,7 +6,7 @@
 /* Base - same pattern as login .alert-box */
 .alert-box,
 .alert {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     padding: 12px 14px;
     border-radius: 8px;
     margin-bottom: 1rem;
@@ -121,7 +121,7 @@
 
 /* Legacy .alert-custom → same as base .alert */
 .alert-custom {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     padding: 12px 14px;
     border-radius: 8px;
     margin-bottom: 1rem;

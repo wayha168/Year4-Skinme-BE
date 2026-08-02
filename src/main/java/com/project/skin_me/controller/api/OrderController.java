@@ -163,6 +163,25 @@ public class OrderController {
         }
     }
 
+    @PutMapping("/{orderId}/out-for-delivery")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse> markOutForDelivery(@PathVariable Long orderId) {
+        try {
+            Order order = orderService.markOutForDelivery(orderId);
+            OrderDto orderDto = orderService.convertToDto(order);
+            return ResponseEntity.ok(new ApiResponse("Order is out for delivery", orderDto));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND)
+                    .body(new ApiResponse("Order not found", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(BAD_REQUEST)
+                    .body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Error marking order out for delivery: " + e.getMessage(), null));
+        }
+    }
+
     @PutMapping("/{orderId}/deliver")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse> markAsDelivered(

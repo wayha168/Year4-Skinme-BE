@@ -45,6 +45,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o")
     Page<Order> findAllWithOrderItemsAndUser(Pageable pageable);
 
+    /** Paged list without collection fetch — correct LIMIT/OFFSET for admin order tables. */
+    @Query(value = "SELECT o FROM Order o LEFT JOIN FETCH o.user",
+           countQuery = "SELECT COUNT(o) FROM Order o")
+    Page<Order> findAllPagedWithUser(Pageable pageable);
+
     @Query(value = "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.orderItems oi LEFT JOIN FETCH oi.product p LEFT JOIN FETCH p.brand WHERE o.user.id = :userId",
            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId")
     Page<Order> findByUserIdWithOrderItems(@Param("userId") Long userId, Pageable pageable);

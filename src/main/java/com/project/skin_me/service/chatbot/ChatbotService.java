@@ -113,41 +113,64 @@ public class ChatbotService {
     }
 
     public ChatbotSessionsResponse listSessions(int limit) {
-        URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/v1/chat/sessions")
-                .queryParam("limit", limit)
-                .queryParam("admin_key", StringUtils.hasText(adminKey) ? adminKey : null)
-                .build()
-                .toUri();
-        HttpHeaders headers = adminHeaders();
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<ChatbotSessionsResponse> response = restTemplate.exchange(
-                uri, HttpMethod.GET, entity, ChatbotSessionsResponse.class);
-        ChatbotSessionsResponse body = response.getBody();
-        if (body == null || body.getSessions() == null) {
-            body = new ChatbotSessionsResponse();
-            body.setCount(0);
-            body.setSessions(Collections.emptyList());
+        try {
+            URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/v1/chat/sessions")
+                    .queryParam("limit", Math.max(1, Math.min(limit, 500)))
+                    .queryParam("admin_key", StringUtils.hasText(adminKey) ? adminKey : null)
+                    .build()
+                    .toUri();
+            HttpHeaders headers = adminHeaders();
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<ChatbotSessionsResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, entity, ChatbotSessionsResponse.class);
+            ChatbotSessionsResponse body = response.getBody();
+            if (body == null || body.getSessions() == null) {
+                return emptySessions();
+            }
+            return body;
+        } catch (RestClientException e) {
+            log.warn("Chatbot listSessions failed: {}", e.getMessage());
+            return emptySessions();
         }
-        return body;
     }
 
     public ChatbotHistoryResponse getSessionHistory(String sessionId, int limit) {
-        URI uri = UriComponentsBuilder
-                .fromUriString(baseUrl + "/v1/chat/sessions/{sessionId}/history")
-                .queryParam("limit", limit)
-                .queryParam("admin_key", StringUtils.hasText(adminKey) ? adminKey : null)
-                .buildAndExpand(sessionId)
-                .toUri();
-        HttpHeaders headers = adminHeaders();
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<ChatbotHistoryResponse> response = restTemplate.exchange(
-                uri, HttpMethod.GET, entity, ChatbotHistoryResponse.class);
-        ChatbotHistoryResponse body = response.getBody();
-        if (body == null) {
-            body = new ChatbotHistoryResponse();
-            body.setSessionId(sessionId);
-            body.setMessages(Collections.emptyList());
+        try {
+            URI uri = UriComponentsBuilder
+                    .fromUriString(baseUrl + "/v1/chat/sessions/{sessionId}/history")
+                    .queryParam("limit", Math.max(1, Math.min(limit, 500)))
+                    .queryParam("admin_key", StringUtils.hasText(adminKey) ? adminKey : null)
+                    .buildAndExpand(sessionId)
+                    .toUri();
+            HttpHeaders headers = adminHeaders();
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<ChatbotHistoryResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, entity, ChatbotHistoryResponse.class);
+            ChatbotHistoryResponse body = response.getBody();
+            if (body == null) {
+                return emptyHistory(sessionId);
+            }
+            if (body.getMessages() == null) {
+                body.setMessages(Collections.emptyList());
+            }
+            return body;
+        } catch (RestClientException e) {
+            log.warn("Chatbot getSessionHistory({}) failed: {}", sessionId, e.getMessage());
+            return emptyHistory(sessionId);
         }
+    }
+
+    private static ChatbotSessionsResponse emptySessions() {
+        ChatbotSessionsResponse body = new ChatbotSessionsResponse();
+        body.setCount(0);
+        body.setSessions(Collections.emptyList());
+        return body;
+    }
+
+    private static ChatbotHistoryResponse emptyHistory(String sessionId) {
+        ChatbotHistoryResponse body = new ChatbotHistoryResponse();
+        body.setSessionId(sessionId);
+        body.setMessages(Collections.emptyList());
         return body;
     }
 

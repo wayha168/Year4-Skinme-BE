@@ -13,9 +13,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+//component that handles unauthorized requests
 @Component
 public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
 
+    //function that handles unauthorized requests
     @Override
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,

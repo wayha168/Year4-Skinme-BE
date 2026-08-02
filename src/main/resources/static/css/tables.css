@@ -9,7 +9,7 @@
 .payment-table,
 .audit-table,
 .delivery-table {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     background: var(--white);
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -92,7 +92,7 @@
 
 /* Specific Table Types */
 .product-table {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     background: var(--white);
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -149,7 +149,7 @@
 .btn-action,
 .table-actions button,
 .table-actions a {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     width: 32px;
     height: 32px;
     padding: 0;
@@ -205,7 +205,7 @@
 
 /* Status Badge - alert-box style (soft bg + text) */
 .status-badge-active {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -224,7 +224,7 @@
 }
 
 .status-badge-inactive {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -260,7 +260,7 @@ table .btn-group {
 
 .table-actions .btn-group .btn,
 table .btn-group .btn {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     width: 32px;
     height: 32px;
     padding: 0;
@@ -302,7 +302,7 @@ table .btn-danger:hover {
 
 /* Price / amount badges - soft style like alert-box */
 .price-badge {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     background: #f0fdf4;
     color: #166534;
     border: 1px solid #bbf7d0;
@@ -314,7 +314,7 @@ table .btn-danger:hover {
 }
 
 .amount-badge {
-    font-family: sans-serif;
+    font-family: var(--font-ui, "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif);
     background: #f8fafc;
     color: #334155;
     border: 1px solid #e2e8f0;

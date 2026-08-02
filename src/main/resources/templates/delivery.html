@@ -95,7 +95,10 @@
                     <span th:if="${delivery.orderStatus?.toString() == 'DELIVERED' || delivery.orderStatus?.toString() == 'COMPLETED'}" class="status-badge-active">
                       <i class="bi bi-check-circle-fill"></i> <span th:text="${delivery.orderStatus}">DELIVERED</span>
                     </span>
-                    <span th:if="${delivery.orderStatus?.toString() != 'DELIVERED' && delivery.orderStatus?.toString() != 'COMPLETED'}" class="status-badge-inactive" th:text="${delivery.orderStatus ?: 'PENDING'}">PENDING</span>
+                    <span th:if="${delivery.orderStatus?.toString() == 'OUT_FOR_DELIVERY'}" class="status-badge-inactive">
+                      <i class="bi bi-geo-alt"></i> OUT FOR DELIVERY
+                    </span>
+                    <span th:if="${delivery.orderStatus?.toString() != 'DELIVERED' && delivery.orderStatus?.toString() != 'COMPLETED' && delivery.orderStatus?.toString() != 'OUT_FOR_DELIVERY'}" class="status-badge-inactive" th:text="${delivery.orderStatus ?: 'PENDING'}">PENDING</span>
                   </td>
                   <td>
                     <span th:if="${delivery.shippedAt != null}" class="text-dark" th:text="${#temporals.format(delivery.shippedAt, 'MMM dd, yyyy HH:mm')}">-</span>
@@ -118,20 +121,29 @@
                     <button 
                       type="button"
                       class="btn-action" 
-                      th:if="${delivery.orderStatus != null and (delivery.orderStatus.name() == 'PAID' or delivery.orderStatus.name() == 'SUCCESS')}"
+                      th:if="${delivery.orderStatus != null and (delivery.orderStatus.name() == 'PAID' or delivery.orderStatus.name() == 'SUCCESS' or delivery.orderStatus.name() == 'PROCESSING')}"
                       th:attr="onclick='markOrderShipped(' + ${delivery.orderId} + ')'"
-                      title="Mark shipped"
+                      title="On shipping"
                     >
-                      <i class="bi bi-box-seam"></i>
+                      <i class="bi bi-truck"></i>
                     </button>
                     <button 
                       type="button"
                       class="btn-action" 
                       th:if="${delivery.orderStatus != null and delivery.orderStatus.name() == 'SHIPPED'}"
-                      th:attr="onclick='markOrderDelivered(' + ${delivery.orderId} + ')'"
-                      title="Mark delivered"
+                      th:attr="onclick='markOrderOutForDelivery(' + ${delivery.orderId} + ')'"
+                      title="Out for delivery"
                     >
-                      <i class="bi bi-check2-circle"></i>
+                      <i class="bi bi-geo-alt"></i>
+                    </button>
+                    <button 
+                      type="button"
+                      class="btn-action" 
+                      th:if="${delivery.orderStatus != null and (delivery.orderStatus.name() == 'SHIPPED' or delivery.orderStatus.name() == 'OUT_FOR_DELIVERY')}"
+                      th:attr="onclick='markOrderDelivered(' + ${delivery.orderId} + ')'"
+                      title="User received"
+                    >
+                      <i class="bi bi-person-check"></i>
                     </button>
                     </div>
                   </td>
@@ -167,9 +179,9 @@
         }
         function markOrderShipped(orderId) {
           showConfirmModal({
-            title: 'Mark order as shipped',
-            message: 'Order #' + orderId + ' will be marked as shipped. A tracking number will be assigned.',
-            confirmText: 'Mark shipped',
+            title: 'Mark on shipping',
+            message: 'Order #' + orderId + ' will move to On Shipping. A tracking number will be assigned.',
+            confirmText: 'On shipping',
             cancelText: 'Cancel',
             danger: false
           }).then(function(ok) {
@@ -182,7 +194,31 @@
               if (!r.ok) return r.json().then(function(j) { throw new Error((j && j.message) || r.status); });
               return r.json();
             }).then(function() {
-              if (typeof showToast === 'function') showToast('Order marked as shipped', 'success');
+              if (typeof showToast === 'function') showToast('Order is on shipping', 'success');
+              setTimeout(function() { window.location.reload(); }, 450);
+            }).catch(function(e) {
+              if (typeof showToast === 'function') showToast(e.message || 'Could not update order', 'error');
+            });
+          });
+        }
+        function markOrderOutForDelivery(orderId) {
+          showConfirmModal({
+            title: 'Out for delivery',
+            message: 'Order #' + orderId + ' will be marked as out for delivery.',
+            confirmText: 'Out for delivery',
+            cancelText: 'Cancel',
+            danger: false
+          }).then(function(ok) {
+            if (!ok) return;
+            fetch(apiPrefix() + '/orders/' + orderId + '/out-for-delivery', {
+              method: 'PUT',
+              credentials: 'same-origin',
+              headers: orderPutHeaders()
+            }).then(function(r) {
+              if (!r.ok) return r.json().then(function(j) { throw new Error((j && j.message) || r.status); });
+              return r.json();
+            }).then(function() {
+              if (typeof showToast === 'function') showToast('Order is out for delivery', 'success');
               setTimeout(function() { window.location.reload(); }, 450);
             }).catch(function(e) {
               if (typeof showToast === 'function') showToast(e.message || 'Could not update order', 'error');
@@ -191,9 +227,9 @@
         }
         function markOrderDelivered(orderId) {
           showConfirmModal({
-            title: 'Mark order as delivered',
-            message: 'Confirm that order #' + orderId + ' has been delivered to the customer.',
-            confirmText: 'Mark delivered',
+            title: 'Mark user received',
+            message: 'Confirm that the customer has received order #' + orderId + '.',
+            confirmText: 'User received',
             cancelText: 'Cancel',
             danger: false
           }).then(function(ok) {
@@ -206,7 +242,7 @@
               if (!r.ok) return r.json().then(function(j) { throw new Error((j && j.message) || r.status); });
               return r.json();
             }).then(function() {
-              if (typeof showToast === 'function') showToast('Order marked as delivered', 'success');
+              if (typeof showToast === 'function') showToast('Order received by customer', 'success');
               setTimeout(function() { window.location.reload(); }, 450);
             }).catch(function(e) {
               if (typeof showToast === 'function') showToast(e.message || 'Could not update order', 'error');
